@@ -12,7 +12,6 @@ import interactionPlugin from "@fullcalendar/interaction";
 import type { EventContentArg } from "@fullcalendar/core";
 type EventClassNamesArg = any;
 
-
 type Estado = "confirmada" | "pendiente" | "cancelada";
 
 type Reserva = {
@@ -96,17 +95,20 @@ export default function ReservasPage() {
   const [vista, setVista] = useState<Vista>("calendario");
 
   const [showDetalle, setShowDetalle] = useState(false);
-  const [reservaSeleccionada, setReservaSeleccionada] = useState<Reserva | null>(null);
+  const [reservaSeleccionada, setReservaSeleccionada] =
+    useState<Reserva | null>(null);
 
   const [puntosActivo, setPuntosActivo] = useState(false);
   const [puntosPorEuro, setPuntosPorEuro] = useState<number>(1);
 
   const [showGastoModal, setShowGastoModal] = useState(false);
-  const [reservaParaGasto, setReservaParaGasto] = useState<Reserva | null>(null);
+  const [reservaParaGasto, setReservaParaGasto] = useState<Reserva | null>(
+    null
+  );
   const [gastoInput, setGastoInput] = useState<string>("");
 
-  // detectar dark sin tocar globals.css
   const [isDark, setIsDark] = useState(false);
+
   useEffect(() => {
     const root = document.documentElement;
     const update = () => setIsDark(root.classList.contains("dark"));
@@ -124,8 +126,6 @@ export default function ReservasPage() {
           "--fc-neutral-bg-color": "rgba(255,255,255,0.04)",
           "--fc-today-bg-color": "rgba(59,130,246,0.10)",
           "--fc-list-event-hover-bg-color": "rgba(255,255,255,0.06)",
-
-          // Botones (dark)
           "--fc-button-text-color": "rgba(248,250,252,1)",
           "--fc-button-bg-color": "rgba(255,255,255,0.08)",
           "--fc-button-border-color": "rgba(255,255,255,0.14)",
@@ -134,8 +134,6 @@ export default function ReservasPage() {
           "--fc-button-active-bg-color": "rgba(255,255,255,0.18)",
           "--fc-button-active-border-color": "rgba(255,255,255,0.22)",
           "--fc-button-active-text-color": "rgba(255,255,255,1)",
-
-          // Texto eventos (dark)
           "--fc-event-text-color": "rgba(248,250,252,1)",
           "--fc-more-link-text-color": "rgba(226,232,240,1)",
         }
@@ -145,8 +143,6 @@ export default function ReservasPage() {
           "--fc-neutral-bg-color": "rgba(2,6,23,0.03)",
           "--fc-today-bg-color": "rgba(59,130,246,0.08)",
           "--fc-list-event-hover-bg-color": "rgba(2,6,23,0.04)",
-
-          // Botones (claro)
           "--fc-button-text-color": "rgba(15,23,42,1)",
           "--fc-button-bg-color": "rgba(255,255,255,0.95)",
           "--fc-button-border-color": "rgba(2,6,23,0.12)",
@@ -155,8 +151,6 @@ export default function ReservasPage() {
           "--fc-button-active-bg-color": "rgba(2,6,23,0.08)",
           "--fc-button-active-border-color": "rgba(2,6,23,0.16)",
           "--fc-button-active-text-color": "rgba(15,23,42,1)",
-
-          // Texto eventos (claro)
           "--fc-event-text-color": "rgba(15,23,42,1)",
           "--fc-more-link-text-color": "rgba(15,23,42,0.85)",
         };
@@ -165,15 +159,43 @@ export default function ReservasPage() {
   }, [isDark]);
 
   useEffect(() => {
+    let alive = true;
+
+    const cargarRestaurante = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session?.user) return;
+
+      const id = await getRestauranteUsuario();
+
+      if (alive) {
+        setRestauranteId(id);
+      }
+    };
+
+    cargarRestaurante();
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) return;
+      if (!session?.user) {
+        if (alive) setRestauranteId(null);
+        return;
+      }
+
       const id = await getRestauranteUsuario();
-      setRestauranteId(id);
+
+      if (alive) {
+        setRestauranteId(id);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      alive = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const cargarConfigPuntos = async (rid: string) => {
@@ -227,7 +249,10 @@ export default function ReservasPage() {
           fechaDate.toDateString() === new Date().toDateString()
             ? "Hoy"
             : fechaDate.toLocaleDateString(),
-        hora: fechaDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+        hora: fechaDate.toLocaleTimeString([], {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
         personas: r.personas,
         estado: r.estado,
         atendida: r.atendida,
@@ -248,26 +273,104 @@ export default function ReservasPage() {
   const actualizarEstado = async (id: string, nuevoEstado: Estado) => {
     if (!restauranteId) return;
 
+    const reservaActual =
+      reservas.find((r) => r.id === id) ||
+      (reservaSeleccionada?.id === id ? reservaSeleccionada : null);
+
+    const payload =
+      nuevoEstado === "cancelada"
+        ? { estado: nuevoEstado, atendida: null }
+        : { estado: nuevoEstado };
+
     const { error } = await supabase
       .from("reservas")
-      .update({ estado: nuevoEstado })
+      .update(payload)
       .eq("id", id)
       .eq("restaurante_id", restauranteId);
 
     if (error) return;
 
-    setReservas((prev) => prev.map((r) => (r.id === id ? { ...r, estado: nuevoEstado } : r)));
+    setReservas((prev) =>
+      prev.map((r) =>
+        r.id === id
+          ? {
+              ...r,
+              estado: nuevoEstado,
+              atendida: nuevoEstado === "cancelada" ? null : r.atendida,
+            }
+          : r
+      )
+    );
+
+    if (reservaSeleccionada?.id === id) {
+      setReservaSeleccionada((prev) =>
+        prev
+          ? {
+              ...prev,
+              estado: nuevoEstado,
+              atendida: nuevoEstado === "cancelada" ? null : prev.atendida,
+            }
+          : prev
+      );
+    }
+
+    if (
+      reservaActual?.cliente_id &&
+      (nuevoEstado === "cancelada" || nuevoEstado === "confirmada")
+    ) {
+      const fechaReserva = reservaActual.fecha_hora_reserva
+        ? new Date(reservaActual.fecha_hora_reserva).toLocaleString("es-ES", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })
+        : null;
+
+      const titulo =
+        nuevoEstado === "cancelada"
+          ? "Reserva cancelada"
+          : "Reserva confirmada";
+
+      const mensaje =
+        nuevoEstado === "cancelada"
+          ? fechaReserva
+            ? `El restaurante ha cancelado tu reserva del ${fechaReserva}.`
+            : "El restaurante ha cancelado tu reserva."
+          : fechaReserva
+          ? `El restaurante ha confirmado tu reserva del ${fechaReserva}.`
+          : "El restaurante ha confirmado tu reserva.";
+
+      await supabase.from("cliente_notificaciones").insert({
+        restaurante_id: restauranteId,
+        cliente_id: reservaActual.cliente_id,
+        tipo: "reserva",
+        titulo,
+        mensaje,
+        url: null,
+        leida: false,
+      });
+    }
 
     try {
       await fetch("https://n8n.gastrohelp.es/webhook/reserva-estado-cambiado", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reserva_id: id, estado: nuevoEstado, restaurante_id: restauranteId }),
+        body: JSON.stringify({
+          reserva_id: id,
+          estado: nuevoEstado,
+          restaurante_id: restauranteId,
+        }),
       });
     } catch {}
   };
 
-  const marcarHaVenido = async (reserva: Reserva, valor: boolean, gastoEur?: number | null) => {
+  const marcarHaVenido = async (
+    reserva: Reserva,
+    valor: boolean,
+    gastoEur?: number | null
+  ) => {
     if (!restauranteId) return;
     if (procesando === reserva.id || reserva.atendida !== null) return;
 
@@ -291,7 +394,28 @@ export default function ReservasPage() {
     }
 
     if (valor === false) {
-      setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, atendida: false } : r)));
+      setReservas((prev) =>
+        prev.map((r) => (r.id === reserva.id ? { ...r, atendida: false } : r))
+      );
+
+      if (reservaSeleccionada?.id === reserva.id) {
+        setReservaSeleccionada((prev) =>
+          prev ? { ...prev, atendida: false } : prev
+        );
+      }
+
+      if (reserva.cliente_id) {
+        await supabase.from("cliente_notificaciones").insert({
+          restaurante_id: reserva.restaurante_id,
+          cliente_id: reserva.cliente_id,
+          tipo: "reserva",
+          titulo: "Reserva marcada como no asistida",
+          mensaje: "El restaurante ha marcado que no asististe a esta reserva.",
+          url: null,
+          leida: false,
+        });
+      }
+
       setProcesando(null);
       return;
     }
@@ -325,7 +449,12 @@ export default function ReservasPage() {
       clienteIdFinal = nuevoCliente.id;
     }
 
-    if (typeof gastoEur === "number" && Number.isFinite(gastoEur) && gastoEur > 0) {
+    const gastoValido =
+      typeof gastoEur === "number" &&
+      Number.isFinite(gastoEur) &&
+      gastoEur > 0;
+
+    if (gastoValido) {
       await supabase.rpc("rpc_registrar_gasto", {
         p_cliente_id: clienteIdFinal,
         p_restaurante_id: reserva.restaurante_id,
@@ -343,12 +472,39 @@ export default function ReservasPage() {
         tipo: "visita",
         personas: reserva.personas,
         created_at: fechaEvento.toISOString(),
-        gasto_eur: typeof gastoEur === "number" && Number.isFinite(gastoEur) ? gastoEur : null,
+        gasto_eur: gastoValido ? gastoEur : null,
       },
       { onConflict: "reserva_id" }
     );
 
-    setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, atendida: true } : r)));
+    const puntosCalculados =
+      gastoValido && puntosActivo
+        ? Math.floor(Number(gastoEur) * Number(puntosPorEuro))
+        : 0;
+
+    await supabase.from("cliente_notificaciones").insert({
+      restaurante_id: reserva.restaurante_id,
+      cliente_id: clienteIdFinal,
+      tipo: gastoValido && puntosActivo ? "puntos" : "info",
+      titulo:
+        gastoValido && puntosActivo ? "Puntos añadidos" : "Visita registrada",
+      mensaje:
+        gastoValido && puntosActivo
+          ? `El restaurante ha registrado tu visita con un gasto de ${gastoEur}€. Se han añadido ${puntosCalculados} puntos a tu cuenta.`
+          : "El restaurante ha registrado tu visita en el historial.",
+      url: null,
+      leida: false,
+    });
+
+    setReservas((prev) =>
+      prev.map((r) => (r.id === reserva.id ? { ...r, atendida: true } : r))
+    );
+
+    if (reservaSeleccionada?.id === reserva.id) {
+      setReservaSeleccionada((prev) =>
+        prev ? { ...prev, atendida: true } : prev
+      );
+    }
 
     fetch("https://n8n.gastrohelp.es/webhook/resena-email", {
       method: "POST",
@@ -362,7 +518,7 @@ export default function ReservasPage() {
         telefono: reserva.telefono,
         resena_solicitada: reserva.resena_solicitada,
         ya_dejo_resena: reserva.ya_dejo_resena,
-        gasto_eur: typeof gastoEur === "number" && Number.isFinite(gastoEur) ? gastoEur : null,
+        gasto_eur: gastoValido ? gastoEur : null,
         puntos_activo: puntosActivo,
         puntos_por_euro: puntosPorEuro,
       }),
@@ -425,8 +581,13 @@ export default function ReservasPage() {
   };
 
   const eventClassNames = (arg: EventClassNamesArg) => {
-    const estado = (arg.event.extendedProps as any)?.estado as Estado | undefined;
-    const atendida = (arg.event.extendedProps as any)?.atendida as boolean | null | undefined;
+    const estado = (arg.event.extendedProps as any)?.estado as
+      | Estado
+      | undefined;
+    const atendida = (arg.event.extendedProps as any)?.atendida as
+      | boolean
+      | null
+      | undefined;
 
     const base = [
       "!border",
@@ -484,47 +645,55 @@ export default function ReservasPage() {
   };
 
   const eventContent = (arg: EventContentArg) => {
-  const estado = (arg.event.extendedProps as any)?.estado as Estado | undefined;
-  const atendida = (arg.event.extendedProps as any)?.atendida as boolean | null | undefined;
+    const estado = (arg.event.extendedProps as any)?.estado as
+      | Estado
+      | undefined;
+    const atendida = (arg.event.extendedProps as any)?.atendida as
+      | boolean
+      | null
+      | undefined;
 
-  const dotClass =
-    estado === "cancelada"
-      ? "bg-rose-500 dark:bg-rose-300"
-      : estado === "pendiente"
-      ? "bg-amber-500 dark:bg-amber-300"
-      : atendida === true
-      ? "bg-emerald-500 dark:bg-emerald-300"
-      : "bg-sky-500 dark:bg-sky-300";
+    const dotClass =
+      estado === "cancelada"
+        ? "bg-rose-500 dark:bg-rose-300"
+        : estado === "pendiente"
+        ? "bg-amber-500 dark:bg-amber-300"
+        : atendida === true
+        ? "bg-emerald-500 dark:bg-emerald-300"
+        : "bg-sky-500 dark:bg-sky-300";
 
-  const txt = isDark ? "#f8fafc" : "#0f172a";
+    const txt = isDark ? "#f8fafc" : "#0f172a";
 
-  return (
-    <div className="px-2 py-1.5 min-w-0" style={{ color: txt }}>
-      <div className="flex items-center gap-2 min-w-0" style={{ color: txt }}>
-        <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-        {arg.timeText ? (
+    return (
+      <div className="px-2 py-1.5 min-w-0" style={{ color: txt }}>
+        <div className="flex items-center gap-2 min-w-0" style={{ color: txt }}>
+          <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
+          {arg.timeText ? (
+            <span
+              className="shrink-0 text-[11px] font-semibold"
+              style={{ color: txt }}
+            >
+              {arg.timeText}
+            </span>
+          ) : null}
           <span
-            className="shrink-0 text-[11px] font-semibold"
+            className="truncate text-[11px] font-medium"
             style={{ color: txt }}
           >
-            {arg.timeText}
+            {arg.event.title}
           </span>
-        ) : null}
-        <span className="truncate text-[11px] font-medium" style={{ color: txt }}>
-          {arg.event.title}
-        </span>
+        </div>
       </div>
-    </div>
-  );
-};
-
+    );
+  };
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">Reservas</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
+            Reservas
+          </h1>
 
           <div className="hidden sm:flex items-center rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
             <button
@@ -584,19 +753,21 @@ export default function ReservasPage() {
 
           <button
             type="button"
+            disabled={!restauranteId}
             onClick={() => setOpenModal(true)}
-            className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm shadow-sm hover:shadow-md transition-shadow dark:bg-white dark:text-slate-900"
+            className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm shadow-sm hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-slate-900"
           >
             Añadir reserva
           </button>
         </div>
       </div>
 
-      {/* Controles */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="inline-flex items-center gap-2">
-            <span className="text-xs text-slate-600 dark:text-slate-300">Filtro</span>
+            <span className="text-xs text-slate-600 dark:text-slate-300">
+              Filtro
+            </span>
             <select
               value={filtro}
               onChange={(e) => setFiltro(e.target.value as Filtro)}
@@ -619,16 +790,18 @@ export default function ReservasPage() {
         </div>
 
         <div className="text-xs text-slate-500 dark:text-slate-300">
-          {reservasFiltradas.length} reserva{reservasFiltradas.length === 1 ? "" : "s"}
+          {reservasFiltradas.length} reserva
+          {reservasFiltradas.length === 1 ? "" : "s"}
         </div>
       </div>
 
-      {/* CALENDARIO */}
       {vista === "calendario" && (
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200/70 bg-white/70 backdrop-blur dark:border-white/10 dark:bg-white/5">
             <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">Calendario</div>
+              <div className="text-sm font-semibold text-slate-900 dark:text-white">
+                Calendario
+              </div>
               <div className="text-xs text-slate-500 dark:text-slate-300">
                 Click en un evento para ver acciones
               </div>
@@ -670,14 +843,19 @@ export default function ReservasPage() {
               eventDidMount={(info) => {
                 const color = isDark ? "#f8fafc" : "#0f172a";
 
-                // forzar color incluso si FullCalendar lo marca con !important
-                (info.el as HTMLElement).style.setProperty("color", color, "important");
+                (info.el as HTMLElement).style.setProperty(
+                  "color",
+                  color,
+                  "important"
+                );
 
                 info.el
                   .querySelectorAll<HTMLElement>(
                     ".fc-event-main, .fc-event-main-frame, .fc-event-time, .fc-event-title, .fc-event-title-container"
                   )
-                  .forEach((el) => el.style.setProperty("color", color, "important"));
+                  .forEach((el) =>
+                    el.style.setProperty("color", color, "important")
+                  );
               }}
               eventClassNames={eventClassNames}
               eventContent={eventContent}
@@ -686,33 +864,77 @@ export default function ReservasPage() {
         </div>
       )}
 
-      {/* TABLA */}
       {vista === "tabla" && (
         <div className="card overflow-hidden">
-          <div className="overflow-x-auto">
+          <div
+            className="overflow-x-auto reservas-table"
+            style={{
+              ["--tbl-text" as any]: isDark
+                ? "rgba(248,250,252,1)"
+                : "rgba(15,23,42,1)",
+              ["--tbl-head" as any]: isDark
+                ? "rgba(226,232,240,1)"
+                : "rgba(51,65,85,1)",
+              ["--tbl-border" as any]: isDark
+                ? "rgba(255,255,255,0.10)"
+                : "rgba(2,6,23,0.12)",
+            }}
+          >
+            <style jsx>{`
+              .reservas-table table {
+                border-collapse: collapse !important;
+              }
+
+              .reservas-table table,
+              .reservas-table tbody,
+              .reservas-table td {
+                color: var(--tbl-text) !important;
+              }
+
+              .reservas-table thead th {
+                color: var(--tbl-head) !important;
+              }
+
+              .reservas-table tbody td {
+                border-bottom: 1px solid var(--tbl-border) !important;
+              }
+              .reservas-table tbody tr:last-child td {
+                border-bottom: 0 !important;
+              }
+            `}</style>
+
             <table className="w-full text-sm">
               <thead className="border-b border-slate-200/70 bg-white/70 backdrop-blur sticky top-0 z-10 dark:border-white/10 dark:bg-white/5">
-                <tr className="text-slate-700 dark:text-slate-200">
-                  <th className="px-6 py-3 text-left font-semibold">Cliente</th>
+                <tr>
+                  <th className="px-6 py-3 text-left font-semibold">
+                    Cliente
+                  </th>
                   <th className="px-6 py-3 text-left font-semibold">Fecha</th>
                   <th className="px-6 py-3 text-left font-semibold">Hora</th>
-                  <th className="px-6 py-3 text-left font-semibold">Personas</th>
+                  <th className="px-6 py-3 text-left font-semibold">
+                    Personas
+                  </th>
                   <th className="px-6 py-3 text-left font-semibold">Estado</th>
-                  <th className="px-6 py-3 text-left font-semibold">Acciones</th>
-                  <th className="px-6 py-3 text-left font-semibold">Ha venido</th>
+                  <th className="px-6 py-3 text-left font-semibold">
+                    Acciones
+                  </th>
+                  <th className="px-6 py-3 text-left font-semibold">
+                    Ha venido
+                  </th>
                 </tr>
               </thead>
 
-              <tbody className="text-slate-800 dark:text-slate-100">
+              <tbody>
                 {reservasFiltradas.map((r) => (
                   <tr
                     key={r.id}
-                    className="border-t border-slate-200/70 hover:bg-slate-50/60 dark:border-white/10 dark:hover:bg-white/5"
+                    className="hover:bg-slate-50/60 dark:hover:bg-white/5"
                   >
                     <td className="px-6 py-4 font-medium">{r.cliente}</td>
                     <td className="px-6 py-4">{r.fecha}</td>
                     <td className="px-6 py-4">{r.hora}</td>
                     <td className="px-6 py-4">{r.personas}</td>
+
                     <td className="px-6 py-4">
                       <EstadoBadge estado={r.estado} />
                     </td>
@@ -721,7 +943,9 @@ export default function ReservasPage() {
                       <div className="flex gap-2">
                         {r.estado === "pendiente" && (
                           <button
-                            onClick={() => actualizarEstado(r.id, "confirmada")}
+                            onClick={() =>
+                              actualizarEstado(r.id, "confirmada")
+                            }
                             className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm hover:shadow-md transition-shadow"
                           >
                             Confirmar
@@ -729,7 +953,9 @@ export default function ReservasPage() {
                         )}
                         {r.estado !== "cancelada" && (
                           <button
-                            onClick={() => actualizarEstado(r.id, "cancelada")}
+                            onClick={() =>
+                              actualizarEstado(r.id, "cancelada")
+                            }
                             className="text-xs px-3 py-1.5 rounded-lg bg-rose-600 text-white shadow-sm hover:shadow-md transition-shadow"
                           >
                             Cancelar
@@ -745,7 +971,11 @@ export default function ReservasPage() {
                             disabled={procesando === r.id}
                             onClick={() => clickHaVenido(r)}
                             className="w-8 h-8 flex items-center justify-center rounded-lg border border-emerald-500/30 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200 dark:hover:bg-emerald-400/15"
-                            title={puntosActivo ? "Ha venido (pedirá gasto)" : "Ha venido"}
+                            title={
+                              puntosActivo
+                                ? "Ha venido (pedirá gasto)"
+                                : "Ha venido"
+                            }
                           >
                             ✓
                           </button>
@@ -761,7 +991,9 @@ export default function ReservasPage() {
                         </div>
                       )}
 
-                      {r.atendida !== null && <AtendidaBadge atendida={r.atendida} />}
+                      {r.atendida !== null && (
+                        <AtendidaBadge atendida={r.atendida} />
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -778,199 +1010,270 @@ export default function ReservasPage() {
         onCreated={cargarReservas}
       />
 
-{/* DETALLE RESERVA */}
-{showDetalle && reservaSeleccionada && (
-  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-    <div
-      className="w-full max-w-lg rounded-2xl p-5 shadow-xl border"
-      style={{
-        backgroundColor: isDark ? "#020617" : "#ffffff",
-        borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(2,6,23,0.12)",
-      }}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
+      {showDetalle && reservaSeleccionada && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div
-            className="text-sm font-semibold truncate"
-            style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
+            className="w-full max-w-lg rounded-2xl p-5 shadow-xl border"
+            style={{
+              backgroundColor: isDark ? "#020617" : "#ffffff",
+              borderColor: isDark
+                ? "rgba(255,255,255,0.10)"
+                : "rgba(2,6,23,0.12)",
+            }}
           >
-            {reservaSeleccionada.cliente}
-          </div>
-
-          <div className="mt-1 flex flex-wrap items-center gap-2">
-            <span
-              className="text-xs"
-              style={{ color: isDark ? "rgba(226,232,240,0.85)" : "rgba(71,85,105,1)" }}
-            >
-              {new Date(reservaSeleccionada.fecha_hora_reserva).toLocaleString()}
-            </span>
-            <span className="text-xs" style={{ color: isDark ? "rgba(148,163,184,1)" : "rgba(148,163,184,1)" }}>
-              •
-            </span>
-            <span
-              className="text-xs"
-              style={{ color: isDark ? "rgba(226,232,240,0.85)" : "rgba(71,85,105,1)" }}
-            >
-              {reservaSeleccionada.personas} persona{reservaSeleccionada.personas === 1 ? "" : "s"}
-            </span>
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            <EstadoBadge estado={reservaSeleccionada.estado} />
-            <AtendidaBadge atendida={reservaSeleccionada.atendida} />
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => {
-            setShowDetalle(false);
-            setReservaSeleccionada(null);
-          }}
-          className="rounded-lg px-3 py-1 text-xs border"
-          style={{
-            borderColor: isDark ? "rgba(255,255,255,0.12)" : "rgba(2,6,23,0.12)",
-            color: isDark ? "rgba(226,232,240,1)" : "rgba(51,65,85,1)",
-            backgroundColor: isDark ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,1)",
-          }}
-        >
-          Cerrar
-        </button>
-      </div>
-
-      <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div
-          className="rounded-xl border p-3"
-          style={{
-            backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,1)",
-            borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(2,6,23,0.12)",
-          }}
-        >
-          <div
-            className="text-xs"
-            style={{ color: isDark ? "rgba(226,232,240,0.75)" : "rgba(100,116,139,1)" }}
-          >
-            Teléfono
-          </div>
-          <div
-            className="mt-1 text-sm font-medium break-words"
-            style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
-          >
-            {reservaSeleccionada.telefono || "-"}
-          </div>
-        </div>
-
-        <div
-          className="rounded-xl border p-3"
-          style={{
-            backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,1)",
-            borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(2,6,23,0.12)",
-          }}
-        >
-          <div
-            className="text-xs"
-            style={{ color: isDark ? "rgba(226,232,240,0.75)" : "rgba(100,116,139,1)" }}
-          >
-            Email
-          </div>
-          <div
-            className="mt-1 text-sm font-medium break-words"
-            style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
-          >
-            {reservaSeleccionada.email || "-"}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-5 flex flex-col gap-3">
-        <div
-          className="rounded-xl border p-3"
-          style={{
-            backgroundColor: isDark ? "rgba(255,255,255,0.04)" : "rgba(255,255,255,1)",
-            borderColor: isDark ? "rgba(255,255,255,0.10)" : "rgba(2,6,23,0.12)",
-          }}
-        >
-          <div
-            className="text-xs"
-            style={{ color: isDark ? "rgba(226,232,240,0.75)" : "rgba(100,116,139,1)" }}
-          >
-            Acciones
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {reservaSeleccionada.estado === "pendiente" && (
-              <button
-                onClick={async () => {
-                  await actualizarEstado(reservaSeleccionada.id, "confirmada");
-                  setReservaSeleccionada((prev) => (prev ? { ...prev, estado: "confirmada" } : prev));
-                }}
-                className="text-xs px-3 py-2 rounded-lg bg-emerald-600 text-white shadow-sm hover:shadow-md transition-shadow"
-              >
-                Confirmar
-              </button>
-            )}
-
-            {reservaSeleccionada.estado !== "cancelada" && (
-              <button
-                onClick={async () => {
-                  await actualizarEstado(reservaSeleccionada.id, "cancelada");
-                  setReservaSeleccionada((prev) => (prev ? { ...prev, estado: "cancelada" } : prev));
-                }}
-                className="text-xs px-3 py-2 rounded-lg bg-rose-600 text-white shadow-sm hover:shadow-md transition-shadow"
-              >
-                Cancelar
-              </button>
-            )}
-
-            {reservaSeleccionada.atendida === null && reservaSeleccionada.estado === "confirmada" && (
-              <>
-                <button
-                  disabled={procesando === reservaSeleccionada.id}
-                  onClick={() => clickHaVenido(reservaSeleccionada)}
-                  className="text-xs px-3 py-2 rounded-lg border border-emerald-500/30 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
-                  style={{
-                    backgroundColor: isDark ? "rgba(16,185,129,0.12)" : undefined,
-                    color: isDark ? "rgba(167,243,208,1)" : undefined,
-                    borderColor: isDark ? "rgba(16,185,129,0.25)" : undefined,
-                  }}
-                  title={puntosActivo ? "Ha venido (pedirá gasto)" : "Ha venido"}
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div
+                  className="text-sm font-semibold truncate"
+                  style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
                 >
-                  ✓ Ha venido
-                </button>
+                  {reservaSeleccionada.cliente}
+                </div>
 
-                <button
-                  disabled={procesando === reservaSeleccionada.id}
-                  onClick={async () => {
-                    await marcarHaVenido(reservaSeleccionada, false);
-                    setReservaSeleccionada((prev) => (prev ? { ...prev, atendida: false } : prev));
-                  }}
-                  className="text-xs px-3 py-2 rounded-lg border border-rose-500/30 text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50"
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span
+                    className="text-xs"
+                    style={{
+                      color: isDark
+                        ? "rgba(226,232,240,0.85)"
+                        : "rgba(71,85,105,1)",
+                    }}
+                  >
+                    {new Date(
+                      reservaSeleccionada.fecha_hora_reserva
+                    ).toLocaleString()}
+                  </span>
+                  <span
+                    className="text-xs"
+                    style={{
+                      color: isDark
+                        ? "rgba(148,163,184,1)"
+                        : "rgba(148,163,184,1)",
+                    }}
+                  >
+                    •
+                  </span>
+                  <span
+                    className="text-xs"
+                    style={{
+                      color: isDark
+                        ? "rgba(226,232,240,0.85)"
+                        : "rgba(71,85,105,1)",
+                    }}
+                  >
+                    {reservaSeleccionada.personas} persona
+                    {reservaSeleccionada.personas === 1 ? "" : "s"}
+                  </span>
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <EstadoBadge estado={reservaSeleccionada.estado} />
+                  <AtendidaBadge atendida={reservaSeleccionada.atendida} />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowDetalle(false);
+                  setReservaSeleccionada(null);
+                }}
+                className="rounded-lg px-3 py-1 text-xs border"
+                style={{
+                  borderColor: isDark
+                    ? "rgba(255,255,255,0.12)"
+                    : "rgba(2,6,23,0.12)",
+                  color: isDark
+                    ? "rgba(226,232,240,1)"
+                    : "rgba(51,65,85,1)",
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.06)"
+                    : "rgba(255,255,255,1)",
+                }}
+              >
+                Cerrar
+              </button>
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div
+                className="rounded-xl border p-3"
+                style={{
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.04)"
+                    : "rgba(255,255,255,1)",
+                  borderColor: isDark
+                    ? "rgba(255,255,255,0.10)"
+                    : "rgba(2,6,23,0.12)",
+                }}
+              >
+                <div
+                  className="text-xs"
                   style={{
-                    backgroundColor: isDark ? "rgba(244,63,94,0.10)" : undefined,
-                    color: isDark ? "rgba(254,205,211,1)" : undefined,
-                    borderColor: isDark ? "rgba(244,63,94,0.22)" : undefined,
+                    color: isDark
+                      ? "rgba(226,232,240,0.75)"
+                      : "rgba(100,116,139,1)",
                   }}
                 >
-                  ✕ No ha venido
-                </button>
-              </>
-            )}
+                  Teléfono
+                </div>
+                <div
+                  className="mt-1 text-sm font-medium break-words"
+                  style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
+                >
+                  {reservaSeleccionada.telefono || "-"}
+                </div>
+              </div>
+
+              <div
+                className="rounded-xl border p-3"
+                style={{
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.04)"
+                    : "rgba(255,255,255,1)",
+                  borderColor: isDark
+                    ? "rgba(255,255,255,0.10)"
+                    : "rgba(2,6,23,0.12)",
+                }}
+              >
+                <div
+                  className="text-xs"
+                  style={{
+                    color: isDark
+                      ? "rgba(226,232,240,0.75)"
+                      : "rgba(100,116,139,1)",
+                  }}
+                >
+                  Email
+                </div>
+                <div
+                  className="mt-1 text-sm font-medium break-words"
+                  style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
+                >
+                  {reservaSeleccionada.email || "-"}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col gap-3">
+              <div
+                className="rounded-xl border p-3"
+                style={{
+                  backgroundColor: isDark
+                    ? "rgba(255,255,255,0.04)"
+                    : "rgba(255,255,255,1)",
+                  borderColor: isDark
+                    ? "rgba(255,255,255,0.10)"
+                    : "rgba(2,6,23,0.12)",
+                }}
+              >
+                <div
+                  className="text-xs"
+                  style={{
+                    color: isDark
+                      ? "rgba(226,232,240,0.75)"
+                      : "rgba(100,116,139,1)",
+                  }}
+                >
+                  Acciones
+                </div>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {reservaSeleccionada.estado === "pendiente" && (
+                    <button
+                      onClick={async () => {
+                        await actualizarEstado(
+                          reservaSeleccionada.id,
+                          "confirmada"
+                        );
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg bg-emerald-600 text-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      Confirmar
+                    </button>
+                  )}
+
+                  {reservaSeleccionada.estado !== "cancelada" && (
+                    <button
+                      onClick={async () => {
+                        await actualizarEstado(
+                          reservaSeleccionada.id,
+                          "cancelada"
+                        );
+                      }}
+                      className="text-xs px-3 py-2 rounded-lg bg-rose-600 text-white shadow-sm hover:shadow-md transition-shadow"
+                    >
+                      Cancelar
+                    </button>
+                  )}
+
+                  {reservaSeleccionada.atendida === null &&
+                    reservaSeleccionada.estado === "confirmada" && (
+                      <>
+                        <button
+                          disabled={procesando === reservaSeleccionada.id}
+                          onClick={() => clickHaVenido(reservaSeleccionada)}
+                          className="text-xs px-3 py-2 rounded-lg border border-emerald-500/30 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
+                          style={{
+                            backgroundColor: isDark
+                              ? "rgba(16,185,129,0.12)"
+                              : undefined,
+                            color: isDark
+                              ? "rgba(167,243,208,1)"
+                              : undefined,
+                            borderColor: isDark
+                              ? "rgba(16,185,129,0.25)"
+                              : undefined,
+                          }}
+                          title={
+                            puntosActivo
+                              ? "Ha venido (pedirá gasto)"
+                              : "Ha venido"
+                          }
+                        >
+                          ✓ Ha venido
+                        </button>
+
+                        <button
+                          disabled={procesando === reservaSeleccionada.id}
+                          onClick={async () => {
+                            await marcarHaVenido(reservaSeleccionada, false);
+                          }}
+                          className="text-xs px-3 py-2 rounded-lg border border-rose-500/30 text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50"
+                          style={{
+                            backgroundColor: isDark
+                              ? "rgba(244,63,94,0.10)"
+                              : undefined,
+                            color: isDark
+                              ? "rgba(254,205,211,1)"
+                              : undefined,
+                            borderColor: isDark
+                              ? "rgba(244,63,94,0.22)"
+                              : undefined,
+                          }}
+                        >
+                          ✕ No ha venido
+                        </button>
+                      </>
+                    )}
+                </div>
+              </div>
+
+              <div
+                className="text-xs"
+                style={{
+                  color: isDark
+                    ? "rgba(226,232,240,0.75)"
+                    : "rgba(100,116,139,1)",
+                }}
+              >
+                Esto mantiene la lógica actual de reservas, puntos y webhooks.
+              </div>
+            </div>
           </div>
         </div>
+      )}
 
-        <div
-          className="text-xs"
-          style={{ color: isDark ? "rgba(226,232,240,0.75)" : "rgba(100,116,139,1)" }}
-        >
-          Esto mantiene la lógica actual (Supabase + n8n) sin tocar.
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
-
-      {/* MODAL GASTO */}
       {showGastoModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-950">

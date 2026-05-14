@@ -1,4 +1,5 @@
 "use client";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
@@ -127,12 +128,16 @@ export default function CuponesPage() {
           ? "bg-white/10 text-white"
           : "bg-black/10 text-black"
         : dark
-          ? "bg-gray-900 text-gray-300"
-          : "bg-gray-100 text-gray-600"
+        ? "bg-gray-900 text-gray-300"
+        : "bg-gray-100 text-gray-600"
     );
 
   const toggleDiaSemana = (dia: number) => {
-    setDiasSemana((prev) => (prev.includes(dia) ? prev.filter((d) => d !== dia) : [...prev, dia].sort()));
+    setDiasSemana((prev) =>
+      prev.includes(dia)
+        ? prev.filter((d) => d !== dia)
+        : [...prev, dia].sort()
+    );
   };
 
   const buildCondiciones = () => {
@@ -202,6 +207,7 @@ export default function CuponesPage() {
       setErrorMsg(null);
 
       const rid = await getRestauranteUsuario();
+
       if (!rid) {
         setErrorMsg("No se encontró restaurante_id para este usuario.");
         setLoadingCupones(false);
@@ -226,6 +232,37 @@ export default function CuponesPage() {
     run();
   }, []);
 
+  const avisarClientesRestaurante = async ({
+    tipo,
+    titulo,
+    mensaje,
+  }: {
+    tipo: "reserva" | "cupon" | "premio" | "canje" | "puntos" | "info";
+    titulo: string;
+    mensaje: string;
+  }) => {
+    if (!restauranteId) return;
+
+    const { data: clientesData, error: clientesError } = await supabase
+      .from("clientes")
+      .select("id")
+      .eq("restaurante_id", restauranteId);
+
+    if (clientesError || !clientesData?.length) return;
+
+    const avisos = clientesData.map((cliente) => ({
+      restaurante_id: restauranteId,
+      cliente_id: cliente.id,
+      tipo,
+      titulo,
+      mensaje,
+      url: null,
+      leida: false,
+    }));
+
+    await supabase.from("cliente_notificaciones").insert(avisos);
+  };
+
   const crearCupon = async () => {
     if (!restauranteId) return;
 
@@ -242,11 +279,14 @@ export default function CuponesPage() {
         setErrorMsg("Rellena hora inicio y hora fin.");
         return;
       }
+
       if (!diasSemana.length) {
         setErrorMsg("Selecciona al menos un día.");
         return;
       }
+
       const x = Math.max(1, Number(cadaXVisitas) || 1);
+
       if (!Number.isFinite(x) || x < 1) {
         setErrorMsg("Cada X visitas debe ser 1 o más.");
         return;
@@ -272,6 +312,12 @@ export default function CuponesPage() {
       return;
     }
 
+    await avisarClientesRestaurante({
+      tipo: "cupon",
+      titulo: "Nuevo cupón disponible",
+      mensaje: `El restaurante ha creado un nuevo cupón: "${n}". ${b}`,
+    });
+
     resetCuponForm();
     setShowCuponForm(false);
 
@@ -293,12 +339,15 @@ export default function CuponesPage() {
       .toLowerCase()
       .replace(/\s+/g, "-")
       .replace(/[^a-z0-9\-]/g, "");
+
     const path = `${rid}/${Date.now()}-${safeName}.${ext}`;
 
-    const { error: upErr } = await supabase.storage.from("premios").upload(path, premioFile, {
-      upsert: false,
-      contentType: premioFile.type || "image/jpeg",
-    });
+    const { error: upErr } = await supabase.storage
+      .from("premios")
+      .upload(path, premioFile, {
+        upsert: false,
+        contentType: premioFile.type || "image/jpeg",
+      });
 
     if (upErr) throw upErr;
 
@@ -349,6 +398,12 @@ export default function CuponesPage() {
         });
 
         if (error) throw error;
+
+        await avisarClientesRestaurante({
+          tipo: "premio",
+          titulo: "Nuevo premio disponible",
+          mensaje: `El restaurante ha creado un nuevo premio: "${n}" por ${puntos} puntos.`,
+        });
       }
 
       resetPremioForm();
@@ -386,7 +441,9 @@ export default function CuponesPage() {
       return;
     }
 
-    setPremios((prev) => prev.map((x) => (x.id === p.id ? { ...x, activo: !x.activo } : x)));
+    setPremios((prev) =>
+      prev.map((x) => (x.id === p.id ? { ...x, activo: !x.activo } : x))
+    );
   };
 
   const borrarPremio = async (p: PremioPuntos) => {
@@ -395,7 +452,11 @@ export default function CuponesPage() {
     const ok = window.confirm(`Eliminar "${p.nombre}"?`);
     if (!ok) return;
 
-    const { error } = await supabase.from("premios_puntos").delete().eq("id", p.id).eq("restaurante_id", restauranteId);
+    const { error } = await supabase
+      .from("premios_puntos")
+      .delete()
+      .eq("id", p.id)
+      .eq("restaurante_id", restauranteId);
 
     if (error) {
       setErrorMsg(error.message);
@@ -417,6 +478,7 @@ export default function CuponesPage() {
     count?: number;
   }) => {
     const active = tab === value;
+
     return (
       <button
         type="button"
@@ -428,16 +490,20 @@ export default function CuponesPage() {
               ? "border-gray-700 bg-gray-900"
               : "border-gray-300 bg-gray-50"
             : dark
-              ? "border-gray-800 bg-gray-950 hover:bg-gray-900/60"
-              : "border-gray-200 bg-white hover:bg-gray-50"
+            ? "border-gray-800 bg-gray-950 hover:bg-gray-900/60"
+            : "border-gray-200 bg-white hover:bg-gray-50"
         )}
       >
         <div className="flex flex-col gap-1">
           <div className="text-sm font-semibold">{title}</div>
-          <div className={clsx("text-xs", dark ? "text-gray-400" : "text-gray-500")}>{subtitle}</div>
+          <div className={clsx("text-xs", dark ? "text-gray-400" : "text-gray-500")}>
+            {subtitle}
+          </div>
         </div>
 
-        {typeof count === "number" ? <span className={clsx("mt-0.5", pill(true))}>{count}</span> : null}
+        {typeof count === "number" ? (
+          <span className={clsx("mt-0.5", pill(true))}>{count}</span>
+        ) : null}
       </button>
     );
   };
@@ -507,7 +573,9 @@ export default function CuponesPage() {
       </div>
 
       {errorMsg && (
-        <div className="mt-6 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">{errorMsg}</div>
+        <div className="mt-6 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
+          {errorMsg}
+        </div>
       )}
 
       {/* PREMIOS */}
@@ -539,12 +607,20 @@ export default function CuponesPage() {
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Nombre</label>
-                  <input value={premioNombre} onChange={(e) => setPremioNombre(e.target.value)} className={inputBase} />
+                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                    Nombre
+                  </label>
+                  <input
+                    value={premioNombre}
+                    onChange={(e) => setPremioNombre(e.target.value)}
+                    className={inputBase}
+                  />
                 </div>
 
                 <div>
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Puntos</label>
+                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                    Puntos
+                  </label>
                   <input
                     type="number"
                     min={1}
@@ -555,7 +631,9 @@ export default function CuponesPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Imagen (subir)</label>
+                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                    Imagen (subir)
+                  </label>
                   <input
                     type="file"
                     accept="image/*"
@@ -568,7 +646,9 @@ export default function CuponesPage() {
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Imagen (URL opcional)</label>
+                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                    Imagen (URL opcional)
+                  </label>
                   <input
                     value={premioImagenUrl}
                     onChange={(e) => setPremioImagenUrl(e.target.value)}
@@ -581,7 +661,11 @@ export default function CuponesPage() {
                   <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
                     Descripción (opcional)
                   </label>
-                  <input value={premioDescripcion} onChange={(e) => setPremioDescripcion(e.target.value)} className={inputBase} />
+                  <input
+                    value={premioDescripcion}
+                    onChange={(e) => setPremioDescripcion(e.target.value)}
+                    className={inputBase}
+                  />
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -592,7 +676,10 @@ export default function CuponesPage() {
                     onChange={(e) => setPremioActivo(e.target.checked)}
                     className="h-4 w-4"
                   />
-                  <label htmlFor="premio_activo" className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-700")}>
+                  <label
+                    htmlFor="premio_activo"
+                    className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-700")}
+                  >
                     Activo
                   </label>
                 </div>
@@ -600,7 +687,11 @@ export default function CuponesPage() {
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <button onClick={upsertPremio} disabled={savingPremio} className={btnPrimary}>
-                  {savingPremio ? "Guardando…" : editingPremioId ? "Guardar cambios" : "Guardar premio"}
+                  {savingPremio
+                    ? "Guardando…"
+                    : editingPremioId
+                    ? "Guardar cambios"
+                    : "Guardar premio"}
                 </button>
               </div>
             </div>
@@ -608,7 +699,9 @@ export default function CuponesPage() {
 
           <div className="mt-6">
             {loadingPremios ? (
-              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Cargando…</div>
+              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                Cargando…
+              </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <button
@@ -619,7 +712,9 @@ export default function CuponesPage() {
                   }}
                   className={clsx(
                     "group flex min-h-[180px] flex-col items-center justify-center rounded-2xl border border-dashed p-6 transition",
-                    dark ? "border-gray-700 bg-gray-950 hover:bg-gray-900" : "border-gray-300 bg-white hover:bg-gray-50"
+                    dark
+                      ? "border-gray-700 bg-gray-950 hover:bg-gray-900"
+                      : "border-gray-300 bg-white hover:bg-gray-50"
                   )}
                 >
                   <div
@@ -723,6 +818,7 @@ export default function CuponesPage() {
                     Cumpleaños o horas valle.
                   </div>
                 </div>
+
                 <button type="button" className={btnGhost} onClick={() => setShowCuponForm(false)}>
                   Cancelar
                 </button>
@@ -730,17 +826,23 @@ export default function CuponesPage() {
 
               <div className="mt-4 grid gap-4 md:grid-cols-2">
                 <div>
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Nombre</label>
+                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                    Nombre
+                  </label>
                   <input value={nombre} onChange={(e) => setNombre(e.target.value)} className={inputBase} />
                 </div>
 
                 <div>
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Beneficio</label>
+                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                    Beneficio
+                  </label>
                   <input value={beneficio} onChange={(e) => setBeneficio(e.target.value)} className={inputBase} />
                 </div>
 
                 <div className="md:col-span-2">
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Tipo</label>
+                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                    Tipo
+                  </label>
                   <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoCupon)} className={inputBase}>
                     <option value="cumpleanos">Cumpleaños</option>
                     <option value="horas_valle">Horas valle (happy hour)</option>
@@ -761,6 +863,7 @@ export default function CuponesPage() {
                         className={inputBase}
                       />
                     </div>
+
                     <div>
                       <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
                         Validez (días)
@@ -773,6 +876,7 @@ export default function CuponesPage() {
                         className={inputBase}
                       />
                     </div>
+
                     <div className={clsx("md:col-span-2 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
                       El cliente debe tener fecha de nacimiento guardada.
                     </div>
@@ -781,7 +885,10 @@ export default function CuponesPage() {
 
                 {tipo === "horas_valle" && (
                   <div className="md:col-span-2">
-                    <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Días válidos</label>
+                    <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                      Días válidos
+                    </label>
+
                     <div className="mt-2 flex flex-wrap gap-2">
                       {[
                         { d: 1, t: "L" },
@@ -814,7 +921,9 @@ export default function CuponesPage() {
 
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       <div>
-                        <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Hora inicio</label>
+                        <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                          Hora inicio
+                        </label>
                         <input
                           type="time"
                           value={horaInicio}
@@ -822,8 +931,11 @@ export default function CuponesPage() {
                           className={inputBase}
                         />
                       </div>
+
                       <div>
-                        <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Hora fin</label>
+                        <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                          Hora fin
+                        </label>
                         <input
                           type="time"
                           value={horaFin}
@@ -856,6 +968,7 @@ export default function CuponesPage() {
                 <button onClick={crearCupon} disabled={savingCupon} className={btnPrimary}>
                   {savingCupon ? "Guardando…" : "Guardar cupón"}
                 </button>
+
                 <button
                   type="button"
                   className={btnGhost}
@@ -872,9 +985,13 @@ export default function CuponesPage() {
 
           <div className="mt-6">
             {loadingCupones ? (
-              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>Cargando…</div>
+              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                Cargando…
+              </div>
             ) : cupones.length === 0 ? (
-              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>No hay cupones.</div>
+              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+                No hay cupones.
+              </div>
             ) : (
               <div className={clsx(cardBase, "overflow-hidden")}>
                 <div className={dark ? "bg-gray-900" : "bg-gray-100"}>
@@ -903,7 +1020,9 @@ export default function CuponesPage() {
                       )}
                     >
                       <div className="col-span-4 font-medium">{c.nombre}</div>
-                      <div className={clsx("col-span-5", dark ? "text-gray-200" : "text-gray-700")}>{c.beneficio}</div>
+                      <div className={clsx("col-span-5", dark ? "text-gray-200" : "text-gray-700")}>
+                        {c.beneficio}
+                      </div>
                       <div className="col-span-1 text-center">
                         <span className={pill(c.activo)}>{c.activo ? "Sí" : "No"}</span>
                       </div>

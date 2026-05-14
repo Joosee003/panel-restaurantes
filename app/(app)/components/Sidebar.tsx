@@ -10,6 +10,8 @@ import {
   MessageSquare,
   Settings,
   Gift,
+  LayoutGrid,
+  BarChart3,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 
@@ -27,45 +29,38 @@ export default function Sidebar({
   const [clientesNuevos, setClientesNuevos] = useState(0);
   const [resenasPendientes, setResenasPendientes] = useState(0);
 
-  /* ===== RESTAURANTE ===== */
-useEffect(() => {
-  const cargarRestaurante = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+  useEffect(() => {
+    const cargarRestaurante = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    if (!user) return;
+      if (!user) return;
 
-    const { data } = await supabase
-      .from("usuarios_restaurantes")
-      .select("restaurante_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
+      const { data } = await supabase
+        .from("usuarios_restaurantes")
+        .select("restaurante_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
 
-    if (data?.restaurante_id) {
-      setRestauranteId(data.restaurante_id);
-    }
-  };
+      if (data?.restaurante_id) {
+        setRestauranteId(data.restaurante_id);
+      }
+    };
 
-  cargarRestaurante();
-}, []);
+    cargarRestaurante();
+  }, []);
 
-
-
-
-  /* ===== CONTADORES INICIALES ===== */
   useEffect(() => {
     if (!restauranteId) return;
 
     const cargarContadores = async () => {
-      // Reservas pendientes
       const { count: cReservas } = await supabase
         .from("reservas")
         .select("*", { count: "exact", head: true })
         .eq("restaurante_id", restauranteId)
         .eq("estado", "pendiente");
 
-      // Clientes nuevos HOY
       const hoy = new Date();
       const inicioHoy = `${hoy.getFullYear()}-${String(
         hoy.getMonth() + 1
@@ -81,7 +76,6 @@ useEffect(() => {
         .gte("created_at", inicioHoy)
         .lte("created_at", finHoy);
 
-      // Reseñas sin responder
       const { count: cResenas } = await supabase
         .from("resenas")
         .select("*", { count: "exact", head: true })
@@ -96,7 +90,6 @@ useEffect(() => {
     cargarContadores();
   }, [restauranteId]);
 
-  /* ===== SUSCRIPCIÓN RESERVAS ===== */
   useEffect(() => {
     if (!restauranteId) return;
 
@@ -136,6 +129,11 @@ useEffect(() => {
       badge: reservasPendientes,
     },
     {
+      href: "/sala",
+      label: "Sala",
+      icon: LayoutGrid,
+    },
+    {
       href: "/clientes",
       label: "Clientes",
       icon: Users,
@@ -147,37 +145,46 @@ useEffect(() => {
       icon: MessageSquare,
       badge: resenasPendientes,
     },
-        {
+    {
+      href: "/dashboard/rentabilidad",
+      label: "Rentabilidad",
+      icon: BarChart3,
+    },
+    {
       href: "/dashboard/fidelizacion/cupones",
       label: "Fidelización",
       icon: Gift,
     },
-
     { href: "/ajustes", label: "Ajustes", icon: Settings },
   ];
 
+  const isItemActive = (href: string) => {
+    if (href === "/dashboard") {
+      return pathname === "/dashboard";
+    }
+
+    return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
   return (
     <aside
-      className={`
-        w-64 h-full p-6 flex flex-col gap-6
-        bg-white text-gray-900 border-r border-gray-200
-        dark:bg-[#0b1220] dark:text-gray-100 dark:border-gray-800
-        transition-colors duration-300
-        ${mobile ? "" : "fixed left-0 top-0 h-screen"}
-      `}
+      className={[
+        "flex h-full w-64 flex-col gap-6 p-6 transition-colors duration-300",
+        mobile ? "" : "fixed left-0 top-0 h-screen",
+      ].join(" ")}
     >
-      {/* Header */}
       <div>
-        <h1 className="text-xl font-bold">Panel Restaurante</h1>
+        <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+          Panel Restaurante
+        </h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
           Vista general
         </p>
       </div>
 
-      {/* Navegación */}
       <nav className="flex flex-col gap-1 text-sm">
         {items.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive = isItemActive(item.href);
           const Icon = item.icon;
 
           return (
@@ -185,22 +192,22 @@ useEffect(() => {
               key={item.href}
               href={item.href}
               onClick={onNavigate}
-             className={[
-  "flex items-center justify-between px-3 py-2 rounded-md transition",
-  isActive
-  ? "bg-white border border-gray-200 text-gray-900 dark:bg-gray-800 dark:border-gray-700 dark:text-gray-100 font-semibold"
-  : "text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-900"
-
-].join(" ")}
-
+              className={[
+                "flex items-center justify-between rounded-xl px-3 py-3 transition",
+                isActive
+                  ? "bg-slate-800 text-white dark:bg-white dark:text-slate-900"
+                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/70",
+              ].join(" ")}
             >
               <div className="flex items-center gap-3">
                 <Icon size={18} />
-                {item.label}
+                <span className={isActive ? "font-semibold" : ""}>
+                  {item.label}
+                </span>
               </div>
 
-              {item.badge && item.badge > 0 && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">
+              {item.badge !== undefined && item.badge > 0 && (
+                <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300">
                   {item.badge}
                 </span>
               )}

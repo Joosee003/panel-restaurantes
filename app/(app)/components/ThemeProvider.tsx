@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from "react";
 
 type ThemeContextType = {
   dark: boolean;
+  theme: "dark" | "light";
   toggle: () => void;
 };
 
@@ -23,15 +24,27 @@ export default function ThemeProvider({
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", dark);
-  }, [dark]);
+    document.documentElement.classList.remove("dark");
+    localStorage.setItem("theme", "light");
+  }, []);
 
   function toggle() {
-    setDark((v) => !v);
+    const next = !dark;
+    setDark(next);
+
+    if (next) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
   }
 
   return (
-    <ThemeContext.Provider value={{ dark, toggle }}>
+    <ThemeContext.Provider
+      value={{ dark, theme: dark ? "dark" : "light", toggle }}
+    >
       {children}
     </ThemeContext.Provider>
   );

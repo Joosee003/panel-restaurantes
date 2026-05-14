@@ -61,18 +61,31 @@ export default function AddVisitaModal({
       return;
     }
 
+    await supabase.from("cliente_notificaciones").insert({
+      restaurante_id: cliente.restaurante_id,
+      cliente_id: clienteId,
+      tipo: "info",
+      titulo: "Visita registrada",
+      mensaje: "El restaurante ha registrado una visita en tu historial.",
+      url: null,
+      leida: false,
+    });
+
     setGuardando(false);
     onSaved();
     onClose();
   };
 
   const overlayClass = isDark ? "bg-black/60" : "bg-black/30";
+
   const modalClass = isDark
     ? "bg-[#0b1220] text-gray-100"
     : "bg-white text-gray-900";
+
   const inputClass = isDark
     ? "w-full border rounded-lg p-2 text-sm bg-[#050b18] text-gray-100 border-gray-700"
     : "w-full border rounded-lg p-2 text-sm bg-white text-gray-900 border-gray-300";
+
   const btnClass =
     "w-full py-2 rounded-lg font-bold disabled:opacity-50 " +
     (isDark

@@ -18,70 +18,58 @@ export default function RootLayout({
   const isLogin = pathname === "/login";
 
   return (
-        <ThemeProvider>
-          {isLogin ? (
-            /* ===== SOLO LOGIN ===== */
-            <>{children}</>
-          ) : (
-            /* ===== PANEL COMPLETO ===== */
-            <RequireLandscape>
-              <div className="min-h-screen bg-[#f5f6fa] text-gray-900 dark:bg-[#050b18] dark:text-gray-100">
-                {/* ===== TOP BAR MÓVIL ===== */}
-                <div className="flex items-center justify-between p-4 lg:hidden border-b dark:border-gray-800">
-                  <button
-                    onClick={() => setMobileOpen(true)}
-                    className="px-3 py-2 rounded-lg border bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100"
-                  >
-                    ☰
-                  </button>
-                  <span className="font-bold uppercase text-sm">Panel</span>
-                </div>
+    <ThemeProvider>
+      {isLogin ? (
+        <>{children}</>
+      ) : (
+        <RequireLandscape>
+          <div className="min-h-screen transition-colors duration-300">
+            {/* TOP BAR MÓVIL */}
+            <div className="flex items-center justify-between border-b border-gray-200 p-4 lg:hidden dark:border-gray-800">
+              <button
+                onClick={() => setMobileOpen(true)}
+                className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 transition hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
+              >
+                ☰
+              </button>
 
-                {/* ===== SIDEBAR MÓVIL ===== */}
-                {mobileOpen && (
-                  <div className="fixed inset-0 z-50 lg:hidden">
-                    <div
-                      className="absolute inset-0 bg-black/40"
-                      onClick={() => setMobileOpen(false)}
-                    />
+              <span className="text-sm font-bold uppercase">Panel</span>
+            </div>
 
-                    <div className="absolute left-0 top-0 h-full w-64 bg-white text-gray-900 dark:bg-[#050b18] dark:text-gray-100 shadow-xl">
-                      <div className="p-4 border-b dark:border-gray-800 flex justify-between items-center">
-                        <span className="font-bold">Menú</span>
-                        <button
-                          onClick={() => setMobileOpen(false)}
-                          className="text-sm opacity-70"
-                        >
-                          Cerrar
-                        </button>
-                      </div>
+            {/* SIDEBAR MÓVIL */}
+            {mobileOpen && (
+              <div className="fixed inset-0 z-50 lg:hidden">
+                <div
+                  className="absolute inset-0 bg-black/40"
+                  onClick={() => setMobileOpen(false)}
+                />
 
-                      <Sidebar mobile />
-                    </div>
-                  </div>
-                )}
-
-                <div className="flex min-h-screen">
-                  {/* ===== SIDEBAR DESKTOP ===== */}
-                  <div className="hidden lg:block">
-                    <Sidebar />
-                  </div>
-
-                  {/* ===== CONTENIDO ===== */}
-                  <main className="flex-1 w-full p-4 sm:p-6 lg:ml-64">
-                    {children}
-                  </main>
+                <div className="absolute left-0 top-0 h-full w-64 shadow-xl">
+                  <Sidebar mobile onNavigate={() => setMobileOpen(false)} />
                 </div>
               </div>
-            </RequireLandscape>
-          )}
-<div className="mt-16 py-6 flex justify-center">
-  <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
-    © {new Date().getFullYear()} GastroHelp®
-  </span>
-</div>
+            )}
 
+            <div className="flex min-h-screen">
+              {/* SIDEBAR DESKTOP */}
+              <div className="hidden lg:block">
+                <Sidebar />
+              </div>
 
-     </ThemeProvider>
+              {/* CONTENIDO */}
+              <main className="flex min-h-screen flex-1 flex-col p-4 sm:p-6 lg:ml-64">
+                <div className="flex-1">{children}</div>
+
+                <div className="mt-10 flex justify-center py-6">
+                  <span className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                    © {new Date().getFullYear()} GastroHelp®
+                  </span>
+                </div>
+              </main>
+            </div>
+          </div>
+        </RequireLandscape>
+      )}
+    </ThemeProvider>
   );
 }

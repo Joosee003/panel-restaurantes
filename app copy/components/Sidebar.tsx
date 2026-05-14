@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   CalendarDays,
+  LayoutGrid,
   Users,
   MessageSquare,
   Settings,
@@ -15,6 +16,7 @@ const reseñasPendientes = 2;
 const items = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/reservas", label: "Reservas", icon: CalendarDays },
+  { href: "/sala", label: "Sala", icon: LayoutGrid },
   { href: "/clientes", label: "Clientes", icon: Users },
   {
     href: "/resenas",
@@ -29,13 +31,14 @@ export default function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="
+    <aside
+      className="
       w-64 fixed left-0 top-0 h-screen p-6 flex flex-col gap-6
       bg-white text-gray-900 border-r border-gray-200
       dark:bg-[#0b1220] dark:text-white dark:border-gray-800
       transition-colors duration-300
-    ">
-      {/* Header */}
+    "
+    >
       <div>
         <h1 className="text-xl font-bold">Panel Restaurante</h1>
         <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -43,7 +46,6 @@ export default function Sidebar() {
         </p>
       </div>
 
-      {/* Navegación */}
       <nav className="flex flex-col gap-1 text-sm">
         {items.map((item) => {
           const isActive = pathname === item.href;

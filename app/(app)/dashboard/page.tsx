@@ -13,14 +13,13 @@ import {
   Moon,
   TrendingUp,
   AlertTriangle,
+  Zap,
+  Check,
 } from "lucide-react";
 
 import { useTheme } from "../components/ThemeProvider";
 import { supabase } from "../lib/supabaseClient";
-import { calcularOcupacion } from "../lib/ocupacion";
-import { detectarDiaFlojoSemana } from "../lib/ocupacion";
-
-
+import { calcularOcupacion, detectarDiaFlojoSemana } from "../lib/ocupacion";
 
 /* ===== CHART ===== */
 const DashboardChart = dynamic(() => import("../components/DashboardChart"), {
@@ -28,7 +27,8 @@ const DashboardChart = dynamic(() => import("../components/DashboardChart"), {
 });
 
 export default function DashboardPage() {
-  const { toggle } = useTheme();
+  const { toggle, dark } = useTheme();
+  const isDark = dark;
 
   const [restaurante, setRestaurante] = useState<any>(null);
 
@@ -38,204 +38,241 @@ export default function DashboardPage() {
 
   const [acciones, setAcciones] = useState<any[]>([]);
   const [alertas, setAlertas] = useState<any[]>([]);
+  const [accionesRestaurante, setAccionesRestaurante] = useState<any[]>([]);
 
   const [huecosDetectados, setHuecosDetectados] = useState(0);
   const [reservasEnRiesgo, setReservasEnRiesgo] = useState(0);
 
-  /* ===== OCUPACIÓN ===== */
   const [ocupacionValor, setOcupacionValor] = useState("0%");
   const [ocupacionContexto, setOcupacionContexto] = useState("Buen ritmo");
   const [pctComidaState, setPctComidaState] = useState(0);
   const [pctCenaState, setPctCenaState] = useState(0);
   const [diaFlojo, setDiaFlojo] = useState<any>(null);
 
+  useEffect(() => {
+    const cargarRestaurante = async () => {
+      const restauranteId = await getRestauranteUsuario();
+      if (!restauranteId) return;
 
-  /* ===== RESTAURANTE ===== */
-useEffect(() => {
-  const cargarRestaurante = async () => {
-    const restauranteId = await getRestauranteUsuario();
-    if (!restauranteId) return;
+      const { data } = await supabase
+        .from("restaurantes")
+        .select("*")
+        .eq("id", restauranteId)
+        .single();
 
-    const { data, error } = await supabase
-      .from("restaurantes")
-      .select("*")
-      .eq("id", restauranteId)
-      .single();
+      if (data) setRestaurante(data);
+    };
 
-   // console.log("REST DATA:", data);
-   // console.log("REST ERROR:", error);
+    cargarRestaurante();
+  }, []);
 
-    if (data) setRestaurante(data);
+  const ahoraEsp = new Date(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Europe/Madrid",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    }).format(new Date())
+  );
+
+  const fechaActualizada = Number.isNaN(ahoraEsp.getTime())
+    ? "Actualizado"
+    : `Actualizado ${ahoraEsp.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+      })}`;
+
+  const ahora = new Date();
+  const inicioHoyDate = new Date(ahora);
+  inicioHoyDate.setHours(0, 0, 0, 0);
+
+  const finHoyDate = new Date(ahora);
+  finHoyDate.setHours(23, 59, 59, 999);
+
+  const inicioHoy = inicioHoyDate.toISOString();
+  const finHoy = finHoyDate.toISOString();
+
+  const cargarReservasHoy = async () => {
+    if (!restaurante) return;
+
+    const hoy = new Date().toISOString().split("T")[0];
+
+    const { count } = await supabase
+      .from("reservas")
+      .select("*", { count: "exact", head: true })
+      .eq("restaurante_id", restaurante.id)
+      .eq("estado", "confirmada")
+      .gte("fecha_hora_reserva", `${hoy} 00:00:00`)
+      .lte("fecha_hora_reserva", `${hoy} 23:59:59`);
+
+    if (count !== null) setReservasHoy(count);
   };
 
-  cargarRestaurante();
-}, []);
+  const cargarClientesNuevosHoy = async () => {
+    if (!restaurante) return;
 
+    const hoy = new Date().toISOString().split("T")[0];
 
+    const { count } = await supabase
+      .from("clientes")
+      .select("*", { count: "exact", head: true })
+      .eq("restaurante_id", restaurante.id)
+      .gte("created_at", `${hoy} 00:00:00`)
+      .lte("created_at", `${hoy} 23:59:59`);
 
- // Hora actual en España
-const ahoraEsp = new Date(
-  new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Madrid",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date())
-);
+    if (count !== null) setClientesNuevosHoy(count);
+  };
 
-// Inicio y fin de hoy (España, estable)
-const ahora = new Date();
+  const cargarResenasPendientes = async () => {
+    if (!restaurante) return;
 
-// España = UTC +1 / +2 → usamos el offset real del sistema
-const inicioHoyDate = new Date(ahora);
-inicioHoyDate.setHours(0, 0, 0, 0);
+    const { count } = await supabase
+      .from("resenas")
+      .select("*", { count: "exact", head: true })
+      .eq("restaurante_id", restaurante.id)
+      .eq("responded", false);
 
-const finHoyDate = new Date(ahora);
-finHoyDate.setHours(23, 59, 59, 999);
+    if (count !== null) setResenasPendientes(count);
+  };
 
-const inicioHoy = inicioHoyDate.toISOString();
-const finHoy = finHoyDate.toISOString();
+  const cargarReservasEnRiesgo = async () => {
+    if (!restaurante) return;
 
+    const hoy = new Date().toISOString().split("T")[0];
+    const inicioHoyTxt = `${hoy} 00:00:00`;
+    const finHoyTxt = `${hoy} 23:59:59`;
 
-  /* ===== HELPERS ===== */
-  function parseHoraToMin(hhmm: string) {
-    const [h, m] = hhmm.split(":").map(Number);
-    if (Number.isNaN(h) || Number.isNaN(m)) return null;
-    return h * 60 + m;
-  }
+    const { count, error } = await supabase
+      .from("reservas")
+      .select("*", { count: "exact", head: true })
+      .eq("restaurante_id", restaurante.id)
+      .eq("estado", "pendiente")
+      .gte("fecha_hora_reserva", inicioHoyTxt)
+      .lte("fecha_hora_reserva", finHoyTxt);
 
-  function parseRangoHorario(texto: string | null) {
-    if (!texto) return null;
-    const parts = texto.split(/-|–|—/).map((p) => p.trim());
-    if (parts.length < 2) return null;
+    if (error) console.error("RIESGO ERROR", error);
+    if (count !== null) setReservasEnRiesgo(count);
+  };
 
-    const start = parseHoraToMin(parts[0]);
-    const end = parseHoraToMin(parts[1]);
-    if (start === null || end === null) return null;
-
-    return { start, end };
-  }
-
-  function minFromDate(d: Date) {
-    return d.getHours() * 60 + d.getMinutes();
-  }
-
-  /* ===== RESERVAS HOY ===== */
-const cargarReservasHoy = async () => {
-  if (!restaurante) return;
-
-  const hoy = new Date().toISOString().split("T")[0];
-
-  const { count } = await supabase
-    .from("reservas")
-    .select("*", { count: "exact", head: true })
-    .eq("restaurante_id", restaurante.id)
-    .eq("estado", "confirmada")
-    .gte("fecha_hora_reserva", `${hoy} 00:00:00`)
-    .lte("fecha_hora_reserva", `${hoy} 23:59:59`);
-
-  if (count !== null) setReservasHoy(count);
-};
-
-
-
-/* ===== CLIENTES NUEVOS HOY ===== */
-const cargarClientesNuevosHoy = async () => {
-  if (!restaurante) return;
-
-  const hoy = new Date().toISOString().split("T")[0];
-
-  const { count } = await supabase
-    .from("clientes")
-    .select("*", { count: "exact", head: true })
-    .eq("restaurante_id", restaurante.id)
-    .gte("created_at", `${hoy} 00:00:00`)
-    .lte("created_at", `${hoy} 23:59:59`);
-
-  if (count !== null) setClientesNuevosHoy(count);
-};
-
-const cargarResenasPendientes = async () => {
-  if (!restaurante) return;
-
-  const { count } = await supabase
-    .from("resenas")
-    .select("*", { count: "exact", head: true })
-    .eq("restaurante_id", restaurante.id)
-    .eq("responded", false);
-
-
-  if (count !== null) setResenasPendientes(count);
-};
-
-
-/* ===== RESERVAS EN RIESGO (PENDIENTES HOY) ===== */
-const cargarReservasEnRiesgo = async () => {
-  if (!restaurante) return;
-
-  const hoy = new Date().toISOString().split("T")[0]; // YYYY-MM-DD
-
-  const inicioHoy = `${hoy} 00:00:00`;
-  const finHoy = `${hoy} 23:59:59`;
-
-  const { count, error } = await supabase
-    .from("reservas")
-    .select("*", { count: "exact", head: true })
-    .eq("restaurante_id", restaurante.id)
-    .eq("estado", "pendiente")
-    .gte("fecha_hora_reserva", inicioHoy)
-    .lte("fecha_hora_reserva", finHoy);
-
-  if (error) console.error("RIESGO ERROR", error);
-  if (count !== null) setReservasEnRiesgo(count);
-
-};
-
-
-
-
-  /* ===== OCUPACIÓN ===== */
   const cargarOcupacion = async () => {
-  if (!restaurante) return;
+    if (!restaurante) return;
 
-  const res = await calcularOcupacion(restaurante.id);
-  if (!res) return;
+    const res = await calcularOcupacion(restaurante.id);
+    if (!res) return;
 
-  setPctComidaState(res.ocupacionComidaPct);
-  setPctCenaState(res.ocupacionCenaPct);
+    setPctComidaState(res.ocupacionComidaPct);
+    setPctCenaState(res.ocupacionCenaPct);
 
-  setOcupacionValor(`${res.totalDiaPct}%`);
-  setOcupacionContexto("Ocupación total del día");
-};
+    setOcupacionValor(`${res.totalDiaPct}%`);
+    setOcupacionContexto("Ocupación total del día");
+  };
 
-/* ===== RESERVAS PENDIENTES DE HOY ===== */
-const recalcularHuecos = async () => {
-  if (!restaurante) return;
+  const recalcularHuecos = async () => {
+    if (!restaurante) return;
 
-  const { count } = await supabase
-    .from("reservas")
-    .select("*", { count: "exact", head: true })
-    .eq("restaurante_id", restaurante.id)
-    .eq("estado", "pendiente")
-    .gte("fecha_hora_reserva", inicioHoy)
-    .lte("fecha_hora_reserva", finHoy);
+    const { count } = await supabase
+      .from("reservas")
+      .select("*", { count: "exact", head: true })
+      .eq("restaurante_id", restaurante.id)
+      .eq("estado", "pendiente")
+      .gte("fecha_hora_reserva", inicioHoy)
+      .lte("fecha_hora_reserva", finHoy);
 
-  setHuecosDetectados(count ?? 0);
-};
+    setHuecosDetectados(count ?? 0);
+  };
 
+  const cargarAccionesRestaurante = async () => {
+    if (!restaurante) return;
 
-  /* ===== ACCIONES / ALERTAS ===== */
+    const { data, error } = await supabase
+      .from("acciones_restaurante")
+      .select("*")
+      .eq("restaurante_id", restaurante.id)
+      .eq("leida", false)
+      .order("created_at", { ascending: false })
+      .limit(10);
+
+    if (error) {
+      console.error("ACCIONES RESTAURANTE ERROR", error);
+      return;
+    }
+
+    setAccionesRestaurante(data ?? []);
+  };
+
+  const marcarAccionLeida = async (id: string) => {
+    const { error } = await supabase
+      .from("acciones_restaurante")
+      .update({ leida: true })
+      .eq("id", id);
+
+    if (error) {
+      console.error("MARCAR ACCION LEIDA ERROR", error);
+      return;
+    }
+
+    setAccionesRestaurante((prev) => prev.filter((a) => a.id !== id));
+  };
+
   const recalcularAccionesYAlertas = () => {
     const nuevasAcciones: any[] = [];
     const nuevasAlertas: any[] = [];
+
+const formatearFechaReserva = (valor?: string | null) => {
+  if (!valor) return "";
+
+  const d = new Date(valor);
+  if (Number.isNaN(d.getTime())) return valor;
+
+  return d.toLocaleString("es-ES", {
+    timeZone: "Europe/Madrid",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+const accionesRecientes = accionesRestaurante.map((a: any) => {
+  const fecha = new Date(a.created_at);
+  const tiempo = Number.isNaN(fecha.getTime())
+    ? "Ahora"
+    : fecha.toLocaleTimeString("es-ES", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+
+  let texto = a.mensaje || "Movimiento reciente en reservas";
+
+  if (a.tipo === "reprogramacion") {
+    const anterior = formatearFechaReserva(a.fecha_anterior);
+    const nueva = formatearFechaReserva(a.fecha_nueva);
+    texto = `${a.cliente_nombre || "Un cliente"} ha reprogramado su reserva de ${anterior} a ${nueva}`;
+  }
+
+  if (a.tipo === "cancelacion") {
+    const anterior = formatearFechaReserva(a.fecha_anterior);
+    texto = `${a.cliente_nombre || "Un cliente"} ha cancelado su reserva del ${anterior}`;
+  }
+
+  return {
+    id: a.id,
+    texto,
+    tiempo,
+    persistente: true,
+  };
+});
+
+    nuevasAcciones.push(...accionesRecientes);
 
     if (reservasEnRiesgo > 0) {
       nuevasAcciones.push({
         texto: `Confirmar ${reservasEnRiesgo} reservas pendientes`,
         tiempo: "Hoy",
+        persistente: false,
       });
     }
 
@@ -243,6 +280,7 @@ const recalcularHuecos = async () => {
       nuevasAcciones.push({
         texto: "Promocionar turnos con huecos",
         tiempo: "Hoy",
+        persistente: false,
       });
     }
 
@@ -250,6 +288,15 @@ const recalcularHuecos = async () => {
       nuevasAcciones.push({
         texto: "Responder reseñas pendientes",
         tiempo: "Hoy",
+        persistente: false,
+      });
+    }
+
+    if (diaFlojo) {
+      nuevasAcciones.push({
+        texto: `Promocionar ${diaFlojo.dia} (${diaFlojo.ocupacion}%)`,
+        tiempo: "Esta semana",
+        persistente: false,
       });
     }
 
@@ -265,18 +312,11 @@ const recalcularHuecos = async () => {
         texto: "Ocupación muy alta: revisa la capacidad",
       });
     }
-if (diaFlojo) {
-  nuevasAcciones.push({
-    texto: `Promocionar ${diaFlojo.dia} (${diaFlojo.ocupacion}%)`,
-    tiempo: "Esta semana",
-  });
-}
 
-    setAcciones(nuevasAcciones);
-    setAlertas(nuevasAlertas);
+    setAcciones(nuevasAcciones.slice(0, 8));
+    setAlertas(nuevasAlertas.slice(0, 6));
   };
 
-  /* ===== DISPARADORES ===== */
   useEffect(() => {
     if (!restaurante) return;
     cargarReservasHoy();
@@ -284,8 +324,8 @@ if (diaFlojo) {
     cargarResenasPendientes();
     cargarOcupacion();
     cargarReservasEnRiesgo();
+    cargarAccionesRestaurante();
     detectarDiaFlojoSemana(restaurante.id).then(setDiaFlojo);
-
   }, [restaurante]);
 
   useEffect(() => {
@@ -294,21 +334,22 @@ if (diaFlojo) {
   }, [restaurante, pctComidaState, pctCenaState]);
 
   useEffect(() => {
-  recalcularAccionesYAlertas();
-}, [
-  reservasEnRiesgo,
-  huecosDetectados,
-  resenasPendientes,
-  pctComidaState,
-  pctCenaState,
-  diaFlojo,
-]);
-
+    recalcularAccionesYAlertas();
+  }, [
+    restaurante,
+    accionesRestaurante,
+    reservasEnRiesgo,
+    huecosDetectados,
+    resenasPendientes,
+    pctComidaState,
+    pctCenaState,
+    diaFlojo,
+  ]);
 
   useEffect(() => {
     if (!restaurante) return;
 
-    const channel = supabase
+    const channelReservas = supabase
       .channel("dashboard-reservas")
       .on(
         "postgres_changes",
@@ -328,12 +369,28 @@ if (diaFlojo) {
       )
       .subscribe();
 
+    const channelAcciones = supabase
+      .channel("dashboard-acciones")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "acciones_restaurante",
+          filter: `restaurante_id=eq.${restaurante.id}`,
+        },
+        () => {
+          cargarAccionesRestaurante();
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channelReservas);
+      supabase.removeChannel(channelAcciones);
     };
   }, [restaurante]);
 
-  /* ===== KPIs ===== */
   const stats = [
     {
       id: "reservas",
@@ -373,46 +430,151 @@ if (diaFlojo) {
     },
   ];
 
-  const colorMap: Record<string, { bg: string; icon: string; line: string }> = {
-    blue: { bg: "bg-blue-500/10", icon: "text-blue-500", line: "bg-blue-500" },
-    green: { bg: "bg-green-500/10", icon: "text-green-500", line: "bg-green-500" },
-    red: { bg: "bg-red-500/10", icon: "text-red-500", line: "bg-red-500" },
-    purple: { bg: "bg-purple-500/10", icon: "text-purple-500", line: "bg-purple-500" },
-    amber: { bg: "bg-amber-500/10", icon: "text-amber-500", line: "bg-amber-500" },
+  const colorMap: Record<
+    string,
+    { bg: string; icon: string; line: string; badge: string; badgeText: string }
+  > = {
+    blue: {
+      bg: isDark ? "bg-blue-500/15" : "bg-blue-100",
+      icon: isDark ? "text-blue-300" : "text-blue-700",
+      line: "from-blue-500 to-cyan-400",
+      badge: isDark ? "bg-blue-500/15" : "bg-blue-100",
+      badgeText: isDark ? "text-blue-300" : "text-blue-700",
+    },
+    green: {
+      bg: isDark ? "bg-emerald-500/15" : "bg-emerald-100",
+      icon: isDark ? "text-emerald-300" : "text-emerald-700",
+      line: "from-emerald-500 to-teal-400",
+      badge: isDark ? "bg-emerald-500/15" : "bg-emerald-100",
+      badgeText: isDark ? "text-emerald-300" : "text-emerald-700",
+    },
+    red: {
+      bg: isDark ? "bg-rose-500/15" : "bg-rose-100",
+      icon: isDark ? "text-rose-300" : "text-rose-700",
+      line: "from-rose-500 to-pink-400",
+      badge: isDark ? "bg-rose-500/15" : "bg-rose-100",
+      badgeText: isDark ? "text-rose-300" : "text-rose-700",
+    },
+    purple: {
+      bg: isDark ? "bg-violet-500/15" : "bg-violet-100",
+      icon: isDark ? "text-violet-300" : "text-violet-700",
+      line: "from-violet-500 to-fuchsia-400",
+      badge: isDark ? "bg-violet-500/15" : "bg-violet-100",
+      badgeText: isDark ? "text-violet-300" : "text-violet-700",
+    },
+    amber: {
+      bg: isDark ? "bg-amber-500/15" : "bg-amber-100",
+      icon: isDark ? "text-amber-300" : "text-amber-700",
+      line: "from-amber-500 to-yellow-400",
+      badge: isDark ? "bg-amber-500/15" : "bg-amber-100",
+      badgeText: isDark ? "text-amber-300" : "text-amber-700",
+    },
   };
 
+  const panelCardClass = isDark
+    ? "rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 shadow-sm"
+    : "rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm";
+
+  const panelCardHover = isDark
+    ? "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30"
+    : "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-300/40";
+
+  const panelButtonClass = isDark
+    ? "border border-slate-700 bg-slate-900 text-slate-100"
+    : "border border-slate-300 bg-white text-slate-900";
+
+  const titleTextClass = isDark ? "text-white" : "text-slate-900";
+  const mutedTextClass = isDark ? "text-slate-400" : "text-slate-600";
+  const softTextClass = isDark ? "text-slate-400" : "text-slate-500";
+  const dotTextClass = isDark ? "text-slate-600" : "text-slate-300";
+
+  const iconRingClass = isDark ? "ring-white/10" : "ring-slate-200";
+
+  const headerAccentClass = isDark ? "text-emerald-400" : "text-emerald-600";
+
+  const accionesIconBoxClass = isDark
+    ? "bg-blue-500/15 text-blue-300"
+    : "bg-blue-100 text-blue-700";
+
+  const accionesBadgeClass = isDark
+    ? "bg-blue-500/15 text-blue-300"
+    : "bg-blue-100 text-blue-700";
+
+  const alertasIconBoxClass = isDark
+    ? "bg-rose-500/15 text-rose-300"
+    : "bg-rose-100 text-rose-700";
+
+  const alertasBadgeClass = isDark
+    ? "bg-rose-500/15 text-rose-300"
+    : "bg-rose-100 text-rose-700";
+
+  const accionesHoverClass = isDark ? "hover:bg-white/5" : "hover:bg-slate-50";
+
+  const alertaItemClass = isDark
+    ? "flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/5 px-2.5 py-2 text-rose-200"
+    : "flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-rose-700";
+
+  const impactCardClass = isDark
+    ? `group relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-sm ${panelCardHover}`
+    : `group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${panelCardHover}`;
+
+  const chartInnerClass = isDark
+    ? "rounded-2xl border border-slate-800 bg-slate-950 p-3 shadow-inner shadow-black/30"
+    : "rounded-2xl border border-slate-200 bg-white p-3 shadow-inner shadow-slate-100";
+
+  const tickButtonClass = isDark
+    ? "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 transition hover:bg-emerald-500/20"
+    : "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100";
+
   return (
-    
     <div className="space-y-6">
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:justify-between gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold uppercase tracking-wider">
+          <h1
+            className={`text-2xl font-extrabold uppercase tracking-wider ${titleTextClass}`}
+          >
             {restaurante ? restaurante.nombre : "Dashboard"}
           </h1>
-          <p className="text-sm opacity-70">Estado del restaurante hoy</p>
+
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
+            <span
+              className={`inline-flex items-center gap-1 font-medium ${headerAccentClass}`}
+            >
+              <Zap size={14} />
+              Panel en tiempo real
+            </span>
+            <span className={dotTextClass}>•</span>
+            <span className={mutedTextClass}>{fechaActualizada}</span>
+          </div>
         </div>
 
-        <div className="flex gap-2 items-center">
+        <div className="flex items-center gap-2">
           <button
             onClick={toggle}
-            className="px-3 py-1.5 rounded-lg border bg-white dark:bg-transparent"
+            className={`h-10 w-10 rounded-xl ${panelButtonClass} shadow-sm transition hover:shadow-md`}
+            title="Cambiar tema"
           >
-            <Moon size={16} />
+            <Moon size={16} className="mx-auto" />
           </button>
 
           <Link
+            href="/estadisticas"
+            className={`rounded-xl px-4 py-2 ${panelButtonClass} shadow-sm transition hover:shadow-md`}
+          >
+            Estadísticas
+          </Link>
+
+          <Link
             href="/ajustes"
-            className="px-3 py-1.5 rounded-lg border bg-white dark:bg-transparent"
+            className={`rounded-xl px-4 py-2 ${panelButtonClass} shadow-sm transition hover:shadow-md`}
           >
             Ajustes
           </Link>
         </div>
       </div>
 
-      {/* KPIs + ACCIONES + ALERTAS */}
-      <div className="grid grid-cols-1 lg:grid-cols-6 gap-5">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 lg:col-span-4">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-6">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
           {stats.map((stat) => {
             const Icon = stat.icon;
             const c = colorMap[stat.color];
@@ -421,19 +583,31 @@ if (diaFlojo) {
               <Link
                 key={stat.id}
                 href={stat.href}
-                className="card rounded-2xl p-4 hover:shadow-xl"
+                className={`group relative overflow-hidden p-4 ${panelCardClass} ${panelCardHover}`}
               >
-                <div className={`h-1 w-full rounded-full ${c.line} mb-3`} />
-                <div className="flex items-center gap-3">
-                  <div className={`h-12 w-12 rounded-2xl flex items-center justify-center ${c.bg}`}>
+                <div className={`mb-3 h-1 w-full rounded-full bg-gradient-to-r ${c.line}`} />
+
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ring-1 ${iconRingClass} ${c.bg}`}
+                  >
                     <Icon size={22} className={c.icon} />
                   </div>
-                  <div>
-                    <p className="text-xs uppercase tracking-widest opacity-70">
+
+                  <div className="min-w-0">
+                    <p
+                      className={`text-xs font-medium uppercase tracking-widest ${softTextClass}`}
+                    >
                       {stat.title}
                     </p>
-                    <p className="text-3xl font-extrabold">{stat.value}</p>
-                    <p className="text-xs opacity-60">{stat.context}</p>
+                    <p
+                      className={`mt-1 text-3xl font-extrabold leading-none ${titleTextClass}`}
+                    >
+                      {stat.value}
+                    </p>
+                    <p className={`mt-2 text-xs ${mutedTextClass}`}>
+                      {stat.context}
+                    </p>
                   </div>
                 </div>
               </Link>
@@ -441,48 +615,79 @@ if (diaFlojo) {
           })}
         </div>
 
-        {/* ACCIONES */}
         <div className="grid grid-cols-1 gap-5 lg:col-span-2">
-          <div className="card rounded-2xl p-5">
-            <div className="flex justify-between mb-3">
+          <div className={`${panelCardClass} p-5 ${panelCardHover}`}>
+            <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Sparkles className="text-blue-500" size={18} />
-                <p className="text-sm font-bold uppercase">Acciones</p>
+                <span
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${accionesIconBoxClass}`}
+                >
+                  <Sparkles size={18} />
+                </span>
+                <p className={`text-sm font-bold uppercase ${titleTextClass}`}>
+                  Acciones
+                </p>
               </div>
-              <span className="text-xs px-2 rounded-full bg-blue-100">
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${accionesBadgeClass}`}
+              >
                 {acciones.length}
               </span>
             </div>
 
-            <ul className="text-sm space-y-2">
-              {acciones.length === 0 && <li className="opacity-60">Todo al día</li>}
+            <ul className="space-y-2.5 text-sm">
+              {acciones.length === 0 && <li className={mutedTextClass}>Todo al día</li>}
+
               {acciones.map((a, i) => (
-                <li key={i} className="flex justify-between">
-                  <span>{a.texto}</span>
-                  <span className="opacity-60">{a.tiempo}</span>
+                <li
+                  key={a.id ?? i}
+                  className={`flex items-start justify-between gap-3 rounded-lg px-2 py-1.5 transition ${accionesHoverClass}`}
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className={`font-medium ${titleTextClass}`}>{a.texto}</span>
+                    <div className={`mt-1 text-xs ${mutedTextClass}`}>{a.tiempo}</div>
+                  </div>
+
+                  {a.persistente ? (
+                    <button
+                      onClick={() => marcarAccionLeida(a.id)}
+                      className={tickButtonClass}
+                      title="Marcar como revisado"
+                    >
+                      <Check size={16} />
+                    </button>
+                  ) : null}
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* ALERTAS */}
-          <div className="card rounded-2xl p-5">
-            <div className="flex justify-between mb-3">
+          <div className={`${panelCardClass} p-5 ${panelCardHover}`}>
+            <div className="mb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <Bell className="text-red-500" size={18} />
-                <p className="text-sm font-bold uppercase">Alertas</p>
+                <span
+                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${alertasIconBoxClass}`}
+                >
+                  <Bell size={18} />
+                </span>
+                <p className={`text-sm font-bold uppercase ${titleTextClass}`}>
+                  Alertas
+                </p>
               </div>
-              <span className="text-xs px-2 rounded-full bg-red-100">
+              <span
+                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${alertasBadgeClass}`}
+              >
                 {alertas.length}
               </span>
             </div>
 
-            <ul className="text-sm space-y-2">
-              {alertas.length === 0 && <li className="opacity-60">Sin alertas</li>}
+            <ul className="space-y-2 text-sm">
+              {alertas.length === 0 && <li className={mutedTextClass}>Sin alertas</li>}
+
               {alertas.map((a, i) => (
-                <li key={i} className="flex items-center gap-2">
-                  <span className="h-2 w-2 bg-red-500 rounded-full" />
-                  {a.texto}
+                <li key={i} className={alertaItemClass}>
+                  <span className="h-2 w-2 rounded-full bg-rose-500" />
+                  <span className="font-medium">{a.texto}</span>
                 </li>
               ))}
             </ul>
@@ -490,59 +695,76 @@ if (diaFlojo) {
         </div>
       </div>
 
-      {/* IMPACTO */}
-      <div className="card rounded-2xl p-5">
-        <p className="text-sm font-bold uppercase mb-4">Impacto de hoy</p>
+      <div className={`${panelCardClass} p-5`}>
+        <div className="mb-4 flex items-center justify-between">
+          <p className={`text-sm font-bold uppercase ${titleTextClass}`}>
+            Impacto de hoy
+          </p>
+          <span className={`text-xs ${softTextClass}`}>Acciones rápidas</span>
+        </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
           {[
-           {
+            {
               id: "pendientes-hoy",
               title: "Reservas pendientes",
               value: reservasEnRiesgo,
               description: "Hoy",
               href: "/reservas?filtro=pendientes",
               color: "amber",
-          },
-
+            },
             {
               id: "dia-flojo",
-  title: diaFlojo ? "Día flojo detectado" : "Ocupación estable",
-  value: diaFlojo ? `${diaFlojo.ocupacion}%` : "OK",
-  description: diaFlojo
-    ? diaFlojo.dia
-    : "Sin días por debajo del 40%",
-  href: "/ocupacion",
-  color: "red",
-},
-
+              title: diaFlojo ? "Día flojo detectado" : "Ocupación estable",
+              value: diaFlojo ? `${diaFlojo.ocupacion}%` : "OK",
+              description: diaFlojo ? diaFlojo.dia : "Sin días por debajo del 40%",
+              href: "/ocupacion",
+              color: "red",
+            },
           ].map((item) => {
             const c = colorMap[item.color];
 
             return (
-              <Link key={item.id} href={item.href} className={`rounded-xl p-4 ${c.bg}`}>
-                <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle size={16} className={c.icon} />
-                  <p className="text-xs uppercase opacity-60">{item.title}</p>
+              <Link key={item.id} href={item.href} className={impactCardClass}>
+                <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${c.line}`} />
+
+                <div className="pl-2">
+                  <div className="mb-2 flex items-center gap-2">
+                    <AlertTriangle size={16} className={c.icon} />
+                    <p
+                      className={`text-xs font-medium uppercase tracking-widest ${softTextClass}`}
+                    >
+                      {item.title}
+                    </p>
+                  </div>
+
+                  <p className={`text-3xl font-extrabold leading-none ${titleTextClass}`}>
+                    {item.value}
+                  </p>
+                  <p className={`mt-2 text-xs ${mutedTextClass}`}>{item.description}</p>
                 </div>
-                <p className="text-2xl font-extrabold">{item.value}</p>
-                <p className="text-xs opacity-60">{item.description}</p>
               </Link>
             );
           })}
         </div>
       </div>
 
-      {/* GRÁFICO */}
-      <div className="card rounded-2xl p-5">
-        <div className="flex items-center gap-2 mb-2">
-          <TrendingUp size={16} className="opacity-60" />
-          <p className="text-sm font-bold uppercase">Reservas de la semana</p>
+      <div className={`${panelCardClass} p-5`}>
+        <div className="mb-1 flex items-center gap-2">
+          <TrendingUp size={16} className={softTextClass} />
+          <p className={`text-sm font-bold uppercase ${titleTextClass}`}>
+            Reservas de la semana
+          </p>
         </div>
 
-        <div className="h-[260px] min-h-[260px] w-full">
-{restaurante && <DashboardChart restauranteId={restaurante.id} />}
+        <p className={`mb-4 text-xs ${mutedTextClass}`}>
+          Evolución de reservas por día
+        </p>
 
+        <div className={chartInnerClass}>
+          <div className="h-[260px] min-h-[260px] w-full">
+            {restaurante && <DashboardChart restauranteId={restaurante.id} />}
+          </div>
         </div>
       </div>
     </div>

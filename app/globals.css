@@ -1,1 +1,227 @@
-@import "tailwindcss"; /* ========================= ANIMACIONES ========================= */ @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } } /* ===== LOGIN GRADIENT ANIMADO ===== */ @keyframes loginGradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } } .bg-login-animated { background: linear-gradient( 270deg, #020617, #020617, #0f172a, #020617, #1e3a8a ); background-size: 600% 600%; animation: loginGradient 20s ease infinite; } /* ========================= THEME GLOBAL (ÚNICO) ========================= */ body { transition: background-color 0.2s ease, color 0.2s ease; } /* ===== LIGHT ===== */ html:not(.dark) body { background: #f5f6fa; color: #0b1220; } html:not(.dark) main { background: #f5f6fa; } /* ===== DARK ===== */ html.dark body { background: #050b18; color: #ffffff; } html.dark main { background: #050b18; } /* ========================= LINKS Y BOTONES ========================= */ /* LIGHT */ html:not(.dark) a, html:not(.dark) button { color: #0b1220; } /* DARK */ html.dark a, html.dark button { color: #ffffff; } /* ========================= SIDEBAR ========================= */ html:not(.dark) aside { background: #ffffff; color: #0b1220; border-right: 1px solid #e5e7eb; } html.dark aside { background: #0b1220; color: #ffffff; border-right: 1px solid rgba(255, 255, 255, 0.08); } /* ========================= CARDS (TODAS LAS PÁGINAS) ========================= */ .card { border-radius: 1rem; transition: transform 0.18s ease, box-shadow 0.18s ease; } /* LIGHT */ html:not(.dark) .card { background: #ffffff; color: #0b1220; border: 1px solid #e5e7eb; } /* DARK */ html.dark .card { background: #0b1220; color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.08); } /* CARD INNER */ html:not(.dark) .card-inner { background: #ffffff; } html.dark .card-inner { background: #050b18; } /* ========================= TÍTULOS ========================= */ h1, h2, h3, h4 { font-weight: 600; } /* LIGHT */ html:not(.dark) h1, html:not(.dark) h2, html:not(.dark) h3, html:not(.dark) h4 { color: #0b1220; } /* DARK */ html.dark h1, html.dark h2, html.dark h3, html.dark h4 { color: #ffffff; } /* ========================= BOTONES ========================= */ button, a.button, .btn { font-weight: 500; border-radius: 0.5rem; transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease; } /* LIGHT */ html:not(.dark) button, html:not(.dark) a.button, html:not(.dark) .btn { background: #ffffff; color: #0b1220; border: 1px solid #d1d5db; } html:not(.dark) button:hover, html:not(.dark) a.button:hover, html:not(.dark) .btn:hover { background: #f3f4f6; } /* Botón primario oscuro */ html:not(.dark) .btn-dark, html:not(.dark) button.bg-black { background: #0b1220; color: #ffffff; border: 1px solid #0b1220; } /* DARK */ html.dark button, html.dark a.button, html.dark .btn { background: transparent; color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.15); } html.dark button:hover, html.dark a.button:hover, html.dark .btn:hover { background: rgba(255, 255, 255, 0.06); } /* ========================= INPUTS / SELECTS ========================= */ input, select, textarea { border-radius: 0.5rem; transition: background-color 0.15s ease, border-color 0.15s ease; } /* Light */ html:not(.dark) input, html:not(.dark) select, html:not(.dark) textarea { background: #ffffff; color: #0b1220; border: 1px solid #d1d5db; } /* Dark */ html.dark input, html.dark select, html.dark textarea { background: #050b18; color: #ffffff; border: 1px solid rgba(255, 255, 255, 0.15); } /* ========================= FILTROS / BADGES ========================= */ .badge { border-radius: 999px; font-size: 0.75rem; padding: 0.25rem 0.6rem; } /* Activo */ html:not(.dark) .badge-active { background: #0b1220; color: #ffffff; } html.dark .badge-active { background: #ffffff; color: #0b1220; } /* Inactivo */ html:not(.dark) .badge-inactive { background: #e5e7eb; color: #374151; } html.dark .badge-inactive { background: rgba(255, 255, 255, 0.1); color: #d1d5db; }
+@import "tailwindcss";
+
+/* ========================= ANIMACIONES ========================= */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ===== LOGIN GRADIENT ANIMADO ===== */
+@keyframes loginGradient {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.bg-login-animated {
+  background: linear-gradient(
+    270deg,
+    #020617,
+    #020617,
+    #0f172a,
+    #020617,
+    #1e3a8a
+  );
+  background-size: 600% 600%;
+  animation: loginGradient 20s ease infinite;
+}
+
+/* ========================= THEME GLOBAL ========================= */
+body {
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+/* ===== LIGHT ===== */
+html:not(.dark) body {
+  background: #f5f6fa;
+  color: #0b1220;
+}
+
+html:not(.dark) main {
+  background: #f5f6fa;
+}
+
+/* ===== DARK ===== */
+html.dark body {
+  background: #050b18;
+  color: #ffffff;
+}
+
+html.dark main {
+  background: #050b18;
+}
+
+/* ========================= LINKS ========================= */
+a {
+  transition: color 0.15s ease;
+}
+
+/* ========================= SIDEBAR ========================= */
+html:not(.dark) aside {
+  background: #ffffff;
+  color: #0b1220;
+  border-right: 1px solid #e5e7eb;
+}
+
+html.dark aside {
+  background: #0b1220;
+  color: #ffffff;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ========================= CARDS ========================= */
+.card {
+  border-radius: 1rem;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+/* LIGHT */
+html:not(.dark) .card {
+  background: #ffffff;
+  color: #0b1220;
+  border: 1px solid #e5e7eb;
+}
+
+/* DARK */
+html.dark .card {
+  background: #0b1220;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* CARD INNER */
+html:not(.dark) .card-inner {
+  background: #ffffff;
+}
+
+html.dark .card-inner {
+  background: #050b18;
+}
+
+/* ========================= TÍTULOS ========================= */
+h1,
+h2,
+h3,
+h4 {
+  font-weight: 600;
+}
+
+html:not(.dark) h1,
+html:not(.dark) h2,
+html:not(.dark) h3,
+html:not(.dark) h4 {
+  color: #0b1220;
+}
+
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4 {
+  color: #ffffff;
+}
+
+/* ========================= BOTONES BASE ========================= */
+button,
+a.button,
+.btn {
+  font-weight: 500;
+  border-radius: 0.5rem;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+/* Solo aplica estilo global a .btn y a.button */
+html:not(.dark) .btn,
+html:not(.dark) a.button {
+  background: #ffffff;
+  color: #0b1220;
+  border: 1px solid #d1d5db;
+}
+
+html:not(.dark) .btn:hover,
+html:not(.dark) a.button:hover {
+  background: #f3f4f6;
+}
+
+html.dark .btn,
+html.dark a.button {
+  background: transparent;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+html.dark .btn:hover,
+html.dark a.button:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ========================= INPUTS / SELECTS ========================= */
+input,
+select,
+textarea {
+  border-radius: 0.5rem;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+/* Light */
+html:not(.dark) input,
+html:not(.dark) select,
+html:not(.dark) textarea {
+  background: #ffffff;
+  color: #0b1220;
+  border: 1px solid #d1d5db;
+}
+
+/* Dark */
+html.dark input,
+html.dark select,
+html.dark textarea {
+  background: #050b18;
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* ========================= FILTROS / BADGES ========================= */
+.badge {
+  border-radius: 999px;
+  font-size: 0.75rem;
+  padding: 0.25rem 0.6rem;
+}
+
+/* Activo */
+html:not(.dark) .badge-active {
+  background: #0b1220;
+  color: #ffffff;
+}
+
+html.dark .badge-active {
+  background: #ffffff;
+  color: #0b1220;
+}
+
+/* Inactivo */
+html:not(.dark) .badge-inactive {
+  background: #e5e7eb;
+  color: #374151;
+}
+
+html.dark .badge-inactive {
+  background: rgba(255, 255, 255, 0.1);
+  color: #d1d5db;
+}
