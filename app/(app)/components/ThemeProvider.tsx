@@ -22,14 +22,31 @@ export default function ThemeProvider({
   children: React.ReactNode;
 }) {
   const [dark, setDark] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    document.documentElement.classList.remove("dark");
-    localStorage.setItem("theme", "light");
+    const savedTheme = localStorage.getItem("theme");
+
+    const shouldUseDark =
+      savedTheme === "dark" ||
+      (!savedTheme &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+
+    setDark(shouldUseDark);
+    setMounted(true);
+
+    if (shouldUseDark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
   }, []);
 
   function toggle() {
     const next = !dark;
+
     setDark(next);
 
     if (next) {
