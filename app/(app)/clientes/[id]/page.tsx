@@ -63,6 +63,9 @@ type Reserva = {
   atendida: boolean | null;
   resena_solicitada: boolean | null;
   mesa_id: string | null;
+  cliente_id?: string | null;
+  telefono?: string | null;
+  email?: string | null;
 };
 
 function formatFecha(fecha: string | null) {
@@ -91,6 +94,19 @@ function formatBool(value: boolean | null | undefined) {
   if (value === true) return "Sí";
   if (value === false) return "No";
   return "Pendiente";
+}
+
+function formatCanal(canal: string | null) {
+  if (!canal) return "-";
+
+  const canales = canal
+    .split(",")
+    .map((c) => c.trim())
+    .filter((c) => c && c.toLowerCase() !== "ninguno");
+
+  if (canales.length === 0) return "-";
+
+  return [...new Set(canales)].join(" · ");
 }
 
 function formatBoolAtendida(value: boolean | null | undefined) {
@@ -176,43 +192,68 @@ export default function ClienteHistorialPage() {
 
     setLoading(true);
 
-    const [
-      { data: clienteData, error: clienteError },
-      { data: reservasData, error: reservasError },
-    ] = await Promise.all([
-      supabase
-        .from("vw_clientes_resumen")
-        .select("*")
-        .eq("id", id)
-        .eq("restaurante_id", restauranteId)
-        .maybeSingle(),
+    const { data: clienteData, error: clienteError } = await supabase
+      .from("vw_clientes_resumen")
+      .select("*")
+      .eq("id", id)
+      .eq("restaurante_id", restauranteId)
+      .maybeSingle();
 
-      supabase
-        .from("reservas")
-        .select(`
-          id,
-          fecha_hora_reserva,
-          personas,
-          estado,
-          turno,
-          origen,
-          notas,
-          atendida,
-          resena_solicitada,
-          mesa_id
-        `)
-        .eq("cliente_id", id)
-        .eq("restaurante_id", restauranteId)
-        .order("fecha_hora_reserva", { ascending: false }),
-    ]);
-
-    if (!clienteError && clienteData) {
-      setCliente(clienteData);
-      setNotasInternas(clienteData.notas_internas || "");
+    if (clienteError || !clienteData) {
+      console.error("Error cargando cliente:", clienteError);
+      setCliente(null);
+      setReservas([]);
+      setLoading(false);
+      return;
     }
 
-    if (!reservasError && reservasData) {
-      setReservas(reservasData);
+    setCliente(clienteData);
+    setNotasInternas(clienteData.notas_internas || "");
+
+    const telefonoCliente = (clienteData.telefono || "").replace(/\D/g, "");
+    const telefonoSin34 =
+      telefonoCliente.startsWith("34") && telefonoCliente.length > 9
+        ? telefonoCliente.slice(2)
+        : telefonoCliente;
+
+    const filtrosReserva = [`cliente_id.eq.${id}`];
+
+    if (clienteData.email) {
+      filtrosReserva.push(`email.eq.${clienteData.email}`);
+    }
+
+    if (telefonoCliente) {
+      filtrosReserva.push(`telefono.eq.${telefonoCliente}`);
+      filtrosReserva.push(`telefono.eq.${telefonoSin34}`);
+      filtrosReserva.push(`telefono.eq.+${telefonoCliente}`);
+    }
+
+    const { data: reservasData, error: reservasError } = await supabase
+      .from("reservas")
+      .select(`
+        id,
+        fecha_hora_reserva,
+        personas,
+        estado,
+        turno,
+        origen,
+        notas,
+        atendida,
+        resena_solicitada,
+        mesa_id,
+        cliente_id,
+        telefono,
+        email
+      `)
+      .eq("restaurante_id", restauranteId)
+      .or(filtrosReserva.join(","))
+      .order("fecha_hora_reserva", { ascending: false });
+
+    if (reservasError) {
+      console.error("Error cargando reservas del cliente:", reservasError);
+      setReservas([]);
+    } else {
+      setReservas(reservasData || []);
     }
 
     setLoading(false);
@@ -451,7 +492,7 @@ export default function ClienteHistorialPage() {
                         Canal
                       </p>
                       <p className="mt-2 text-base font-bold text-slate-900">
-                        {cliente.canal_contacto || "-"}
+                        {formatCanal(cliente.canal_contacto)}
                       </p>
                     </div>
                   </div>
@@ -569,7 +610,7 @@ export default function ClienteHistorialPage() {
                   <div className="rounded-2xl border border-slate-200 bg-slate-50/80 p-4">
                     <p className="text-sm text-slate-500">Canal de contacto</p>
                     <p className="mt-2 text-base font-semibold text-slate-900">
-                      {cliente.canal_contacto || "-"}
+                      {formatCanal(cliente.canal_contacto)}
                     </p>
                   </div>
 

@@ -1,15 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { supabase } from "../lib/supabaseClient";
 import AddReservaModal from "../components/AddReservaModal";
-import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
+import { withTimeout } from "../lib/safeQuery";
+import { useAutoRefresh } from "../lib/useAutoRefresh";
+
+import { useQueryClient } from "@tanstack/react-query";
+import { useRestaurante } from "../../hooks/useRestaurante";
+import { queryKeys } from "../../query/queryKeys";
 
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import type { EventContentArg } from "@fullcalendar/core";
+
 type EventClassNamesArg = any;
 
 type Estado = "confirmada" | "pendiente" | "cancelada";
@@ -17,13 +30,13 @@ type Estado = "confirmada" | "pendiente" | "cancelada";
 type Reserva = {
   id: string;
   cliente: string;
-  cliente_id: string;
+  cliente_id: string | null;
   fecha: string;
   hora: string;
   personas: number;
-  email: string;
+  email: string | null;
   estado: Estado;
-  telefono: string;
+  telefono: string | null;
   restaurante_id: string;
   fecha_hora_reserva: string;
   atendida: boolean | null;
@@ -34,6 +47,14 @@ type Reserva = {
 type Filtro = "todas" | "hoy" | "pendientes";
 type Vista = "calendario" | "tabla";
 
+function getHoraMadrid() {
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date());
+}
+
 function EstadoBadge({ estado }: { estado: Estado }) {
   if (estado === "confirmada") {
     return (
@@ -43,6 +64,7 @@ function EstadoBadge({ estado }: { estado: Estado }) {
       </span>
     );
   }
+
   if (estado === "pendiente") {
     return (
       <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border border-amber-500/20 bg-amber-500/10 text-amber-800 dark:border-amber-400/25 dark:bg-amber-400/10 dark:text-amber-100">
@@ -51,6 +73,7 @@ function EstadoBadge({ estado }: { estado: Estado }) {
       </span>
     );
   }
+
   return (
     <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs border border-rose-500/20 bg-rose-500/10 text-rose-700 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-100">
       <span className="h-1.5 w-1.5 rounded-full bg-rose-600 dark:bg-rose-300" />
@@ -68,6 +91,7 @@ function AtendidaBadge({ atendida }: { atendida: boolean | null }) {
       </span>
     );
   }
+
   if (atendida === false) {
     return (
       <span className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full border border-rose-500/20 bg-rose-500/10 text-rose-700 dark:border-rose-400/25 dark:bg-rose-400/10 dark:text-rose-100">
@@ -76,6 +100,7 @@ function AtendidaBadge({ atendida }: { atendida: boolean | null }) {
       </span>
     );
   }
+
   return (
     <span className="inline-flex items-center gap-2 text-xs px-2 py-1 rounded-full border border-slate-500/15 bg-slate-500/10 text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-200">
       <span className="h-1.5 w-1.5 rounded-full bg-slate-400 dark:bg-slate-300" />
@@ -91,6 +116,14 @@ export default function ReservasPage() {
   const [openModal, setOpenModal] = useState(false);
   const [procesando, setProcesando] = useState<string | null>(null);
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
+
+  const loadingRef = useRef(false);
+  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [loadingReservas, setLoadingReservas] = useState(true);
+  const [refreshingReservas, setRefreshingReservas] = useState(false);
+  const [errorReservas, setErrorReservas] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>("Actualizado");
 
   const [vista, setVista] = useState<Vista>("calendario");
 
@@ -109,12 +142,17 @@ export default function ReservasPage() {
 
   const [isDark, setIsDark] = useState(false);
 
+  const queryClient = useQueryClient();
+  const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
+
   useEffect(() => {
     const root = document.documentElement;
     const update = () => setIsDark(root.classList.contains("dark"));
     update();
+
     const obs = new MutationObserver(update);
     obs.observe(root, { attributes: true, attributeFilter: ["class"] });
+
     return () => obs.disconnect();
   }, []);
 
@@ -159,116 +197,216 @@ export default function ReservasPage() {
   }, [isDark]);
 
   useEffect(() => {
-    let alive = true;
+    if (loadingRestaurante) return;
 
-    const cargarRestaurante = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
+    const id = (restauranteActual as any)?.id ?? null;
 
-      if (!session?.user) return;
+    setRestauranteId(id);
 
-      const id = await getRestauranteUsuario();
+    if (!id) {
+      setReservas([]);
+      setLoadingReservas(false);
+    }
+  }, [restauranteActual, loadingRestaurante]);
 
-      if (alive) {
-        setRestauranteId(id);
-      }
-    };
+  const cargarConfigPuntos = useCallback(async (rid: string) => {
+    try {
+const result = await withTimeout(
+  supabase
+    .from("fidelizacion_config")
+    .select("puntos_por_euro")
+    .eq("restaurante_id", rid)
+    .maybeSingle(),
+  20000
+);
 
-    cargarRestaurante();
+if (!result) {
+  setPuntosActivo(false);
+  setPuntosPorEuro(1);
+  return;
+}
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (!session?.user) {
-        if (alive) setRestauranteId(null);
+const { data, error } = result;
+
+      if (error) {
+        setPuntosActivo(false);
+        setPuntosPorEuro(1);
         return;
       }
 
-      const id = await getRestauranteUsuario();
-
-      if (alive) {
-        setRestauranteId(id);
-      }
-    });
-
-    return () => {
-      alive = false;
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  const cargarConfigPuntos = async (rid: string) => {
-    const { data, error } = await supabase
-      .from("fidelizacion_config")
-      .select("puntos_por_euro")
-      .eq("restaurante_id", rid)
-      .maybeSingle();
-
-    if (error) {
+      const ratio = Number(data?.puntos_por_euro ?? 0);
+      setPuntosPorEuro(ratio > 0 ? ratio : 1);
+      setPuntosActivo(ratio > 0);
+    } catch (error) {
+      console.error("ERROR CONFIG PUNTOS", error);
       setPuntosActivo(false);
       setPuntosPorEuro(1);
-      return;
     }
+  }, []);
 
-    const ratio = Number(data?.puntos_por_euro ?? 0);
-    setPuntosPorEuro(ratio > 0 ? ratio : 1);
-    setPuntosActivo(ratio > 0);
+  const cargarReservas = useCallback(
+    async (modo: "inicial" | "refresh" = "refresh") => {
+      if (!restauranteId || loadingRef.current) return;
+
+      loadingRef.current = true;
+
+      if (modo === "inicial") {
+        setLoadingReservas(true);
+      } else {
+        setRefreshingReservas(true);
+      }
+
+      setErrorReservas(null);
+
+      try {
+        const ahora = new Date();
+
+        const desde = new Date(ahora);
+        desde.setDate(desde.getDate() - 90);
+
+        const hasta = new Date(ahora);
+        hasta.setDate(hasta.getDate() + 180);
+
+const result = await withTimeout(
+  supabase
+    .from("reservas")
+    .select(
+      `
+        id,
+        nombre_cliente,
+        cliente_id,
+        telefono,
+        email,
+        restaurante_id,
+        fecha_hora_reserva,
+        personas,
+        estado,
+        atendida,
+        resena_solicitada,
+        clientes:cliente_id (
+          ya_dejo_resena
+        )
+      `
+    )
+    .eq("restaurante_id", restauranteId)
+    .gte("fecha_hora_reserva", desde.toISOString())
+    .lte("fecha_hora_reserva", hasta.toISOString())
+    .order("fecha_hora_reserva", { ascending: true })
+    .limit(300),
+  20000
+);
+
+if (!result) {
+  setErrorReservas("La carga de reservas ha tardado demasiado.");
+  return;
+}
+
+const { data, error } = result;
+
+if (error) {
+  console.warn("RESERVAS ERROR", error);
+  setErrorReservas("No se pudieron cargar las reservas.");
+  return;
+}
+
+const hoyKey = new Date().toDateString();
+
+const formateadas: Reserva[] = (data || []).map((r: any) => {
+  const fechaDate = new Date(r.fecha_hora_reserva);
+
+  return {
+    id: r.id,
+    cliente: r.nombre_cliente ?? "Cliente",
+    cliente_id: r.cliente_id ?? null,
+    telefono: r.telefono ?? null,
+    email: r.email ?? null,
+    restaurante_id: r.restaurante_id,
+    fecha_hora_reserva: r.fecha_hora_reserva,
+    fecha:
+      fechaDate.toDateString() === hoyKey
+        ? "Hoy"
+        : fechaDate.toLocaleDateString("es-ES"),
+    hora: fechaDate.toLocaleTimeString("es-ES", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    personas: Number(r.personas ?? 0),
+    estado: (r.estado || "pendiente") as Estado,
+    atendida: r.atendida,
+    resena_solicitada: Boolean(r.resena_solicitada),
+    ya_dejo_resena: r.clientes?.ya_dejo_resena ?? false,
   };
+});
 
-  const cargarReservas = async () => {
-    if (!restauranteId) return;
-
-    const { data } = await supabase
-      .from("reservas")
-      .select(
-        `
-          *,
-          clientes:cliente_id (
-            ya_dejo_resena
-          )
-        `
-      )
-      .eq("restaurante_id", restauranteId)
-      .order("fecha_hora_reserva", { ascending: true });
-
-    if (!data) return;
-
-    const formateadas: Reserva[] = data.map((r: any) => {
-      const fechaDate = new Date(r.fecha_hora_reserva);
-
-      return {
-        id: r.id,
-        cliente: r.nombre_cliente ?? "Cliente",
-        cliente_id: r.cliente_id,
-        telefono: r.telefono,
-        email: r.email,
-        restaurante_id: r.restaurante_id,
-        fecha_hora_reserva: r.fecha_hora_reserva,
-        fecha:
-          fechaDate.toDateString() === new Date().toDateString()
-            ? "Hoy"
-            : fechaDate.toLocaleDateString(),
-        hora: fechaDate.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        personas: r.personas,
-        estado: r.estado,
-        atendida: r.atendida,
-        resena_solicitada: r.resena_solicitada,
-        ya_dejo_resena: r.clientes?.ya_dejo_resena ?? false,
-      };
-    });
-
-    setReservas(formateadas);
-  };
+        setReservas(formateadas);
+        setLastUpdated(`Actualizado ${getHoraMadrid()}`);
+      } catch (error) {
+        console.error("ERROR GENERAL CARGANDO RESERVAS", error);
+        setErrorReservas("La carga de reservas ha tardado demasiado.");
+      } finally {
+        loadingRef.current = false;
+        setLoadingReservas(false);
+        setRefreshingReservas(false);
+      }
+    },
+    [restauranteId]
+  );
 
   useEffect(() => {
     if (!restauranteId) return;
-    cargarReservas();
+
+    cargarReservas("inicial");
     cargarConfigPuntos(restauranteId);
-  }, [restauranteId]);
+  }, [restauranteId, cargarReservas, cargarConfigPuntos]);
+
+  useAutoRefresh(
+    async () => {
+      await cargarReservas("refresh");
+    },
+    {
+      enabled: !!restauranteId,
+      intervalMs: 30000,
+    }
+  );
+
+  const programarRefreshRealtime = useCallback(() => {
+    if (realtimeTimerRef.current) {
+      clearTimeout(realtimeTimerRef.current);
+    }
+
+    realtimeTimerRef.current = setTimeout(() => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.reservas.all });
+      cargarReservas("refresh");
+    }, 800);
+  }, [cargarReservas, queryClient]);
+
+  useEffect(() => {
+    if (!restauranteId) return;
+
+    const channelReservas = supabase
+      .channel(`reservas-page-${restauranteId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reservas",
+          filter: `restaurante_id=eq.${restauranteId}`,
+        },
+        () => {
+          programarRefreshRealtime();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      if (realtimeTimerRef.current) {
+        clearTimeout(realtimeTimerRef.current);
+      }
+
+      supabase.removeChannel(channelReservas);
+    };
+  }, [restauranteId, programarRefreshRealtime]);
 
   const actualizarEstado = async (id: string, nuevoEstado: Estado) => {
     if (!restauranteId) return;
@@ -364,6 +502,8 @@ export default function ReservasPage() {
         }),
       });
     } catch {}
+
+    programarRefreshRealtime();
   };
 
   const marcarHaVenido = async (
@@ -417,6 +557,7 @@ export default function ReservasPage() {
       }
 
       setProcesando(null);
+      programarRefreshRealtime();
       return;
     }
 
@@ -525,6 +666,7 @@ export default function ReservasPage() {
     });
 
     setProcesando(null);
+    programarRefreshRealtime();
   };
 
   const clickHaVenido = (r: Reserva) => {
@@ -532,6 +674,7 @@ export default function ReservasPage() {
       marcarHaVenido(r, true);
       return;
     }
+
     setReservaParaGasto(r);
     setGastoInput("");
     setShowGastoModal(true);
@@ -551,13 +694,17 @@ export default function ReservasPage() {
     setGastoInput("");
   };
 
-  const reservasFiltradas = reservas
-    .filter((r) => {
-      if (filtro === "hoy") return r.fecha === "Hoy";
-      if (filtro === "pendientes") return r.estado === "pendiente";
-      return true;
-    })
-    .filter((r) => r.cliente.toLowerCase().includes(busqueda.toLowerCase()));
+  const reservasFiltradas = useMemo(() => {
+    return reservas
+      .filter((r) => {
+        if (filtro === "hoy") return r.fecha === "Hoy";
+        if (filtro === "pendientes") return r.estado === "pendiente";
+        return true;
+      })
+      .filter((r) =>
+        r.cliente.toLowerCase().includes(busqueda.toLowerCase().trim())
+      );
+  }, [reservas, filtro, busqueda]);
 
   const eventos = useMemo(() => {
     return reservasFiltradas.map((r) => {
@@ -753,6 +900,15 @@ export default function ReservasPage() {
 
           <button
             type="button"
+            onClick={() => cargarReservas("refresh")}
+            disabled={!restauranteId || refreshingReservas || loadingReservas}
+            className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm shadow-sm hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed dark:border-white/10 dark:bg-white/5 dark:text-white"
+          >
+            Refrescar
+          </button>
+
+          <button
+            type="button"
             disabled={!restauranteId}
             onClick={() => setOpenModal(true)}
             className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm shadow-sm hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-slate-900"
@@ -794,6 +950,23 @@ export default function ReservasPage() {
           {reservasFiltradas.length === 1 ? "" : "s"}
         </div>
       </div>
+
+      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
+        <span>{lastUpdated}</span>
+        {refreshingReservas && <span>Refrescando reservas...</span>}
+      </div>
+
+      {errorReservas && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
+          {errorReservas}
+        </div>
+      )}
+
+      {loadingReservas && (
+        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+          Cargando reservas...
+        </div>
+      )}
 
       {vista === "calendario" && (
         <div className="card overflow-hidden">
@@ -898,6 +1071,7 @@ export default function ReservasPage() {
               .reservas-table tbody td {
                 border-bottom: 1px solid var(--tbl-border) !important;
               }
+
               .reservas-table tbody tr:last-child td {
                 border-bottom: 0 !important;
               }
@@ -951,6 +1125,7 @@ export default function ReservasPage() {
                             Confirmar
                           </button>
                         )}
+
                         {r.estado !== "cancelada" && (
                           <button
                             onClick={() =>
@@ -999,6 +1174,12 @@ export default function ReservasPage() {
                 ))}
               </tbody>
             </table>
+
+            {!loadingReservas && reservasFiltradas.length === 0 && (
+              <div className="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-300">
+                No hay reservas con los filtros actuales.
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1007,7 +1188,10 @@ export default function ReservasPage() {
         open={openModal}
         onClose={() => setOpenModal(false)}
         restauranteId={restauranteId}
-        onCreated={cargarReservas}
+        onCreated={() => {
+          queryClient.invalidateQueries({ queryKey: queryKeys.reservas.all });
+          cargarReservas("refresh");
+        }}
       />
 
       {showDetalle && reservaSeleccionada && (
@@ -1041,7 +1225,7 @@ export default function ReservasPage() {
                   >
                     {new Date(
                       reservaSeleccionada.fecha_hora_reserva
-                    ).toLocaleString()}
+                    ).toLocaleString("es-ES")}
                   </span>
                   <span
                     className="text-xs"

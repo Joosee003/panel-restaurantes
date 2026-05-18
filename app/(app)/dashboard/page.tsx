@@ -1,6 +1,7 @@
 "use client";
+
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -15,22 +16,71 @@ import {
   AlertTriangle,
   Zap,
   Check,
+  RefreshCw,
 } from "lucide-react";
 
 import { useTheme } from "../components/ThemeProvider";
 import { supabase } from "../lib/supabaseClient";
 import { calcularOcupacion, detectarDiaFlojoSemana } from "../lib/ocupacion";
+import { withTimeout } from "../lib/safeQuery";
+import { useAutoRefresh } from "../lib/useAutoRefresh";
 
 /* ===== CHART ===== */
 const DashboardChart = dynamic(() => import("../components/DashboardChart"), {
   ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center text-sm text-slate-500">
+      Cargando gráfica...
+    </div>
+  ),
 });
+
+function getHoyMadrid() {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function getHoraMadrid() {
+  return new Intl.DateTimeFormat("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date());
+}
+
+function formatearFechaReserva(valor?: string | null) {
+  if (!valor) return "";
+
+  const d = new Date(valor);
+  if (Number.isNaN(d.getTime())) return valor;
+
+  return d.toLocaleString("es-ES", {
+    timeZone: "Europe/Madrid",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
 
 export default function DashboardPage() {
   const { toggle, dark } = useTheme();
   const isDark = dark;
 
+  const loadingRef = useRef(false);
+  const realtimeTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   const [restaurante, setRestaurante] = useState<any>(null);
+  const [restauranteId, setRestauranteId] = useState<string | null>(null);
+
+  const [loadingInicial, setLoadingInicial] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [dashboardError, setDashboardError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<string>("Actualizado");
 
   const [reservasHoy, setReservasHoy] = useState(0);
   const [clientesNuevosHoy, setClientesNuevosHoy] = useState(0);
@@ -51,220 +101,306 @@ export default function DashboardPage() {
 
   useEffect(() => {
     const cargarRestaurante = async () => {
-      const restauranteId = await getRestauranteUsuario();
-      if (!restauranteId) return;
+      setLoadingInicial(true);
 
-      const { data } = await supabase
-        .from("restaurantes")
-        .select("*")
-        .eq("id", restauranteId)
-        .single();
+      try {
+        const rid = await withTimeout(getRestauranteUsuario(), 8000);
 
-      if (data) setRestaurante(data);
+        if (!rid) {
+          setDashboardError("No se ha encontrado restaurante para este usuario.");
+          setLoadingInicial(false);
+          return;
+        }
+
+        setRestauranteId(rid);
+
+const result = await withTimeout(
+  supabase
+    .from("restaurantes")
+    .select("*")
+    .eq("id", rid)
+    .single(),
+  20000
+);
+
+if (!result) {
+  setDashboardError("No se pudo cargar el restaurante.");
+  setLoadingInicial(false);
+  return;
+}
+
+const { data, error } = result;
+
+if (error) {
+  console.error("RESTAURANTE ERROR", error);
+  setDashboardError("No se pudo cargar el restaurante.");
+  setLoadingInicial(false);
+  return;
+}
+
+setRestaurante(data);
+      } catch (error) {
+        console.error("ERROR CARGANDO RESTAURANTE", error);
+        setDashboardError("Tiempo de carga agotado cargando el restaurante.");
+        setLoadingInicial(false);
+      }
     };
 
     cargarRestaurante();
   }, []);
 
-  const ahoraEsp = new Date(
-    new Intl.DateTimeFormat("en-GB", {
-      timeZone: "Europe/Madrid",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    }).format(new Date())
+  const cargarDashboard = useCallback(
+    async (modo: "inicial" | "refresh" = "refresh") => {
+      if (!restauranteId || loadingRef.current) return;
+
+      loadingRef.current = true;
+
+      if (modo === "inicial") {
+        setLoadingInicial(true);
+      } else {
+        setRefreshing(true);
+      }
+
+      setDashboardError(null);
+
+      const hoy = getHoyMadrid();
+      const inicioHoyTxt = `${hoy} 00:00:00`;
+      const finHoyTxt = `${hoy} 23:59:59`;
+
+      try {
+        const [
+          reservasHoyResult,
+          clientesNuevosResult,
+          resenasPendientesResult,
+          reservasRiesgoResult,
+          accionesRestauranteResult,
+          ocupacionResult,
+          diaFlojoResult,
+        ] = await Promise.allSettled([
+          withTimeout(
+            supabase
+              .from("reservas")
+              .select("id", { count: "exact", head: true })
+              .eq("restaurante_id", restauranteId)
+              .eq("estado", "confirmada")
+              .gte("fecha_hora_reserva", inicioHoyTxt)
+              .lte("fecha_hora_reserva", finHoyTxt),
+            8000
+          ),
+
+          withTimeout(
+            supabase
+              .from("clientes")
+              .select("id", { count: "exact", head: true })
+              .eq("restaurante_id", restauranteId)
+              .gte("created_at", inicioHoyTxt)
+              .lte("created_at", finHoyTxt),
+            8000
+          ),
+
+          withTimeout(
+            supabase
+              .from("resenas")
+              .select("id", { count: "exact", head: true })
+              .eq("restaurante_id", restauranteId)
+              .eq("responded", false),
+            8000
+          ),
+
+          withTimeout(
+            supabase
+              .from("reservas")
+              .select("id", { count: "exact", head: true })
+              .eq("restaurante_id", restauranteId)
+              .eq("estado", "pendiente")
+              .gte("fecha_hora_reserva", inicioHoyTxt)
+              .lte("fecha_hora_reserva", finHoyTxt),
+            8000
+          ),
+
+          withTimeout(
+            supabase
+              .from("acciones_restaurante")
+              .select("*")
+              .eq("restaurante_id", restauranteId)
+              .eq("leida", false)
+              .order("created_at", { ascending: false })
+              .limit(10),
+            8000
+          ),
+
+          withTimeout(calcularOcupacion(restauranteId), 10000),
+
+          withTimeout(detectarDiaFlojoSemana(restauranteId), 10000),
+        ]);
+
+if (reservasHoyResult.status === "fulfilled" && reservasHoyResult.value) {
+  const { count, error } = reservasHoyResult.value;
+  if (error) console.error("RESERVAS HOY ERROR", error);
+  setReservasHoy(count ?? 0);
+
+        }
+
+if (clientesNuevosResult.status === "fulfilled" && clientesNuevosResult.value) {
+  const { count, error } = clientesNuevosResult.value;
+  if (error) console.error("CLIENTES NUEVOS ERROR", error);
+  setClientesNuevosHoy(count ?? 0);
+}
+
+if (
+  resenasPendientesResult.status === "fulfilled" &&
+  resenasPendientesResult.value
+) {
+  const { count, error } = resenasPendientesResult.value;
+  if (error) console.error("RESEÑAS PENDIENTES ERROR", error);
+  setResenasPendientes(count ?? 0);
+}
+
+if (reservasRiesgoResult.status === "fulfilled" && reservasRiesgoResult.value) {
+  const { count, error } = reservasRiesgoResult.value;
+  if (error) console.error("RESERVAS RIESGO ERROR", error);
+  setReservasEnRiesgo(count ?? 0);
+  setHuecosDetectados(count ?? 0);
+}
+
+if (
+  accionesRestauranteResult.status === "fulfilled" &&
+  accionesRestauranteResult.value
+) {
+  const { data, error } = accionesRestauranteResult.value;
+  if (error) console.error("ACCIONES RESTAURANTE ERROR", error);
+  setAccionesRestaurante(data ?? []);
+
+        }
+
+        if (ocupacionResult.status === "fulfilled" && ocupacionResult.value) {
+          setPctComidaState(ocupacionResult.value.ocupacionComidaPct ?? 0);
+          setPctCenaState(ocupacionResult.value.ocupacionCenaPct ?? 0);
+          setOcupacionValor(`${ocupacionResult.value.totalDiaPct ?? 0}%`);
+          setOcupacionContexto("Ocupación total del día");
+        }
+
+        if (diaFlojoResult.status === "fulfilled") {
+          setDiaFlojo(diaFlojoResult.value ?? null);
+        }
+
+        setLastUpdated(`Actualizado ${getHoraMadrid()}`);
+      } catch (error) {
+        console.error("ERROR GENERAL DASHBOARD", error);
+        setDashboardError("Alguna carga del dashboard ha tardado demasiado.");
+      } finally {
+        loadingRef.current = false;
+        setLoadingInicial(false);
+        setRefreshing(false);
+      }
+    },
+    [restauranteId]
   );
 
-  const fechaActualizada = Number.isNaN(ahoraEsp.getTime())
-    ? "Actualizado"
-    : `Actualizado ${ahoraEsp.toLocaleTimeString("es-ES", {
-        hour: "2-digit",
-        minute: "2-digit",
-      })}`;
+  useEffect(() => {
+    if (!restauranteId) return;
+    cargarDashboard("inicial");
+  }, [restauranteId, cargarDashboard]);
 
-  const ahora = new Date();
-  const inicioHoyDate = new Date(ahora);
-  inicioHoyDate.setHours(0, 0, 0, 0);
+  useAutoRefresh(
+    async () => {
+      await cargarDashboard("refresh");
+    },
+    {
+      enabled: !!restauranteId,
+      intervalMs: 30000,
+    }
+  );
 
-  const finHoyDate = new Date(ahora);
-  finHoyDate.setHours(23, 59, 59, 999);
-
-  const inicioHoy = inicioHoyDate.toISOString();
-  const finHoy = finHoyDate.toISOString();
-
-  const cargarReservasHoy = async () => {
-    if (!restaurante) return;
-
-    const hoy = new Date().toISOString().split("T")[0];
-
-    const { count } = await supabase
-      .from("reservas")
-      .select("*", { count: "exact", head: true })
-      .eq("restaurante_id", restaurante.id)
-      .eq("estado", "confirmada")
-      .gte("fecha_hora_reserva", `${hoy} 00:00:00`)
-      .lte("fecha_hora_reserva", `${hoy} 23:59:59`);
-
-    if (count !== null) setReservasHoy(count);
-  };
-
-  const cargarClientesNuevosHoy = async () => {
-    if (!restaurante) return;
-
-    const hoy = new Date().toISOString().split("T")[0];
-
-    const { count } = await supabase
-      .from("clientes")
-      .select("*", { count: "exact", head: true })
-      .eq("restaurante_id", restaurante.id)
-      .gte("created_at", `${hoy} 00:00:00`)
-      .lte("created_at", `${hoy} 23:59:59`);
-
-    if (count !== null) setClientesNuevosHoy(count);
-  };
-
-  const cargarResenasPendientes = async () => {
-    if (!restaurante) return;
-
-    const { count } = await supabase
-      .from("resenas")
-      .select("*", { count: "exact", head: true })
-      .eq("restaurante_id", restaurante.id)
-      .eq("responded", false);
-
-    if (count !== null) setResenasPendientes(count);
-  };
-
-  const cargarReservasEnRiesgo = async () => {
-    if (!restaurante) return;
-
-    const hoy = new Date().toISOString().split("T")[0];
-    const inicioHoyTxt = `${hoy} 00:00:00`;
-    const finHoyTxt = `${hoy} 23:59:59`;
-
-    const { count, error } = await supabase
-      .from("reservas")
-      .select("*", { count: "exact", head: true })
-      .eq("restaurante_id", restaurante.id)
-      .eq("estado", "pendiente")
-      .gte("fecha_hora_reserva", inicioHoyTxt)
-      .lte("fecha_hora_reserva", finHoyTxt);
-
-    if (error) console.error("RIESGO ERROR", error);
-    if (count !== null) setReservasEnRiesgo(count);
-  };
-
-  const cargarOcupacion = async () => {
-    if (!restaurante) return;
-
-    const res = await calcularOcupacion(restaurante.id);
-    if (!res) return;
-
-    setPctComidaState(res.ocupacionComidaPct);
-    setPctCenaState(res.ocupacionCenaPct);
-
-    setOcupacionValor(`${res.totalDiaPct}%`);
-    setOcupacionContexto("Ocupación total del día");
-  };
-
-  const recalcularHuecos = async () => {
-    if (!restaurante) return;
-
-    const { count } = await supabase
-      .from("reservas")
-      .select("*", { count: "exact", head: true })
-      .eq("restaurante_id", restaurante.id)
-      .eq("estado", "pendiente")
-      .gte("fecha_hora_reserva", inicioHoy)
-      .lte("fecha_hora_reserva", finHoy);
-
-    setHuecosDetectados(count ?? 0);
-  };
-
-  const cargarAccionesRestaurante = async () => {
-    if (!restaurante) return;
-
-    const { data, error } = await supabase
-      .from("acciones_restaurante")
-      .select("*")
-      .eq("restaurante_id", restaurante.id)
-      .eq("leida", false)
-      .order("created_at", { ascending: false })
-      .limit(10);
-
-    if (error) {
-      console.error("ACCIONES RESTAURANTE ERROR", error);
-      return;
+  const programarRefreshRealtime = useCallback(() => {
+    if (realtimeTimerRef.current) {
+      clearTimeout(realtimeTimerRef.current);
     }
 
-    setAccionesRestaurante(data ?? []);
-  };
+    realtimeTimerRef.current = setTimeout(() => {
+      cargarDashboard("refresh");
+    }, 800);
+  }, [cargarDashboard]);
 
-  const marcarAccionLeida = async (id: string) => {
-    const { error } = await supabase
-      .from("acciones_restaurante")
-      .update({ leida: true })
-      .eq("id", id);
+  useEffect(() => {
+    if (!restauranteId) return;
 
-    if (error) {
-      console.error("MARCAR ACCION LEIDA ERROR", error);
-      return;
-    }
+    const channelReservas = supabase
+      .channel(`dashboard-reservas-${restauranteId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "reservas",
+          filter: `restaurante_id=eq.${restauranteId}`,
+        },
+        () => {
+          programarRefreshRealtime();
+        }
+      )
+      .subscribe();
 
-    setAccionesRestaurante((prev) => prev.filter((a) => a.id !== id));
-  };
+    const channelAcciones = supabase
+      .channel(`dashboard-acciones-${restauranteId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "acciones_restaurante",
+          filter: `restaurante_id=eq.${restauranteId}`,
+        },
+        () => {
+          programarRefreshRealtime();
+        }
+      )
+      .subscribe();
 
-  const recalcularAccionesYAlertas = () => {
+    return () => {
+      if (realtimeTimerRef.current) {
+        clearTimeout(realtimeTimerRef.current);
+      }
+
+      supabase.removeChannel(channelReservas);
+      supabase.removeChannel(channelAcciones);
+    };
+  }, [restauranteId, programarRefreshRealtime]);
+
+  useEffect(() => {
     const nuevasAcciones: any[] = [];
     const nuevasAlertas: any[] = [];
 
-const formatearFechaReserva = (valor?: string | null) => {
-  if (!valor) return "";
+    const accionesRecientes = accionesRestaurante.map((a: any) => {
+      const fecha = new Date(a.created_at);
+      const tiempo = Number.isNaN(fecha.getTime())
+        ? "Ahora"
+        : fecha.toLocaleTimeString("es-ES", {
+            timeZone: "Europe/Madrid",
+            hour: "2-digit",
+            minute: "2-digit",
+          });
 
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
+      let texto = a.mensaje || "Movimiento reciente en reservas";
 
-  return d.toLocaleString("es-ES", {
-    timeZone: "Europe/Madrid",
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
+      if (a.tipo === "reprogramacion") {
+        const anterior = formatearFechaReserva(a.fecha_anterior);
+        const nueva = formatearFechaReserva(a.fecha_nueva);
+        texto = `${a.cliente_nombre || "Un cliente"} ha reprogramado su reserva de ${anterior} a ${nueva}`;
+      }
 
-const accionesRecientes = accionesRestaurante.map((a: any) => {
-  const fecha = new Date(a.created_at);
-  const tiempo = Number.isNaN(fecha.getTime())
-    ? "Ahora"
-    : fecha.toLocaleTimeString("es-ES", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      if (a.tipo === "cancelacion") {
+        const anterior = formatearFechaReserva(a.fecha_anterior);
+        texto = `${a.cliente_nombre || "Un cliente"} ha cancelado su reserva del ${anterior}`;
+      }
 
-  let texto = a.mensaje || "Movimiento reciente en reservas";
-
-  if (a.tipo === "reprogramacion") {
-    const anterior = formatearFechaReserva(a.fecha_anterior);
-    const nueva = formatearFechaReserva(a.fecha_nueva);
-    texto = `${a.cliente_nombre || "Un cliente"} ha reprogramado su reserva de ${anterior} a ${nueva}`;
-  }
-
-  if (a.tipo === "cancelacion") {
-    const anterior = formatearFechaReserva(a.fecha_anterior);
-    texto = `${a.cliente_nombre || "Un cliente"} ha cancelado su reserva del ${anterior}`;
-  }
-
-  return {
-    id: a.id,
-    texto,
-    tiempo,
-    persistente: true,
-  };
-});
+      return {
+        id: a.id,
+        texto,
+        tiempo,
+        persistente: true,
+      };
+    });
 
     nuevasAcciones.push(...accionesRecientes);
 
@@ -307,6 +443,7 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
     }
 
     const pctFinal = Math.max(pctComidaState, pctCenaState);
+
     if (pctFinal >= 90) {
       nuevasAlertas.push({
         texto: "Ocupación muy alta: revisa la capacidad",
@@ -315,28 +452,7 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
 
     setAcciones(nuevasAcciones.slice(0, 8));
     setAlertas(nuevasAlertas.slice(0, 6));
-  };
-
-  useEffect(() => {
-    if (!restaurante) return;
-    cargarReservasHoy();
-    cargarClientesNuevosHoy();
-    cargarResenasPendientes();
-    cargarOcupacion();
-    cargarReservasEnRiesgo();
-    cargarAccionesRestaurante();
-    detectarDiaFlojoSemana(restaurante.id).then(setDiaFlojo);
-  }, [restaurante]);
-
-  useEffect(() => {
-    if (!restaurante) return;
-    recalcularHuecos();
-  }, [restaurante, pctComidaState, pctCenaState]);
-
-  useEffect(() => {
-    recalcularAccionesYAlertas();
   }, [
-    restaurante,
     accionesRestaurante,
     reservasEnRiesgo,
     huecosDetectados,
@@ -346,50 +462,21 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
     diaFlojo,
   ]);
 
-  useEffect(() => {
-    if (!restaurante) return;
+  const marcarAccionLeida = async (id: string) => {
+    const anterior = accionesRestaurante;
 
-    const channelReservas = supabase
-      .channel("dashboard-reservas")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "reservas",
-          filter: `restaurante_id=eq.${restaurante.id}`,
-        },
-        () => {
-          cargarReservasHoy();
-          cargarClientesNuevosHoy();
-          cargarResenasPendientes();
-          cargarOcupacion();
-          cargarReservasEnRiesgo();
-        }
-      )
-      .subscribe();
+    setAccionesRestaurante((prev) => prev.filter((a) => a.id !== id));
 
-    const channelAcciones = supabase
-      .channel("dashboard-acciones")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "acciones_restaurante",
-          filter: `restaurante_id=eq.${restaurante.id}`,
-        },
-        () => {
-          cargarAccionesRestaurante();
-        }
-      )
-      .subscribe();
+    const { error } = await supabase
+      .from("acciones_restaurante")
+      .update({ leida: true })
+      .eq("id", id);
 
-    return () => {
-      supabase.removeChannel(channelReservas);
-      supabase.removeChannel(channelAcciones);
-    };
-  }, [restaurante]);
+    if (error) {
+      console.error("MARCAR ACCION LEIDA ERROR", error);
+      setAccionesRestaurante(anterior);
+    }
+  };
 
   const stats = [
     {
@@ -544,11 +631,30 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
               Panel en tiempo real
             </span>
             <span className={dotTextClass}>•</span>
-            <span className={mutedTextClass}>{fechaActualizada}</span>
+            <span className={mutedTextClass}>{lastUpdated}</span>
+
+            {refreshing && (
+              <>
+                <span className={dotTextClass}>•</span>
+                <span className={`inline-flex items-center gap-1 ${mutedTextClass}`}>
+                  <RefreshCw size={13} className="animate-spin" />
+                  Refrescando
+                </span>
+              </>
+            )}
           </div>
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => cargarDashboard("refresh")}
+            disabled={refreshing || loadingInicial}
+            className={`h-10 w-10 rounded-xl ${panelButtonClass} shadow-sm transition hover:shadow-md disabled:opacity-50`}
+            title="Refrescar"
+          >
+            <RefreshCw size={16} className="mx-auto" />
+          </button>
+
           <button
             onClick={toggle}
             className={`h-10 w-10 rounded-xl ${panelButtonClass} shadow-sm transition hover:shadow-md`}
@@ -572,6 +678,18 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
           </Link>
         </div>
       </div>
+
+      {dashboardError && (
+        <div
+          className={
+            isDark
+              ? "rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200"
+              : "rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700"
+          }
+        >
+          {dashboardError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-6">
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
@@ -603,7 +721,7 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
                     <p
                       className={`mt-1 text-3xl font-extrabold leading-none ${titleTextClass}`}
                     >
-                      {stat.value}
+                      {loadingInicial ? "..." : stat.value}
                     </p>
                     <p className={`mt-2 text-xs ${mutedTextClass}`}>
                       {stat.context}
@@ -636,7 +754,11 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
             </div>
 
             <ul className="space-y-2.5 text-sm">
-              {acciones.length === 0 && <li className={mutedTextClass}>Todo al día</li>}
+              {acciones.length === 0 && (
+                <li className={mutedTextClass}>
+                  {loadingInicial ? "Cargando acciones..." : "Todo al día"}
+                </li>
+              )}
 
               {acciones.map((a, i) => (
                 <li
@@ -682,7 +804,11 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
             </div>
 
             <ul className="space-y-2 text-sm">
-              {alertas.length === 0 && <li className={mutedTextClass}>Sin alertas</li>}
+              {alertas.length === 0 && (
+                <li className={mutedTextClass}>
+                  {loadingInicial ? "Cargando alertas..." : "Sin alertas"}
+                </li>
+              )}
 
               {alertas.map((a, i) => (
                 <li key={i} className={alertaItemClass}>
@@ -739,7 +865,7 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
                   </div>
 
                   <p className={`text-3xl font-extrabold leading-none ${titleTextClass}`}>
-                    {item.value}
+                    {loadingInicial ? "..." : item.value}
                   </p>
                   <p className={`mt-2 text-xs ${mutedTextClass}`}>{item.description}</p>
                 </div>
@@ -763,7 +889,7 @@ const accionesRecientes = accionesRestaurante.map((a: any) => {
 
         <div className={chartInnerClass}>
           <div className="h-[260px] min-h-[260px] w-full">
-            {restaurante && <DashboardChart restauranteId={restaurante.id} />}
+            {restauranteId && <DashboardChart restauranteId={restauranteId} />}
           </div>
         </div>
       </div>

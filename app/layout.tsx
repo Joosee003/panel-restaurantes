@@ -1,14 +1,16 @@
+import type { ReactNode } from "react";
 import "./globals.css";
+import Providers from "./providers";
 
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <html lang="es" suppressHydrationWarning>
       <body className="min-h-screen transition-colors" suppressHydrationWarning>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
