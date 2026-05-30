@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { Lock } from "lucide-react";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { getRestauranteUsuario } from "@/app/(app)/lib/getRestauranteUsuario";
@@ -36,9 +37,10 @@ export default function CuponesPage() {
   const { dark } = useTheme();
 
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
+  const [moduloPermitido, setModuloPermitido] = useState<boolean | null>(null);
+
   const [tab, setTab] = useState<Tab>("premios");
 
-  // CUPONES
   const [cupones, setCupones] = useState<Cupon[]>([]);
   const [loadingCupones, setLoadingCupones] = useState(true);
 
@@ -54,11 +56,8 @@ export default function CuponesPage() {
   const [diasSemana, setDiasSemana] = useState<number[]>([1, 2, 3, 4]);
   const [horaInicio, setHoraInicio] = useState<string>("20:00");
   const [horaFin, setHoraFin] = useState<string>("21:00");
-
-  // NUEVO: cada X visitas (para horas valle)
   const [cadaXVisitas, setCadaXVisitas] = useState<number>(2);
 
-  // PREMIOS
   const [premios, setPremios] = useState<PremioPuntos[]>([]);
   const [loadingPremios, setLoadingPremios] = useState(true);
 
@@ -134,9 +133,7 @@ export default function CuponesPage() {
 
   const toggleDiaSemana = (dia: number) => {
     setDiasSemana((prev) =>
-      prev.includes(dia)
-        ? prev.filter((d) => d !== dia)
-        : [...prev, dia].sort()
+      prev.includes(dia) ? prev.filter((d) => d !== dia) : [...prev, dia].sort()
     );
   };
 
@@ -210,12 +207,36 @@ export default function CuponesPage() {
 
       if (!rid) {
         setErrorMsg("No se encontró restaurante_id para este usuario.");
+        setModuloPermitido(false);
         setLoadingCupones(false);
         setLoadingPremios(false);
         return;
       }
 
       setRestauranteId(rid);
+
+      const { data: moduloData, error: moduloError } = await supabase
+        .from("restaurante_modulos")
+        .select("fidelizacion")
+        .eq("restaurante_id", rid)
+        .maybeSingle();
+
+      if (moduloError) {
+        setErrorMsg(moduloError.message);
+        setModuloPermitido(false);
+        setLoadingCupones(false);
+        setLoadingPremios(false);
+        return;
+      }
+
+      if (!moduloData?.fidelizacion) {
+        setModuloPermitido(false);
+        setLoadingCupones(false);
+        setLoadingPremios(false);
+        return;
+      }
+
+      setModuloPermitido(true);
 
       try {
         setLoadingCupones(true);
@@ -241,7 +262,7 @@ export default function CuponesPage() {
     titulo: string;
     mensaje: string;
   }) => {
-    if (!restauranteId) return;
+    if (!restauranteId || !moduloPermitido) return;
 
     const { data: clientesData, error: clientesError } = await supabase
       .from("clientes")
@@ -264,7 +285,7 @@ export default function CuponesPage() {
   };
 
   const crearCupon = async () => {
-    if (!restauranteId) return;
+    if (!restauranteId || !moduloPermitido) return;
 
     const n = nombre.trim();
     const b = beneficio.trim();
@@ -356,7 +377,7 @@ export default function CuponesPage() {
   }
 
   const upsertPremio = async () => {
-    if (!restauranteId) return;
+    if (!restauranteId || !moduloPermitido) return;
 
     const n = premioNombre.trim();
     const puntos = Math.max(1, Number(premioPuntos) || 1);
@@ -428,7 +449,7 @@ export default function CuponesPage() {
   };
 
   const togglePremioActivo = async (p: PremioPuntos) => {
-    if (!restauranteId) return;
+    if (!restauranteId || !moduloPermitido) return;
 
     const { error } = await supabase
       .from("premios_puntos")
@@ -447,7 +468,7 @@ export default function CuponesPage() {
   };
 
   const borrarPremio = async (p: PremioPuntos) => {
-    if (!restauranteId) return;
+    if (!restauranteId || !moduloPermitido) return;
 
     const ok = window.confirm(`Eliminar "${p.nombre}"?`);
     if (!ok) return;
@@ -542,6 +563,42 @@ export default function CuponesPage() {
     );
   };
 
+  if (moduloPermitido === null) {
+    return (
+      <div className={pageWrap}>
+        <div className={clsx(cardBase, "p-6")}>
+          <p className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
+            Comprobando acceso...
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  if (moduloPermitido === false) {
+    return (
+      <div className={pageWrap}>
+        <div className={clsx(cardBase, "p-8 text-center")}>
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
+            <Lock size={24} />
+          </div>
+
+          <h1 className={clsx("mt-5 text-2xl font-bold", dark ? "text-gray-100" : "text-gray-900")}>
+            Módulo no contratado
+          </h1>
+
+          <p className={clsx("mx-auto mt-2 max-w-md text-sm", dark ? "text-gray-400" : "text-gray-500")}>
+            Este restaurante no tiene activado el módulo de fidelización.
+          </p>
+
+          <Link href="/dashboard" className={clsx("mt-6 inline-flex", btnPrimary)}>
+            Volver al dashboard
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className={pageWrap}>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -578,7 +635,6 @@ export default function CuponesPage() {
         </div>
       )}
 
-      {/* PREMIOS */}
       {tab === "premios" && (
         <div className="mt-6">
           {showPremioForm && (
@@ -737,7 +793,6 @@ export default function CuponesPage() {
                   <div key={p.id} className={clsx(cardBase, "overflow-hidden")}>
                     <div className="relative">
                       {p.imagen_url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img src={p.imagen_url} alt={p.nombre} className="h-32 w-full object-cover" />
                       ) : (
                         <div
@@ -804,7 +859,6 @@ export default function CuponesPage() {
         </div>
       )}
 
-      {/* CUPONES */}
       {tab === "cupones" && (
         <div className="mt-6">
           {showCuponForm && (
