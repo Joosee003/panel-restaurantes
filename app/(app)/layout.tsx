@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import Sidebar from "./components/Sidebar";
 import ThemeProvider from "./components/ThemeProvider";
 import RequireLandscape from "./components/RequireLandscape";
+import DemoModeGuard from "./components/DemoModeGuard";
 
 export default function RootLayout({
   children,
@@ -58,6 +59,7 @@ export default function RootLayout({
 
               {/* CONTENIDO */}
               <main className="flex min-h-screen flex-1 flex-col p-4 sm:p-6 lg:ml-64">
+                <DemoModeGuard />
                 <div className="flex-1">{children}</div>
 
                 <div className="mt-10 flex justify-center py-6">
