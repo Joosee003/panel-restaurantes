@@ -1,0 +1,19 @@
+WEB DEL RESTAURANTE - EXPERIENCIA PREMIUM
+
+1. Extrae este ZIP directamente en:
+   C:\Users\Usuario\panel-restaurantes
+
+2. Acepta reemplazar el archivo page.tsx y crear RestaurantExperience.tsx.
+
+3. Reinicia el servidor:
+   npm run dev
+
+4. Abre:
+   http://localhost:3000/restaurante/el-pescador-casa-barriguita
+
+ARCHIVOS INCLUIDOS
+- app/restaurante/[slug]/page.tsx
+- app/restaurante/[slug]/RestaurantExperience.tsx
+
+Supabase ya tiene actualizados los textos y las imágenes de demostración.
+No ejecutes ningún SQL.

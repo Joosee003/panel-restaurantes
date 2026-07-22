@@ -2,24 +2,26 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
-  LayoutDashboard,
-  CalendarDays,
-  Users,
-  MessageSquare,
-  Settings,
-  Gift,
-  LayoutGrid,
   BarChart3,
-  Utensils,
-  Sparkles,
-  Pencil,
-  QrCode,
+  CalendarClock,
+  CalendarDays,
   ChefHat,
   ChevronDown,
+  Gift,
+  LayoutDashboard,
+  LayoutGrid,
+  MessageSquare,
+  LogOut,
+  Pencil,
+  QrCode,
+  Settings,
+  Utensils,
+  Users,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
 
 type ModulosRestaurante = {
   reservas: boolean;
@@ -53,8 +55,10 @@ export default function Sidebar({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
 
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
+  const [restauranteNombre, setRestauranteNombre] = useState("Restaurante");
   const [modulos, setModulos] = useState<ModulosRestaurante>(modulosDefault);
 
   const [reservasPendientes, setReservasPendientes] = useState(0);
@@ -62,40 +66,19 @@ export default function Sidebar({
   const [resenasPendientes, setResenasPendientes] = useState(0);
 
   const camareroDigitalActivo =
-    pathname.startsWith("/panel/carta-ia") ||
     pathname.startsWith("/panel/carta-productos") ||
     pathname.startsWith("/panel/qr-mesas") ||
+    pathname.startsWith("/panel/menu-dia") ||
     pathname.startsWith("/panel/pedidos-qr");
 
   const [camareroAbierto, setCamareroAbierto] = useState(false);
-
-  useEffect(() => {
-    if (camareroDigitalActivo) {
-      setCamareroAbierto(true);
-    }
-  }, [camareroDigitalActivo]);
+  const mostrarCamarero = camareroAbierto || camareroDigitalActivo;
 
   useEffect(() => {
     const cargarRestaurante = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) return;
-
-      const { data, error } = await supabase
-        .from("usuarios_restaurantes")
-        .select("restaurante_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Error cargando restaurante del usuario:", error);
-        return;
-      }
-
-      if (data?.restaurante_id) {
-        setRestauranteId(data.restaurante_id);
+      const id = await getRestauranteUsuario();
+      if (id) {
+        setRestauranteId(id);
       }
     };
 
@@ -105,36 +88,42 @@ export default function Sidebar({
   useEffect(() => {
     if (!restauranteId) return;
 
-    const cargarModulos = async () => {
-      const { data, error } = await supabase
-        .from("restaurante_modulos")
-        .select(
-          "reservas, clientes, resenas, fidelizacion, metricas, chatbot, camarero_digital, menu_digital, automatizaciones"
-        )
-        .eq("restaurante_id", restauranteId)
-        .maybeSingle();
+    const cargarDatosRestaurante = async () => {
+      const [restauranteRes, modulosRes] = await Promise.all([
+        supabase.from("restaurantes").select("nombre").eq("id", restauranteId).maybeSingle(),
+        supabase
+          .from("restaurante_modulos")
+          .select(
+            "reservas, clientes, resenas, fidelizacion, metricas, chatbot, camarero_digital, menu_digital, automatizaciones"
+          )
+          .eq("restaurante_id", restauranteId)
+          .maybeSingle(),
+      ]);
 
-      if (error) {
-        console.error("Error cargando módulos:", error);
-        return;
+      if (restauranteRes.data?.nombre) {
+        setRestauranteNombre(String(restauranteRes.data.nombre));
       }
 
-      if (data) {
+      if (modulosRes.error) {
+        console.error("Error cargando módulos:", modulosRes.error);
+      }
+
+      if (modulosRes.data) {
         setModulos({
-          reservas: Boolean(data.reservas),
-          clientes: Boolean(data.clientes),
-          resenas: Boolean(data.resenas),
-          fidelizacion: Boolean(data.fidelizacion),
-          metricas: Boolean(data.metricas),
-          chatbot: Boolean(data.chatbot),
-          camarero_digital: Boolean(data.camarero_digital),
-          menu_digital: Boolean(data.menu_digital),
-          automatizaciones: Boolean(data.automatizaciones),
+          reservas: Boolean(modulosRes.data.reservas),
+          clientes: Boolean(modulosRes.data.clientes),
+          resenas: Boolean(modulosRes.data.resenas),
+          fidelizacion: Boolean(modulosRes.data.fidelizacion),
+          metricas: Boolean(modulosRes.data.metricas),
+          chatbot: Boolean(modulosRes.data.chatbot),
+          camarero_digital: Boolean(modulosRes.data.camarero_digital),
+          menu_digital: Boolean(modulosRes.data.menu_digital),
+          automatizaciones: Boolean(modulosRes.data.automatizaciones),
         });
       }
     };
 
-    cargarModulos();
+    cargarDatosRestaurante();
   }, [restauranteId]);
 
   useEffect(() => {
@@ -142,42 +131,34 @@ export default function Sidebar({
 
     const cargarContadores = async () => {
       if (modulos.reservas) {
-        const { count: cReservas } = await supabase
+        const { count } = await supabase
           .from("reservas")
           .select("*", { count: "exact", head: true })
           .eq("restaurante_id", restauranteId)
           .eq("estado", "pendiente");
-
-        setReservasPendientes(cReservas ?? 0);
+        setReservasPendientes(count ?? 0);
       }
 
       if (modulos.clientes) {
         const hoy = new Date();
-        const inicioHoy = `${hoy.getFullYear()}-${String(
-          hoy.getMonth() + 1
-        ).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")} 00:00:00`;
-        const finHoy = `${hoy.getFullYear()}-${String(
-          hoy.getMonth() + 1
-        ).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")} 23:59:59`;
+        const dia = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
 
-        const { count: cClientes } = await supabase
+        const { count } = await supabase
           .from("clientes")
           .select("*", { count: "exact", head: true })
           .eq("restaurante_id", restauranteId)
-          .gte("created_at", inicioHoy)
-          .lte("created_at", finHoy);
-
-        setClientesNuevos(cClientes ?? 0);
+          .gte("created_at", `${dia} 00:00:00`)
+          .lte("created_at", `${dia} 23:59:59`);
+        setClientesNuevos(count ?? 0);
       }
 
       if (modulos.resenas) {
-        const { count: cResenas } = await supabase
+        const { count } = await supabase
           .from("resenas")
           .select("*", { count: "exact", head: true })
           .eq("restaurante_id", restauranteId)
           .eq("responded", false);
-
-        setResenasPendientes(cResenas ?? 0);
+        setResenasPendientes(count ?? 0);
       }
     };
 
@@ -188,7 +169,7 @@ export default function Sidebar({
     if (!restauranteId || !modulos.reservas) return;
 
     const canal = supabase
-      .channel("sidebar-reservas")
+      .channel(`sidebar-reservas-${restauranteId}`)
       .on(
         "postgres_changes",
         {
@@ -216,163 +197,100 @@ export default function Sidebar({
 
   const itemsPrincipales = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, visible: true },
-    {
-      href: "/reservas",
-      label: "Reservas",
-      icon: CalendarDays,
-      badge: reservasPendientes,
-      visible: modulos.reservas,
-    },
-    {
-      href: "/sala",
-      label: "Sala",
-      icon: LayoutGrid,
-      visible: modulos.reservas,
-    },
-    {
-      href: "/clientes",
-      label: "Clientes",
-      icon: Users,
-      badge: clientesNuevos,
-      visible: modulos.clientes,
-    },
-    {
-      href: "/resenas",
-      label: "Reseñas",
-      icon: MessageSquare,
-      badge: resenasPendientes,
-      visible: modulos.resenas,
-    },
-    {
-      href: "/dashboard/rentabilidad",
-      label: "Rentabilidad",
-      icon: BarChart3,
-      visible: modulos.metricas,
-    },
-    {
-      href: "/dashboard/fidelizacion/cupones",
-      label: "Fidelización",
-      icon: Gift,
-      visible: modulos.fidelizacion,
-    },
+    { href: "/reservas", label: "Reservas", icon: CalendarDays, badge: reservasPendientes, visible: modulos.reservas },
+    { href: "/sala", label: "Sala", icon: LayoutGrid, visible: modulos.reservas },
+    { href: "/clientes", label: "Clientes", icon: Users, badge: clientesNuevos, visible: modulos.clientes },
+    { href: "/resenas", label: "Reseñas", icon: MessageSquare, badge: resenasPendientes, visible: modulos.resenas },
+    { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: BarChart3, visible: modulos.metricas },
+    { href: "/dashboard/fidelizacion/cupones", label: "Fidelización", icon: Gift, visible: modulos.fidelizacion },
   ];
 
   const camareroItems = [
-    {
-      href: "/panel/carta-ia",
-      label: "Generar carta",
-      icon: Sparkles,
-    },
-    {
-      href: "/panel/carta-productos",
-      label: "Productos carta",
-      icon: Pencil,
-    },
-    {
-      href: "/panel/qr-mesas",
-      label: "QR mesas",
-      icon: QrCode,
-    },
-    {
-      href: "/panel/pedidos-qr",
-      label: "Cocina / pedidos",
-      icon: ChefHat,
-    },
+    { href: "/panel/carta-productos", label: "Productos carta", icon: Pencil },
+    { href: "/panel/qr-mesas", label: "QR mesas", icon: QrCode },
+    { href: "/panel/menu-dia", label: "Menú del día", icon: CalendarClock },
+    { href: "/panel/pedidos-qr", label: "Cocina / pedidos", icon: ChefHat },
   ];
 
-  const itemsFinales = [{ href: "/ajustes", label: "Ajustes", icon: Settings }];
-
   const isItemActive = (href: string) => {
-    if (href === "/dashboard") {
-      return pathname === "/dashboard";
-    }
-
+    if (href === "/dashboard") return pathname === "/dashboard";
     return pathname === href || pathname.startsWith(`${href}/`);
+  };
+
+  const badge = (value?: number) =>
+    value ? (
+      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-black text-blue-700">
+        {value}
+      </span>
+    ) : null;
+
+  const cerrarSesion = async () => {
+    window.localStorage.removeItem("gastrohelp_restaurante_activo");
+    await supabase.auth.signOut({ scope: "local" });
+    router.replace("/login");
+    router.refresh();
   };
 
   return (
     <aside
       className={[
-        "flex h-full w-64 flex-col gap-6 p-6 transition-colors duration-300",
+        "flex h-full w-64 flex-col border-r border-slate-200 bg-white p-5 text-slate-900 shadow-sm",
         mobile ? "" : "fixed left-0 top-0 h-screen",
       ].join(" ")}
     >
-      <div>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">
-          Panel Restaurante
-        </h1>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          Vista general
-        </p>
+      <div className="rounded-3xl bg-slate-50 p-4">
+        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Panel Restaurante</p>
+        <h1 className="mt-1 truncate text-lg font-black text-slate-950">{restauranteNombre}</h1>
+        <p className="mt-1 text-xs font-semibold text-slate-500">Vista general</p>
       </div>
 
-      <nav className="flex flex-col gap-1 text-sm">
-        {itemsPrincipales
-          .filter((item) => item.visible)
-          .map((item) => {
-            const isActive = isItemActive(item.href);
-            const Icon = item.icon;
+      <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto pr-1 text-sm">
+        {itemsPrincipales.filter((item) => item.visible).map((item) => {
+          const isActive = isItemActive(item.href);
+          const Icon = item.icon;
 
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={onNavigate}
-                className={[
-                  "flex items-center justify-between rounded-xl px-3 py-3 transition",
-                  isActive
-                    ? "bg-slate-800 text-white dark:bg-white dark:text-slate-900"
-                    : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/70",
-                ].join(" ")}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon size={18} />
-                  <span className={isActive ? "font-semibold" : ""}>
-                    {item.label}
-                  </span>
-                </div>
-
-                {item.badge !== undefined && item.badge > 0 && (
-                  <span className="rounded-full bg-yellow-100 px-2 py-0.5 text-xs text-yellow-700 dark:bg-yellow-500/15 dark:text-yellow-300">
-                    {item.badge}
-                  </span>
-                )}
-              </Link>
-            );
-          })}
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              onClick={onNavigate}
+              className={[
+                "flex items-center justify-between rounded-2xl px-3 py-3 font-bold transition",
+                isActive
+                  ? "bg-blue-700 text-white shadow-sm"
+                  : "text-slate-700 hover:bg-slate-100 hover:text-slate-950",
+              ].join(" ")}
+            >
+              <span className="flex items-center gap-3">
+                <Icon size={18} />
+                {item.label}
+              </span>
+              {badge(item.badge)}
+            </Link>
+          );
+        })}
 
         {modulos.camarero_digital && (
-          <>
-            <div className="my-2 h-px bg-slate-200 dark:bg-slate-800" />
-
+          <div className="my-3 border-t border-slate-200 pt-3">
             <button
               type="button"
               onClick={() => setCamareroAbierto((actual) => !actual)}
               className={[
-                "flex items-center justify-between rounded-xl px-3 py-3 text-left transition",
+                "flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left font-black transition",
                 camareroDigitalActivo
-                  ? "bg-slate-800 text-white dark:bg-white dark:text-slate-900"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/70",
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "text-slate-800 hover:bg-slate-100",
               ].join(" ")}
             >
-              <div className="flex items-center gap-3">
+              <span className="flex items-center gap-3">
                 <Utensils size={18} />
-                <span className={camareroDigitalActivo ? "font-semibold" : ""}>
-                  Camarero digital
-                </span>
-              </div>
-
-              <ChevronDown
-                size={16}
-                className={[
-                  "transition-transform",
-                  camareroAbierto ? "rotate-180" : "",
-                ].join(" ")}
-              />
+                Camarero digital
+              </span>
+              <ChevronDown size={16} className={mostrarCamarero ? "rotate-180 transition" : "transition"} />
             </button>
 
-            {camareroAbierto && (
-              <div className="ml-4 mt-1 flex flex-col gap-1 border-l border-slate-200 pl-3 dark:border-slate-800">
+            {mostrarCamarero && (
+              <div className="mt-2 flex flex-col gap-1 border-l border-slate-200 pl-3">
                 {camareroItems.map((item) => {
                   const isActive = isItemActive(item.href);
                   const Icon = item.icon;
@@ -383,53 +301,45 @@ export default function Sidebar({
                       href={item.href}
                       onClick={onNavigate}
                       className={[
-                        "flex items-center justify-between rounded-xl px-3 py-2.5 transition",
+                        "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition",
                         isActive
-                          ? "bg-orange-500 text-white"
-                          : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/70",
+                          ? "bg-blue-700 text-white shadow-sm"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
                       ].join(" ")}
                     >
-                      <div className="flex items-center gap-3">
-                        <Icon size={16} />
-                        <span className={isActive ? "font-semibold" : ""}>
-                          {item.label}
-                        </span>
-                      </div>
+                      <Icon size={16} />
+                      {item.label}
                     </Link>
                   );
                 })}
               </div>
             )}
-          </>
+          </div>
         )}
 
-        <div className="my-2 h-px bg-slate-200 dark:bg-slate-800" />
-
-        {itemsFinales.map((item) => {
-          const isActive = isItemActive(item.href);
-          const Icon = item.icon;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={[
-                "flex items-center justify-between rounded-xl px-3 py-3 transition",
-                isActive
-                  ? "bg-slate-800 text-white dark:bg-white dark:text-slate-900"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800/70",
-              ].join(" ")}
-            >
-              <div className="flex items-center gap-3">
-                <Icon size={18} />
-                <span className={isActive ? "font-semibold" : ""}>
-                  {item.label}
-                </span>
-              </div>
-            </Link>
-          );
-        })}
+        <div className="mt-auto border-t border-slate-200 pt-3">
+          <Link
+            href="/ajustes"
+            onClick={onNavigate}
+            className={[
+              "flex items-center gap-3 rounded-2xl px-3 py-3 font-bold transition",
+              isItemActive("/ajustes")
+                ? "bg-blue-700 text-white shadow-sm"
+                : "text-slate-700 hover:bg-slate-100 hover:text-slate-950",
+            ].join(" ")}
+          >
+            <Settings size={18} />
+            Ajustes
+          </Link>
+          <button
+            type="button"
+            onClick={cerrarSesion}
+            className="mt-1 flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left font-bold text-red-600 transition hover:bg-red-50 hover:text-red-700"
+          >
+            <LogOut size={18} />
+            Cerrar sesión
+          </button>
+        </div>
       </nav>
     </aside>
   );

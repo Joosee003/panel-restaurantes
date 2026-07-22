@@ -1,0 +1,17 @@
+CORRECCION DEL FORMULARIO DE RESERVAS
+
+1. Extrae este ZIP directamente en:
+   C:\Users\Usuario\panel-restaurantes
+
+2. Acepta reemplazar los archivos existentes.
+
+3. No ejecutes ningún SQL. Supabase ya está configurado.
+
+4. Reinicia el servidor:
+   npm run dev
+
+5. Abre:
+   http://localhost:3000/restaurante/el-pescador-casa-barriguita
+
+Esta corrección elimina las horas inventadas de la demostración. Las fechas,
+horarios, aforo y antelación salen ahora de los Ajustes guardados en Supabase.

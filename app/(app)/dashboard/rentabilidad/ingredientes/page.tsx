@@ -11,9 +11,11 @@ import {
   Trash2,
   BarChart3,
   ChefHat,
+  ShoppingCart,
 } from "lucide-react";
 import { supabase } from "../../../lib/supabaseClient";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
+import { useRestaurante } from "../../../../hooks/useRestaurante";
 
 type Ingrediente = {
   id: string;
@@ -26,9 +28,6 @@ type Ingrediente = {
   activo: boolean;
 };
 
-type RestauranteUsuario = {
-  restaurante_id: string;
-};
 
 const UNIDADES = ["g", "kg", "ml", "l", "ud"];
 
@@ -209,8 +208,10 @@ export default function IngredientesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
-  const [restauranteId, setRestauranteId] = useState<string | null>(null);
+  const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
+  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
   const [busqueda, setBusqueda] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     nombre: "",
@@ -219,6 +220,23 @@ export default function IngredientesPage() {
     cantidad_compra: "",
     merma_pct: "",
   });
+
+  const formNombre = form.nombre.trim();
+  const formCosteCompra = toNumber(form.coste_compra);
+  const formCantidadCompra = toNumber(form.cantidad_compra);
+  const formMermaPct = toNumber(form.merma_pct);
+  const formCantidadUtil = calcularCantidadUtil(formCantidadCompra, formMermaPct);
+  const formCosteUtilUnidad =
+    formCosteCompra > 0 && formCantidadUtil > 0 ? formCosteCompra / formCantidadUtil : 0;
+  const canCrearIngrediente =
+    Boolean(restauranteId) &&
+    formNombre.length > 0 &&
+    formCosteCompra > 0 &&
+    formCantidadCompra > 0 &&
+    formMermaPct >= 0 &&
+    formMermaPct <= 100 &&
+    formCantidadUtil > 0 &&
+    !saving;
 
   const clearMessages = () => {
     if (error) setError(null);
@@ -229,36 +247,18 @@ export default function IngredientesPage() {
     setLoading(true);
     setError(null);
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    if (loadingRestaurante) return;
 
-    if (authError || !user) {
-      setError("No se pudo obtener el usuario autenticado.");
+    if (!restauranteId) {
+      setError('No se encontró restaurante activo. Entra desde Admin y pulsa “Usar en panel” sobre el restaurante correcto.');
       setLoading(false);
       return;
     }
-
-    const { data: restauranteData, error: restauranteError } = await supabase
-      .from("usuarios_restaurantes")
-      .select("restaurante_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (restauranteError || !restauranteData?.restaurante_id) {
-      setError("No se pudo obtener el restaurante del usuario.");
-      setLoading(false);
-      return;
-    }
-
-    const restaurante = restauranteData as RestauranteUsuario;
-    setRestauranteId(restaurante.restaurante_id);
 
     const { data, error } = await supabase
       .from("ingredientes")
       .select("*")
-      .eq("restaurante_id", restaurante.restaurante_id)
+      .eq("restaurante_id", restauranteId)
       .order("nombre", { ascending: true });
 
     if (error) {
@@ -274,7 +274,7 @@ export default function IngredientesPage() {
 
   useEffect(() => {
     cargarRestauranteYDatos();
-  }, []);
+  }, [restauranteId, loadingRestaurante]);
 
   const ingredientesFiltrados = useMemo(() => {
     const term = busqueda.trim().toLowerCase();
@@ -388,15 +388,28 @@ export default function IngredientesPage() {
 
     clearMessages();
 
-    const { error } = await supabase.from("ingredientes").delete().eq("id", id);
+    if (!restauranteId) {
+      setError("No hay restaurante asociado al usuario.");
+      return;
+    }
+
+    setDeletingId(id);
+
+    const { error } = await supabase
+      .from("ingredientes")
+      .delete()
+      .eq("id", id)
+      .eq("restaurante_id", restauranteId);
 
     if (error) {
       setError(error.message);
+      setDeletingId(null);
       return;
     }
 
     await cargarRestauranteYDatos();
     setOkMessage("Ingrediente borrado.");
+    setDeletingId(null);
   };
 
   return (
@@ -456,6 +469,11 @@ export default function IngredientesPage() {
             <Link href="/dashboard/rentabilidad/platos" className={tabClass}>
               <ChefHat size={16} />
               Platos
+            </Link>
+
+            <Link href="/dashboard/rentabilidad/ventas" className={tabClass}>
+              <ShoppingCart size={16} />
+              Ventas
             </Link>
           </div>
         </div>
@@ -632,29 +650,14 @@ export default function IngredientesPage() {
                         <p>
                           Cantidad útil:{" "}
                           <span className={`font-medium ${strongTextClass}`}>
-                            {formatNumber(
-                              calcularCantidadUtil(
-                                toNumber(form.cantidad_compra),
-                                toNumber(form.merma_pct)
-                              ),
-                              3
-                            )}{" "}
+                            {formatNumber(formCantidadUtil, 3)}{" "}
                             {form.unidad}
                           </span>
                         </p>
                         <p>
                           Coste útil por unidad:{" "}
                           <span className={`font-medium ${strongTextClass}`}>
-                            {formatEuro(
-                              (() => {
-                                const cantidadUtil = calcularCantidadUtil(
-                                  toNumber(form.cantidad_compra),
-                                  toNumber(form.merma_pct)
-                                );
-                                if (cantidadUtil <= 0) return 0;
-                                return toNumber(form.coste_compra) / cantidadUtil;
-                              })()
-                            )}{" "}
+                            {formatEuro(formCosteUtilUnidad)}{" "}
                             / {form.unidad}
                           </span>
                         </p>
@@ -664,7 +667,7 @@ export default function IngredientesPage() {
 
                 <button
                   onClick={crearIngrediente}
-                  disabled={saving}
+                  disabled={!canCrearIngrediente}
                   className={fullButtonPrimaryClass}
                 >
                   {saving ? "Guardando..." : "Guardar ingrediente"}
@@ -719,8 +722,77 @@ export default function IngredientesPage() {
                   </p>
                 </div>
               ) : (
-                <div className="mt-6 overflow-x-auto">
-                  <table className="min-w-full border-separate border-spacing-y-2">
+                <>
+                  <div className="mt-6 grid gap-3 lg:hidden">
+                    {ingredientesFiltrados.map((item) => {
+                      const costeUtilUnidad = calcularCosteUtilPorUnidad(item);
+                      const deleting = deletingId === item.id;
+
+                      return (
+                        <div
+                          key={item.id}
+                          className={clsx(
+                            "rounded-3xl border p-4 shadow-sm",
+                            dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50"
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <h3 className={`truncate text-base font-bold ${strongTextClass}`}>
+                                {item.nombre}
+                              </h3>
+                              <p className={`mt-1 text-xs font-medium ${mutedTextClass}`}>
+                                Unidad: {item.unidad}
+                              </p>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => borrarIngrediente(item.id)}
+                              disabled={deleting}
+                              className={dangerButtonClass}
+                            >
+                              <Trash2 size={14} />
+                              {deleting ? "Borrando..." : "Borrar"}
+                            </button>
+                          </div>
+
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            <div className={softCardClass + " p-3"}>
+                              <p className={`text-xs font-semibold ${mutedTextClass}`}>Compra</p>
+                              <p className={`mt-1 text-sm font-bold ${strongTextClass}`}>
+                                {formatEuro(toNumber(item.coste_compra))}
+                              </p>
+                            </div>
+
+                            <div className={softCardClass + " p-3"}>
+                              <p className={`text-xs font-semibold ${mutedTextClass}`}>Cantidad</p>
+                              <p className={`mt-1 text-sm font-bold ${strongTextClass}`}>
+                                {formatNumber(toNumber(item.cantidad_compra), 3)} {item.unidad}
+                              </p>
+                            </div>
+
+                            <div className={softCardClass + " p-3"}>
+                              <p className={`text-xs font-semibold ${mutedTextClass}`}>Merma</p>
+                              <p className={`mt-1 text-sm font-bold ${strongTextClass}`}>
+                                {formatNumber(toNumber(item.merma_pct), 2)}%
+                              </p>
+                            </div>
+
+                            <div className={softCardClass + " p-3"}>
+                              <p className={`text-xs font-semibold ${mutedTextClass}`}>Coste útil</p>
+                              <p className={`mt-1 text-sm font-bold ${strongTextClass}`}>
+                                {costeUtilUnidad > 0 ? `${formatEuro(costeUtilUnidad)} / ${item.unidad}` : "—"}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-6 hidden overflow-x-auto lg:block">
+                    <table className="min-w-full border-separate border-spacing-y-2">
                     <thead>
                       <tr>
                         <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
@@ -783,18 +855,20 @@ export default function IngredientesPage() {
                               <button
                                 type="button"
                                 onClick={() => borrarIngrediente(item.id)}
+                                disabled={deletingId === item.id}
                                 className={dangerButtonClass}
                               >
                                 <Trash2 size={14} />
-                                Borrar
+                                {deletingId === item.id ? "Borrando..." : "Borrar"}
                               </button>
                             </td>
                           </tr>
                         );
                       })}
                     </tbody>
-                  </table>
-                </div>
+                    </table>
+                  </div>
+                </>
               )}
             </div>
           </div>

@@ -32,7 +32,7 @@ export async function getDashboardStats(restauranteId: string) {
       .gte("created_at", inicioMes.toISOString()),
 
     supabase
-      .from("reseñas")
+      .from("resenas")
       .select("id", { count: "exact", head: true })
       .eq("restaurante_id", restauranteId)
       .eq("responded", false),

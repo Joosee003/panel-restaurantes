@@ -1,0 +1,15 @@
+NUEVO DISEÑO DE LA WEB DE DEMOSTRACIÓN
+
+1. Extrae este ZIP directamente en:
+   C:\Users\Usuario\panel-restaurantes
+
+2. Acepta reemplazar el archivo existente.
+
+3. Reinicia el servidor:
+   npm run dev
+
+4. Abre:
+   http://localhost:3000/restaurante/el-pescador-casa-barriguita
+
+El ZIP solo sustituye app/restaurante/[slug]/page.tsx.
+El formulario y la conexión con Supabase se mantienen intactos.

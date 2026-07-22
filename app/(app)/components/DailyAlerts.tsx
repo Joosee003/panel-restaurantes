@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
 type Alert = {
@@ -17,12 +17,12 @@ const colors: Record<Alert["type"], string> = {
 export default function DailyAlerts({ restauranteId }: { restauranteId: string }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
-  const cargarAlertas = async () => {
+  const cargarAlertas = useCallback(async () => {
     const nuevasAlertas: Alert[] = [];
 
     // 🔔 Reseñas pendientes
     const { count: pendientes } = await supabase
-      .from("reseñas")
+      .from("resenas")
       .select("*", { count: "exact", head: true })
       .eq("restaurante_id", restauranteId)
       .eq("responded", false);
@@ -37,7 +37,7 @@ export default function DailyAlerts({ restauranteId }: { restauranteId: string }
 
     // 🚨 Reseñas negativas sin responder
     const { count: negativas } = await supabase
-      .from("reseñas")
+      .from("resenas")
       .select("*", { count: "exact", head: true })
       .eq("restaurante_id", restauranteId)
       .eq("responded", false)
@@ -52,11 +52,11 @@ export default function DailyAlerts({ restauranteId }: { restauranteId: string }
     }
 
     setAlerts(nuevasAlertas);
-  };
+  }, [restauranteId]);
 
   useEffect(() => {
     if (restauranteId) cargarAlertas();
-  }, [restauranteId]);
+  }, [cargarAlertas, restauranteId]);
 
   if (alerts.length === 0) return null;
 

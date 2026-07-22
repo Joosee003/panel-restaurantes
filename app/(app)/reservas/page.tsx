@@ -1,1578 +1,1128 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+  AlertTriangle,
+  Banknote,
+  CalendarDays,
+  Check,
+  ClipboardList,
+  Clock3,
+  Copy,
+  DoorClosed,
+  Loader2,
+  MessageCircle,
+  Plus,
+  ReceiptText,
+  RefreshCw,
+  Search,
+  Table2,
+  UserX,
+  X,
+} from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import AddReservaModal from "../components/AddReservaModal";
-import { withTimeout } from "../lib/safeQuery";
-import { useAutoRefresh } from "../lib/useAutoRefresh";
-
-import { useQueryClient } from "@tanstack/react-query";
 import { useRestaurante } from "../../hooks/useRestaurante";
-import { queryKeys } from "../../query/queryKeys";
 
-import FullCalendar from "@fullcalendar/react";
-import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
-import interactionPlugin from "@fullcalendar/interaction";
-import type { EventContentArg } from "@fullcalendar/core";
+type EstadoReserva = "pendiente" | "confirmada" | "cancelada";
+type VistaReservas = "calendario" | "hoy" | "semana" | "lista" | "bloqueos";
+type FiltroEstado = "todas" | "pendiente" | "confirmada" | "cancelada" | "sin_mesa" | "no_show";
 
-type EventClassNamesArg = any;
+type Mesa = {
+  id: string;
+  nombre: string;
+  capacidad: number | null;
+  activa: boolean | null;
+  bloqueada: boolean | null;
+};
 
-type Estado = "confirmada" | "pendiente" | "cancelada";
+type ClienteMini = {
+  ya_dejo_resena?: boolean | null;
+  no_show_total?: number | null;
+  cancelaciones_totales?: number | null;
+};
 
 type Reserva = {
   id: string;
-  cliente: string;
-  cliente_id: string | null;
-  fecha: string;
-  hora: string;
-  personas: number;
-  email: string | null;
-  estado: Estado;
-  telefono: string | null;
   restaurante_id: string;
+  nombre_cliente: string;
+  telefono: string | null;
+  email: string | null;
+  personas: number;
+  origen: string | null;
+  notas: string | null;
   fecha_hora_reserva: string;
+  estado: EstadoReserva;
+  turno: string | null;
+  cliente_id: string | null;
   atendida: boolean | null;
-  resena_solicitada: boolean;
-  ya_dejo_resena: boolean;
+  resena_solicitada: boolean | null;
+  mesa_id: string | null;
+  consumo_total?: number | null;
+  consumo_metodo_pago?: string | null;
+  consumo_notas?: string | null;
+  puntos_generados?: number | null;
+  consumo_registrado_en?: string | null;
+  cliente?: ClienteMini | null;
 };
 
-type Filtro = "todas" | "hoy" | "pendientes";
-type Vista = "calendario" | "tabla";
+type Bloqueo = {
+  id: string;
+  restaurante_id: string;
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  motivo: string | null;
+  activo: boolean;
+};
 
-function getHoraMadrid() {
-  return new Intl.DateTimeFormat("es-ES", {
-    timeZone: "Europe/Madrid",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date());
+type FormBloqueo = {
+  fecha: string;
+  hora_inicio: string;
+  hora_fin: string;
+  motivo: string;
+};
+
+type ConsumoModalState = {
+  reserva: Reserva;
+  gasto: string;
+  metodo_pago: string;
+  notas: string;
+};
+
+const ESTADOS_FINALES = new Set(["cancelada"]);
+const BLOQUEO_INICIAL = {
+  hora_inicio: "12:00",
+  hora_fin: "13:00",
+  motivo: "Horario bloqueado",
+};
+
+function fechaISO(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function horaCorta(dateLike: string) {
+  const d = new Date(dateLike);
+  return d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+}
+
+function fechaBonita(dateLike: string) {
+  const d = new Date(dateLike);
+  return d.toLocaleDateString("es-ES", { weekday: "short", day: "2-digit", month: "short" });
+}
+
+function fechaCompleta(dateLike: string) {
+  const d = new Date(dateLike);
+  return d.toLocaleDateString("es-ES", { weekday: "long", day: "2-digit", month: "long" });
+}
+
+function startOfWeek(date: Date) {
+  const d = new Date(date);
+  const day = d.getDay() || 7;
+  d.setDate(d.getDate() - day + 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+function addMonths(date: Date, months: number) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + months);
+  return d;
+}
+
+function startOfMonthGrid(date: Date) {
+  const first = new Date(date.getFullYear(), date.getMonth(), 1);
+  const day = first.getDay() || 7;
+  first.setDate(first.getDate() - day + 1);
+  first.setHours(0, 0, 0, 0);
+  return first;
+}
+
+function monthTitle(date: Date) {
+  return date.toLocaleDateString("es-ES", { month: "long", year: "numeric" });
 }
 
 function normalizarTelefono(valor: string | null | undefined) {
   const raw = String(valor ?? "").replace(/\D/g, "");
-
-  if (raw.startsWith("34") && raw.length === 11) {
-    return raw.slice(2);
-  }
-
+  if (raw.startsWith("34") && raw.length === 11) return raw.slice(2);
   return raw;
 }
 
-function EstadoBadge({
-  estado,
-  isDark = false,
-}: {
-  estado: Estado;
-  isDark?: boolean;
-}) {
-  const styles =
-    estado === "confirmada"
-      ? {
-          borderColor: isDark ? "rgba(52,211,153,0.35)" : "#059669",
-          backgroundColor: isDark ? "rgba(16,185,129,0.12)" : "#d1fae5",
-          color: isDark ? "#a7f3d0" : "#064e3b",
-          dot: isDark ? "#6ee7b7" : "#047857",
-          label: "Confirmada",
-        }
-      : estado === "pendiente"
-      ? {
-          borderColor: isDark ? "rgba(251,191,36,0.35)" : "#d97706",
-          backgroundColor: isDark ? "rgba(245,158,11,0.14)" : "#fef3c7",
-          color: isDark ? "#fde68a" : "#78350f",
-          dot: isDark ? "#fcd34d" : "#b45309",
-          label: "Pendiente",
-        }
-      : {
-          borderColor: isDark ? "rgba(251,113,133,0.35)" : "#e11d48",
-          backgroundColor: isDark ? "rgba(244,63,94,0.14)" : "#ffe4e6",
-          color: isDark ? "#fecdd3" : "#881337",
-          dot: isDark ? "#fda4af" : "#be123c",
-          label: "Cancelada",
-        };
+function money(n: number) {
+  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Number(n || 0));
+}
 
+function estadoLabel(reserva: Reserva) {
+  if (reserva.estado === "cancelada") return "Cancelada";
+  if (reserva.consumo_registrado_en) return "Consumo registrado";
+  if (reserva.atendida === true) return "Atendida";
+  if (reserva.atendida === false) return "No-show";
+  if (reserva.estado === "confirmada") return "Confirmada";
+  return "Pendiente";
+}
+
+function estadoClass(reserva: Reserva) {
+  if (reserva.estado === "cancelada") return "border-rose-200 bg-rose-50 text-rose-700";
+  if (reserva.consumo_registrado_en) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (reserva.atendida === true) return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  if (reserva.atendida === false) return "border-red-200 bg-red-50 text-red-700";
+  if (reserva.estado === "confirmada") return "border-blue-200 bg-blue-50 text-blue-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function nombreMesa(reserva: Reserva, mesas: Mesa[]) {
+  if (!reserva.mesa_id) return "Sin mesa";
+  return mesas.find((m) => m.id === reserva.mesa_id)?.nombre || "Mesa asignada";
+}
+
+function cumpleBusqueda(reserva: Reserva, q: string) {
+  const text = `${reserva.nombre_cliente} ${reserva.telefono || ""} ${reserva.email || ""} ${reserva.notas || ""}`.toLowerCase();
+  return text.includes(q.toLowerCase().trim());
+}
+
+function buildWhatsAppLink(reserva: Reserva, tipo: "confirmar" | "recordar" | "resena") {
+  const tel = normalizarTelefono(reserva.telefono);
+  if (!tel) return null;
+  const fecha = new Date(reserva.fecha_hora_reserva).toLocaleString("es-ES", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const nombre = reserva.nombre_cliente || "";
+  const msg =
+    tipo === "confirmar"
+      ? `Hola ${nombre}, te confirmamos tu reserva para ${fecha}. Gracias.`
+      : tipo === "recordar"
+      ? `Hola ${nombre}, te recordamos tu reserva para ${fecha}. Te esperamos.`
+      : `Hola ${nombre}, gracias por venir. Si te ha gustado la experiencia, nos ayudaría mucho una reseña.`;
+  return `https://wa.me/34${tel}?text=${encodeURIComponent(msg)}`;
+}
+
+function buildWhatsAppText(reserva: Reserva, tipo: "confirmar" | "recordar" | "resena") {
+  const fecha = new Date(reserva.fecha_hora_reserva).toLocaleString("es-ES", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const nombre = reserva.nombre_cliente || "";
+  if (tipo === "confirmar") return `Hola ${nombre}, te confirmamos tu reserva para ${fecha}. Gracias.`;
+  if (tipo === "recordar") return `Hola ${nombre}, te recordamos tu reserva para ${fecha}. Te esperamos.`;
+  return `Hola ${nombre}, gracias por venir. Si te ha gustado la experiencia, nos ayudaría mucho una reseña.`;
+}
+
+function Badge({ children, className = "" }: { children: React.ReactNode; className?: string }) {
+  return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${className}`}>{children}</span>;
+}
+
+function StatCard({ label, value, sub, icon }: { label: string; value: string | number; sub?: string; icon: React.ReactNode }) {
   return (
-    <span
-      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-extrabold"
-      style={{
-        borderColor: styles.borderColor,
-        backgroundColor: styles.backgroundColor,
-        color: styles.color,
-      }}
-    >
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-      />
-      {styles.label}
-    </span>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
+          <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
+          {sub ? <p className="mt-1 text-xs text-slate-500">{sub}</p> : null}
+        </div>
+        <div className="rounded-xl bg-blue-50 p-2 text-blue-700">{icon}</div>
+      </div>
+    </div>
   );
 }
 
-function AtendidaBadge({
-  atendida,
-  isDark = false,
+function ReservaCard({
+  reserva,
+  mesas,
+  onEstado,
+  onNoShow,
+  onRegistrarConsumo,
+  onMesa,
+  onCopiar,
 }: {
-  atendida: boolean | null;
-  isDark?: boolean;
+  reserva: Reserva;
+  mesas: Mesa[];
+  onEstado: (reserva: Reserva, estado: EstadoReserva) => void;
+  onNoShow: (reserva: Reserva, valor: boolean | null) => void;
+  onRegistrarConsumo: (reserva: Reserva) => void;
+  onMesa: (reserva: Reserva, mesaId: string | null) => void;
+  onCopiar: (texto: string) => void;
 }) {
-  const styles =
-    atendida === true
-      ? {
-          borderColor: isDark ? "rgba(52,211,153,0.35)" : "#059669",
-          backgroundColor: isDark ? "rgba(16,185,129,0.12)" : "#d1fae5",
-          color: isDark ? "#a7f3d0" : "#064e3b",
-          dot: isDark ? "#6ee7b7" : "#047857",
-          label: "Ha venido",
-        }
-      : atendida === false
-      ? {
-          borderColor: isDark ? "rgba(251,113,133,0.35)" : "#e11d48",
-          backgroundColor: isDark ? "rgba(244,63,94,0.14)" : "#ffe4e6",
-          color: isDark ? "#fecdd3" : "#881337",
-          dot: isDark ? "#fda4af" : "#be123c",
-          label: "No ha venido",
-        }
-      : {
-          borderColor: isDark ? "rgba(255,255,255,0.16)" : "#64748b",
-          backgroundColor: isDark ? "rgba(255,255,255,0.07)" : "#e2e8f0",
-          color: isDark ? "#e2e8f0" : "#0f172a",
-          dot: isDark ? "#cbd5e1" : "#475569",
-          label: "Sin marcar",
-        };
+  const riesgo = Number(reserva.cliente?.no_show_total || 0) + Number(reserva.cliente?.cancelaciones_totales || 0);
+  const linkConfirmar = buildWhatsAppLink(reserva, "confirmar");
+  const linkRecordar = buildWhatsAppLink(reserva, "recordar");
+  const linkResena = buildWhatsAppLink(reserva, "resena");
 
   return (
-    <span
-      className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-extrabold"
-      style={{
-        borderColor: styles.borderColor,
-        backgroundColor: styles.backgroundColor,
-        color: styles.color,
-      }}
-    >
-      <span
-        className="h-1.5 w-1.5 rounded-full"
-        style={{ backgroundColor: styles.dot }}
-      />
-      {styles.label}
-    </span>
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-base font-black text-slate-950">{reserva.nombre_cliente || "Cliente"}</p>
+            <Badge className={estadoClass(reserva)}>{estadoLabel(reserva)}</Badge>
+            {riesgo > 0 ? <Badge className="border-red-200 bg-red-50 text-red-700">Riesgo cliente</Badge> : null}
+            {!reserva.mesa_id ? <Badge className="border-slate-200 bg-slate-50 text-slate-600">Sin mesa</Badge> : null}
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
+            <span className="font-semibold text-slate-900">{horaCorta(reserva.fecha_hora_reserva)}</span>
+            <span>{fechaBonita(reserva.fecha_hora_reserva)}</span>
+            <span>{reserva.personas} persona{reserva.personas === 1 ? "" : "s"}</span>
+            <span>{reserva.telefono || "Sin teléfono"}</span>
+            <span>{reserva.origen || "origen no indicado"}</span>
+          </div>
+          {reserva.notas ? <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{reserva.notas}</p> : null}
+          {reserva.consumo_registrado_en ? (
+            <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800">
+              <ReceiptText size={16} />
+              Consumo registrado · {money(Number(reserva.consumo_total || 0))} · {Number(reserva.puntos_generados || 0)} pts
+            </div>
+          ) : null}
+        </div>
+
+        <div className="flex flex-col gap-2 sm:min-w-52">
+          <label className="text-[11px] font-black uppercase tracking-wide text-slate-500">Mesa</label>
+          <select
+            value={reserva.mesa_id || ""}
+            onChange={(e) => onMesa(reserva, e.target.value || null)}
+            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100"
+          >
+            <option value="">Sin mesa</option>
+            {mesas.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nombre}{m.capacidad ? ` · ${m.capacidad}p` : ""}{m.bloqueada ? " · bloqueada" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {reserva.estado === "pendiente" ? (
+          <button onClick={() => onEstado(reserva, "confirmada")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700">
+            <Check size={16} /> Confirmar
+          </button>
+        ) : null}
+        {reserva.estado !== "cancelada" ? (
+          <button onClick={() => onEstado(reserva, "cancelada")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100">
+            <X size={16} /> Cancelar
+          </button>
+        ) : null}
+        {reserva.estado === "confirmada" && !reserva.consumo_registrado_en && reserva.atendida !== false ? (
+          <button onClick={() => onRegistrarConsumo(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100">
+            <Banknote size={16} /> Registrar consumo
+          </button>
+        ) : null}
+        {reserva.estado === "confirmada" && !reserva.consumo_registrado_en && reserva.atendida !== false ? (
+          <button onClick={() => onNoShow(reserva, false)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100">
+            <UserX size={16} /> No-show
+          </button>
+        ) : null}
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+        {linkConfirmar ? (
+          <a href={linkConfirmar} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+            <MessageCircle size={14} /> WhatsApp confirmar
+          </a>
+        ) : null}
+        {linkRecordar ? (
+          <a href={linkRecordar} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+            <MessageCircle size={14} /> Recordatorio
+          </a>
+        ) : null}
+        {linkResena && reserva.atendida === true && !reserva.resena_solicitada ? (
+          <a href={linkResena} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+            <MessageCircle size={14} /> Pedir reseña
+          </a>
+        ) : null}
+        <button onClick={() => onCopiar(buildWhatsAppText(reserva, "recordar"))} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
+          <Copy size={14} /> Copiar mensaje
+        </button>
+      </div>
+    </div>
   );
 }
 
 export default function ReservasPage() {
+  const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
+  const restauranteId = (restauranteActual as any)?.id ?? null;
+
   const [reservas, setReservas] = useState<Reserva[]>([]);
-  const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [mesas, setMesas] = useState<Mesa[]>([]);
+  const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
+  const [vista, setVista] = useState<VistaReservas>("calendario");
+  const [filtro, setFiltro] = useState<FiltroEstado>("todas");
   const [busqueda, setBusqueda] = useState("");
+  const [diaActivo, setDiaActivo] = useState(fechaISO(new Date()));
   const [openModal, setOpenModal] = useState(false);
-  const [procesando, setProcesando] = useState<string | null>(null);
-  const [restauranteId, setRestauranteId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [nuevoBloqueo, setNuevoBloqueo] = useState<FormBloqueo>({
+    fecha: fechaISO(new Date()),
+    ...BLOQUEO_INICIAL,
+  });
+  const [consumoModal, setConsumoModal] = useState<ConsumoModalState | null>(null);
 
-  const loadingRef = useRef(false);
-  const realtimeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoRefreshPausadoRef = useRef(false);
 
-  const [loadingReservas, setLoadingReservas] = useState(true);
-  const [refreshingReservas, setRefreshingReservas] = useState(false);
-  const [errorReservas, setErrorReservas] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string>("Actualizado");
-
-  const [vista, setVista] = useState<Vista>("calendario");
-
-  const [showDetalle, setShowDetalle] = useState(false);
-  const [reservaSeleccionada, setReservaSeleccionada] =
-    useState<Reserva | null>(null);
-
-  const [puntosActivo, setPuntosActivo] = useState(false);
-  const [puntosPorEuro, setPuntosPorEuro] = useState<number>(1);
-
-  const [showGastoModal, setShowGastoModal] = useState(false);
-  const [reservaParaGasto, setReservaParaGasto] = useState<Reserva | null>(
-    null
-  );
-  const [gastoInput, setGastoInput] = useState<string>("");
-
-  const [isDark, setIsDark] = useState(false);
-
-  const queryClient = useQueryClient();
-  const { data: restauranteActual, isLoading: loadingRestaurante } =
-    useRestaurante();
+  const bloqueoEnEdicion = useMemo(() => {
+    return (
+      nuevoBloqueo.fecha !== fechaISO(new Date()) ||
+      nuevoBloqueo.hora_inicio !== BLOQUEO_INICIAL.hora_inicio ||
+      nuevoBloqueo.hora_fin !== BLOQUEO_INICIAL.hora_fin ||
+      nuevoBloqueo.motivo !== BLOQUEO_INICIAL.motivo
+    );
+  }, [nuevoBloqueo]);
 
   useEffect(() => {
-    const root = document.documentElement;
-    const update = () => setIsDark(root.classList.contains("dark"));
-    update();
+    autoRefreshPausadoRef.current = openModal || Boolean(consumoModal) || bloqueoEnEdicion || Boolean(saving);
+  }, [openModal, consumoModal, bloqueoEnEdicion, saving]);
 
-    const obs = new MutationObserver(update);
-    obs.observe(root, { attributes: true, attributeFilter: ["class"] });
+  const cargarTodo = useCallback(async (options?: { silent?: boolean }) => {
+    if (!restauranteId) return;
+    const silent = options?.silent === true;
+    if (!silent) setLoading(true);
+    setError(null);
 
-    return () => obs.disconnect();
-  }, []);
+    const desde = addDays(new Date(), -30);
+    const hasta = addDays(new Date(), 120);
 
-  const calendarStyle = useMemo(() => {
-    const vars: Record<string, string> = isDark
-      ? {
-          "--fc-border-color": "rgba(255,255,255,0.10)",
-          "--fc-page-bg-color": "transparent",
-          "--fc-neutral-bg-color": "rgba(255,255,255,0.04)",
-          "--fc-today-bg-color": "rgba(59,130,246,0.10)",
-          "--fc-list-event-hover-bg-color": "rgba(255,255,255,0.06)",
-          "--fc-button-text-color": "rgba(248,250,252,1)",
-          "--fc-button-bg-color": "rgba(255,255,255,0.08)",
-          "--fc-button-border-color": "rgba(255,255,255,0.14)",
-          "--fc-button-hover-bg-color": "rgba(255,255,255,0.12)",
-          "--fc-button-hover-border-color": "rgba(255,255,255,0.18)",
-          "--fc-button-active-bg-color": "rgba(255,255,255,0.18)",
-          "--fc-button-active-border-color": "rgba(255,255,255,0.22)",
-          "--fc-button-active-text-color": "rgba(255,255,255,1)",
-          "--fc-event-text-color": "rgba(248,250,252,1)",
-          "--fc-more-link-text-color": "rgba(226,232,240,1)",
-        }
-      : {
-          "--fc-border-color": "rgba(2,6,23,0.12)",
-          "--fc-page-bg-color": "transparent",
-          "--fc-neutral-bg-color": "rgba(2,6,23,0.03)",
-          "--fc-today-bg-color": "rgba(59,130,246,0.08)",
-          "--fc-list-event-hover-bg-color": "rgba(2,6,23,0.04)",
-          "--fc-button-text-color": "rgba(15,23,42,1)",
-          "--fc-button-bg-color": "rgba(255,255,255,0.95)",
-          "--fc-button-border-color": "rgba(2,6,23,0.12)",
-          "--fc-button-hover-bg-color": "rgba(2,6,23,0.04)",
-          "--fc-button-hover-border-color": "rgba(2,6,23,0.14)",
-          "--fc-button-active-bg-color": "rgba(2,6,23,0.08)",
-          "--fc-button-active-border-color": "rgba(2,6,23,0.16)",
-          "--fc-button-active-text-color": "rgba(15,23,42,1)",
-          "--fc-event-text-color": "rgba(15,23,42,1)",
-          "--fc-more-link-text-color": "rgba(15,23,42,0.85)",
-        };
+    try {
+      const [reservasRes, mesasRes, bloqueosRes] = await Promise.all([
+        supabase
+          .from("reservas")
+          .select(
+            `id, restaurante_id, nombre_cliente, telefono, email, personas, origen, notas, fecha_hora_reserva, estado, turno, cliente_id, atendida, resena_solicitada, mesa_id, consumo_total, consumo_metodo_pago, consumo_notas, puntos_generados, consumo_registrado_en,
+             cliente:cliente_id (ya_dejo_resena, no_show_total, cancelaciones_totales)`
+          )
+          .eq("restaurante_id", restauranteId)
+          .gte("fecha_hora_reserva", desde.toISOString())
+          .lte("fecha_hora_reserva", hasta.toISOString())
+          .order("fecha_hora_reserva", { ascending: true }),
+        supabase
+          .from("sala_mesas")
+          .select("id, nombre, capacidad, activa, bloqueada")
+          .eq("restaurante_id", restauranteId)
+          .order("orden", { ascending: true }),
+        supabase
+          .from("bloqueos_reservas")
+          .select("id, restaurante_id, fecha, hora_inicio, hora_fin, motivo, activo")
+          .eq("restaurante_id", restauranteId)
+          .order("fecha", { ascending: true })
+          .order("hora_inicio", { ascending: true }),
+      ]);
 
-    return vars as unknown as CSSProperties;
-  }, [isDark]);
+      if (reservasRes.error) throw reservasRes.error;
+      if (mesasRes.error) throw mesasRes.error;
+      if (bloqueosRes.error) throw bloqueosRes.error;
+
+      setReservas(
+        ((reservasRes.data || []) as any[]).map((r) => ({
+          ...r,
+          nombre_cliente: r.nombre_cliente || "Cliente",
+          personas: Number(r.personas || 0),
+          estado: (r.estado || "pendiente") as EstadoReserva,
+          cliente: Array.isArray(r.cliente) ? r.cliente[0] : r.cliente,
+        }))
+      );
+      setMesas(((mesasRes.data || []) as Mesa[]).filter((m) => m.activa !== false));
+      setBloqueos((bloqueosRes.data || []) as Bloqueo[]);
+    } catch (err) {
+      console.error("ERROR RESERVAS PRO", err);
+      setError("No se pudieron cargar las reservas.");
+    } finally {
+      if (!silent) setLoading(false);
+    }
+  }, [restauranteId]);
 
   useEffect(() => {
     if (loadingRestaurante) return;
-
-    const id = (restauranteActual as any)?.id ?? null;
-
-    setRestauranteId(id);
-
-    if (!id) {
-      setReservas([]);
-      setLoadingReservas(false);
+    if (!restauranteId) {
+      setLoading(false);
+      return;
     }
-  }, [restauranteActual, loadingRestaurante]);
+    cargarTodo();
+  }, [restauranteId, loadingRestaurante, cargarTodo]);
 
-  const cargarConfigPuntos = useCallback(async (rid: string) => {
-    try {
-      const result = await withTimeout(
-        supabase
-          .from("fidelizacion_config")
-          .select("puntos_por_euro")
-          .eq("restaurante_id", rid)
-          .maybeSingle(),
-        20000
-      );
-
-      if (!result) {
-        setPuntosActivo(false);
-        setPuntosPorEuro(1);
-        return;
-      }
-
-      const { data, error } = result;
-
-      if (error) {
-        setPuntosActivo(false);
-        setPuntosPorEuro(1);
-        return;
-      }
-
-      const ratio = Number(data?.puntos_por_euro ?? 0);
-      setPuntosPorEuro(ratio > 0 ? ratio : 1);
-      setPuntosActivo(ratio > 0);
-    } catch (error) {
-      console.error("ERROR CONFIG PUNTOS", error);
-      setPuntosActivo(false);
-      setPuntosPorEuro(1);
-    }
-  }, []);
-
-  const cargarReservas = useCallback(
-    async (modo: "inicial" | "refresh" = "refresh") => {
-      if (!restauranteId || loadingRef.current) return;
-
-      loadingRef.current = true;
-
-      if (modo === "inicial") {
-        setLoadingReservas(true);
-      } else {
-        setRefreshingReservas(true);
-      }
-
-      setErrorReservas(null);
-
-      try {
-        const ahora = new Date();
-
-        const desde = new Date(ahora);
-        desde.setDate(desde.getDate() - 90);
-
-        const hasta = new Date(ahora);
-        hasta.setDate(hasta.getDate() + 180);
-
-        const result = await withTimeout(
-          supabase
-            .from("reservas")
-            .select(
-              `
-                id,
-                nombre_cliente,
-                cliente_id,
-                telefono,
-                email,
-                restaurante_id,
-                fecha_hora_reserva,
-                personas,
-                estado,
-                atendida,
-                resena_solicitada,
-                clientes:cliente_id (
-                  ya_dejo_resena
-                )
-              `
-            )
-            .eq("restaurante_id", restauranteId)
-            .gte("fecha_hora_reserva", desde.toISOString())
-            .lte("fecha_hora_reserva", hasta.toISOString())
-            .order("fecha_hora_reserva", { ascending: true })
-            .limit(300),
-          20000
-        );
-
-        if (!result) {
-          setErrorReservas("La carga de reservas ha tardado demasiado.");
-          return;
-        }
-
-        const { data, error } = result;
-
-        if (error) {
-          console.warn("RESERVAS ERROR", error);
-          setErrorReservas("No se pudieron cargar las reservas.");
-          return;
-        }
-
-        const hoyKey = new Date().toDateString();
-
-        const formateadas: Reserva[] = (data || []).map((r: any) => {
-          const fechaDate = new Date(r.fecha_hora_reserva);
-
-          return {
-            id: r.id,
-            cliente: r.nombre_cliente ?? "Cliente",
-            cliente_id: r.cliente_id ?? null,
-            telefono: r.telefono ?? null,
-            email: r.email ?? null,
-            restaurante_id: r.restaurante_id,
-            fecha_hora_reserva: r.fecha_hora_reserva,
-            fecha:
-              fechaDate.toDateString() === hoyKey
-                ? "Hoy"
-                : fechaDate.toLocaleDateString("es-ES"),
-            hora: fechaDate.toLocaleTimeString("es-ES", {
-              hour: "2-digit",
-              minute: "2-digit",
-            }),
-            personas: Number(r.personas ?? 0),
-            estado: (r.estado || "pendiente") as Estado,
-            atendida: r.atendida,
-            resena_solicitada: Boolean(r.resena_solicitada),
-            ya_dejo_resena: r.clientes?.ya_dejo_resena ?? false,
-          };
-        });
-
-        setReservas(formateadas);
-        setLastUpdated(`Actualizado ${getHoraMadrid()}`);
-      } catch (error) {
-        console.error("ERROR GENERAL CARGANDO RESERVAS", error);
-        setErrorReservas("La carga de reservas ha tardado demasiado.");
-      } finally {
-        loadingRef.current = false;
-        setLoadingReservas(false);
-        setRefreshingReservas(false);
-      }
-    },
-    [restauranteId]
-  );
-
-  useEffect(() => {
-    if (!restauranteId) return;
-
-    cargarReservas("inicial");
-    cargarConfigPuntos(restauranteId);
-  }, [restauranteId, cargarReservas, cargarConfigPuntos]);
-
-  useAutoRefresh(
-    async () => {
-      await cargarReservas("refresh");
-    },
-    {
-      enabled: !!restauranteId,
-      intervalMs: 30000,
-    }
-  );
-
-  const programarRefreshRealtime = useCallback(() => {
-    if (realtimeTimerRef.current) {
-      clearTimeout(realtimeTimerRef.current);
-    }
-
-    realtimeTimerRef.current = setTimeout(() => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.reservas.all });
-      cargarReservas("refresh");
+  const pedirRefrescoSeguro = useCallback(() => {
+    if (autoRefreshPausadoRef.current) return;
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => {
+      if (!autoRefreshPausadoRef.current) void cargarTodo({ silent: true });
     }, 800);
-  }, [cargarReservas, queryClient]);
+  }, [cargarTodo]);
 
   useEffect(() => {
     if (!restauranteId) return;
 
     const channelReservas = supabase
-      .channel(`reservas-page-${restauranteId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "reservas",
-          filter: `restaurante_id=eq.${restauranteId}`,
-        },
-        () => {
-          programarRefreshRealtime();
-        }
-      )
+      .channel(`reservas-pro-${restauranteId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "reservas", filter: `restaurante_id=eq.${restauranteId}` }, pedirRefrescoSeguro)
+      .on("postgres_changes", { event: "*", schema: "public", table: "bloqueos_reservas", filter: `restaurante_id=eq.${restauranteId}` }, pedirRefrescoSeguro)
       .subscribe();
 
-    return () => {
-      if (realtimeTimerRef.current) {
-        clearTimeout(realtimeTimerRef.current);
-      }
+    const interval = setInterval(() => {
+      if (!autoRefreshPausadoRef.current) void cargarTodo({ silent: true });
+    }, 45000);
 
+    return () => {
+      if (refreshTimer.current) clearTimeout(refreshTimer.current);
+      clearInterval(interval);
       supabase.removeChannel(channelReservas);
     };
-  }, [restauranteId, programarRefreshRealtime]);
+  }, [restauranteId, cargarTodo, pedirRefrescoSeguro]);
 
-  const actualizarEstado = async (id: string, nuevoEstado: Estado) => {
+  const reservasFiltradas = useMemo(() => {
+    return reservas.filter((r) => {
+      if (!cumpleBusqueda(r, busqueda)) return false;
+      if (filtro === "pendiente") return r.estado === "pendiente";
+      if (filtro === "confirmada") return r.estado === "confirmada" && r.atendida !== true && r.atendida !== false;
+      if (filtro === "cancelada") return r.estado === "cancelada";
+      if (filtro === "sin_mesa") return !r.mesa_id && !ESTADOS_FINALES.has(r.estado);
+      if (filtro === "no_show") return r.atendida === false;
+      return true;
+    });
+  }, [reservas, busqueda, filtro]);
+
+  const reservasDia = useMemo(() => reservasFiltradas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === diaActivo), [reservasFiltradas, diaActivo]);
+  const semanaInicio = useMemo(() => startOfWeek(new Date(diaActivo)), [diaActivo]);
+  const diasSemana = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(semanaInicio, i)), [semanaInicio]);
+  const mesActivo = useMemo(() => {
+    const [year, month] = diaActivo.split("-").map(Number);
+    return new Date(year, month - 1, 1);
+  }, [diaActivo]);
+  const diasCalendario = useMemo(() => {
+    const inicio = startOfMonthGrid(mesActivo);
+    return Array.from({ length: 42 }, (_, i) => addDays(inicio, i));
+  }, [mesActivo]);
+
+
+  const stats = useMemo(() => {
+    const hoy = fechaISO(new Date());
+    const hoyReservas = reservas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === hoy && r.estado !== "cancelada");
+    const pendientes = reservas.filter((r) => r.estado === "pendiente");
+    const sinMesa = reservas.filter((r) => !r.mesa_id && r.estado !== "cancelada");
+    const noShows = reservas.filter((r) => r.atendida === false);
+    return {
+      hoy: hoyReservas.length,
+      personasHoy: hoyReservas.reduce((a, r) => a + Number(r.personas || 0), 0),
+      pendientes: pendientes.length,
+      sinMesa: sinMesa.length,
+      noShows: noShows.length,
+    };
+  }, [reservas]);
+
+  const acciones = useMemo(() => {
+    const items: { title: string; text: string; type: "danger" | "warn" | "info" | "ok" }[] = [];
+    const pendientes = reservas.filter((r) => r.estado === "pendiente");
+    const sinMesa = reservas.filter((r) => !r.mesa_id && r.estado === "confirmada" && r.atendida === null);
+    const hoy = fechaISO(new Date());
+    const hoyPendientes = pendientes.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === hoy);
+    const riesgo = reservas.filter((r) => Number(r.cliente?.no_show_total || 0) + Number(r.cliente?.cancelaciones_totales || 0) > 0 && r.estado !== "cancelada");
+
+    if (hoyPendientes.length) items.push({ type: "danger", title: "Reservas de hoy sin confirmar", text: `${hoyPendientes.length} reserva${hoyPendientes.length === 1 ? "" : "s"} necesitan confirmación.` });
+    if (pendientes.length) items.push({ type: "warn", title: "Pendientes acumuladas", text: `${pendientes.length} reserva${pendientes.length === 1 ? "" : "s"} siguen pendientes.` });
+    if (sinMesa.length) items.push({ type: "info", title: "Reservas sin mesa", text: `${sinMesa.length} reserva${sinMesa.length === 1 ? "" : "s"} confirmadas no tienen mesa asignada.` });
+    if (riesgo.length) items.push({ type: "warn", title: "Clientes con riesgo", text: `${riesgo.length} reserva${riesgo.length === 1 ? "" : "s"} tienen historial de cancelación o no-show.` });
+    if (!items.length) items.push({ type: "ok", title: "Todo controlado", text: "No hay reservas urgentes ahora mismo." });
+    return items;
+  }, [reservas]);
+
+  const cambiarEstado = async (reserva: Reserva, estado: EstadoReserva) => {
     if (!restauranteId) return;
-
-    const reservaActual =
-      reservas.find((r) => r.id === id) ||
-      (reservaSeleccionada?.id === id ? reservaSeleccionada : null);
-
-    const payload =
-      nuevoEstado === "cancelada"
-        ? { estado: nuevoEstado, atendida: null }
-        : { estado: nuevoEstado };
-
-    const { error } = await supabase
-      .from("reservas")
-      .update(payload)
-      .eq("id", id)
-      .eq("restaurante_id", restauranteId);
-
-    if (error) return;
-
-    setReservas((prev) =>
-      prev.map((r) =>
-        r.id === id
-          ? {
-              ...r,
-              estado: nuevoEstado,
-              atendida: nuevoEstado === "cancelada" ? null : r.atendida,
-            }
-          : r
-      )
-    );
-
-    if (reservaSeleccionada?.id === id) {
-      setReservaSeleccionada((prev) =>
-        prev
-          ? {
-              ...prev,
-              estado: nuevoEstado,
-              atendida: nuevoEstado === "cancelada" ? null : prev.atendida,
-            }
-          : prev
-      );
-    }
-
-    if (
-      reservaActual?.cliente_id &&
-      (nuevoEstado === "cancelada" || nuevoEstado === "confirmada")
-    ) {
-      const fechaReserva = reservaActual.fecha_hora_reserva
-        ? new Date(reservaActual.fecha_hora_reserva).toLocaleString("es-ES", {
-            day: "2-digit",
-            month: "2-digit",
-            year: "numeric",
-            hour: "2-digit",
-            minute: "2-digit",
-          })
-        : null;
-
-      const titulo =
-        nuevoEstado === "cancelada"
-          ? "Reserva cancelada"
-          : "Reserva confirmada";
-
-      const mensaje =
-        nuevoEstado === "cancelada"
-          ? fechaReserva
-            ? `El restaurante ha cancelado tu reserva del ${fechaReserva}.`
-            : "El restaurante ha cancelado tu reserva."
-          : fechaReserva
-          ? `El restaurante ha confirmado tu reserva del ${fechaReserva}.`
-          : "El restaurante ha confirmado tu reserva.";
-
-      await supabase.from("cliente_notificaciones").insert({
-        restaurante_id: restauranteId,
-        cliente_id: reservaActual.cliente_id,
-        tipo: "reserva",
-        titulo,
-        mensaje,
-        url: null,
-        leida: false,
-      });
-    }
-
-    try {
-      await fetch("https://n8n.gastrohelp.es/webhook/reserva-estado-cambiado", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          reserva_id: id,
-          estado: nuevoEstado,
-          restaurante_id: restauranteId,
-        }),
-      });
-    } catch {}
-
-    programarRefreshRealtime();
-  };
-
-  const marcarHaVenido = async (
-    reserva: Reserva,
-    valor: boolean,
-    gastoEur?: number | null
-  ) => {
-    if (!restauranteId) return;
-    if (procesando === reserva.id || reserva.atendida !== null) return;
-
-    setProcesando(reserva.id);
-
-    const { data, error } = await supabase
-      .from("reservas")
-      .update({ atendida: valor })
-      .eq("id", reserva.id)
-      .eq("restaurante_id", restauranteId)
-      .select("id");
-
-    if (error) {
-      setProcesando(null);
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      setProcesando(null);
-      return;
-    }
-
-    if (valor === false) {
-      setReservas((prev) =>
-        prev.map((r) => (r.id === reserva.id ? { ...r, atendida: false } : r))
-      );
-
-      if (reservaSeleccionada?.id === reserva.id) {
-        setReservaSeleccionada((prev) =>
-          prev ? { ...prev, atendida: false } : prev
-        );
-      }
-
+    setSaving(reserva.id);
+    const payload: any = estado === "cancelada" ? { estado, atendida: null } : { estado };
+    const { error } = await supabase.from("reservas").update(payload).eq("id", reserva.id).eq("restaurante_id", restauranteId);
+    if (!error) {
+      setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, ...payload } : r)));
       if (reserva.cliente_id) {
         await supabase.from("cliente_notificaciones").insert({
-          restaurante_id: reserva.restaurante_id,
+          restaurante_id: restauranteId,
           cliente_id: reserva.cliente_id,
           tipo: "reserva",
-          titulo: "Reserva marcada como no asistida",
-          mensaje: "El restaurante ha marcado que no asististe a esta reserva.",
+          titulo: estado === "confirmada" ? "Reserva confirmada" : estado === "cancelada" ? "Reserva cancelada" : "Reserva actualizada",
+          mensaje: estado === "confirmada" ? "El restaurante ha confirmado tu reserva." : estado === "cancelada" ? "El restaurante ha cancelado tu reserva." : "El restaurante ha actualizado tu reserva.",
           url: null,
           leida: false,
         });
       }
+    }
+    setSaving(null);
+    void cargarTodo({ silent: true });
+  };
 
-      setProcesando(null);
-      programarRefreshRealtime();
+  const cambiarNoShow = async (reserva: Reserva, valor: boolean | null) => {
+    if (!restauranteId) return;
+    if (reserva.consumo_registrado_en) return;
+    setSaving(reserva.id);
+    const { error } = await supabase.from("reservas").update({ atendida: valor }).eq("id", reserva.id).eq("restaurante_id", restauranteId);
+    if (!error) {
+      setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, atendida: valor } : r)));
+      if (reserva.cliente_id) {
+        await supabase.from("cliente_notificaciones").insert({
+          restaurante_id: restauranteId,
+          cliente_id: reserva.cliente_id,
+          tipo: "reserva",
+          titulo: valor === false ? "No asistencia registrada" : "Reserva actualizada",
+          mensaje: valor === false ? "El restaurante ha marcado la reserva como no asistida." : "El restaurante ha actualizado tu reserva.",
+          url: null,
+          leida: false,
+        });
+      }
+    }
+    setSaving(null);
+    void cargarTodo({ silent: true });
+  };
+
+  const abrirConsumo = (reserva: Reserva) => {
+    if (reserva.estado === "cancelada" || reserva.consumo_registrado_en) return;
+    setConsumoModal({ reserva, gasto: "", metodo_pago: "tarjeta", notas: "" });
+  };
+
+  const registrarConsumo = async () => {
+    if (!restauranteId || !consumoModal) return;
+    const gasto = Number(consumoModal.gasto.replace(",", "."));
+    if (!Number.isFinite(gasto) || gasto <= 0) {
+      setError("Introduce un importe válido para registrar el consumo.");
       return;
     }
 
-    let clienteIdFinal = reserva.cliente_id;
+    setSaving(consumoModal.reserva.id);
+    setError(null);
 
-    if (!clienteIdFinal) {
-      const telefonoSin34 = normalizarTelefono(reserva.telefono);
-      const telefonoCon34 = telefonoSin34 ? `34${telefonoSin34}` : "";
-
-      const { data: clientesExistentes, error: errorClienteExistente } =
-        await supabase
-          .from("clientes")
-          .select("id")
-          .eq("restaurante_id", reserva.restaurante_id)
-          .or(`telefono.eq.${telefonoSin34},telefono.eq.${telefonoCon34}`)
-          .limit(1);
-
-      if (errorClienteExistente) {
-        setProcesando(null);
-        return;
-      }
-
-      clienteIdFinal = clientesExistentes?.[0]?.id ?? null;
-
-      if (!clienteIdFinal) {
-        const { data: nuevoCliente, error: errNuevo } = await supabase
-          .from("clientes")
-          .insert({
-            restaurante_id: reserva.restaurante_id,
-            nombre: reserva.cliente || "Cliente",
-            telefono: telefonoSin34 || reserva.telefono,
-            visitas_totales: 0,
-          })
-          .select("id")
-          .single();
-
-        if (errNuevo || !nuevoCliente) {
-          setProcesando(null);
-          return;
-        }
-
-        clienteIdFinal = nuevoCliente.id;
-      }
-
-      await supabase
-        .from("reservas")
-        .update({ cliente_id: clienteIdFinal })
-        .eq("id", reserva.id)
-        .eq("restaurante_id", reserva.restaurante_id);
-    }
-
-    const gastoValido =
-      typeof gastoEur === "number" &&
-      Number.isFinite(gastoEur) &&
-      gastoEur > 0;
-
-    if (gastoValido) {
-      await supabase.rpc("rpc_registrar_gasto", {
-        p_cliente_id: clienteIdFinal,
-        p_restaurante_id: reserva.restaurante_id,
-        p_gasto: gastoEur,
-      });
-    }
-
-    const fechaEvento = new Date(reserva.fecha_hora_reserva);
-
-    await supabase.from("clientes_historial").upsert(
-      {
-        cliente_id: clienteIdFinal,
-        restaurante_id: reserva.restaurante_id,
-        reserva_id: reserva.id,
-        tipo: "visita",
-        personas: reserva.personas,
-        created_at: fechaEvento.toISOString(),
-        gasto_eur: gastoValido ? gastoEur : null,
-      },
-      { onConflict: "reserva_id" }
-    );
-
-    const puntosCalculados =
-      gastoValido && puntosActivo
-        ? Math.floor(Number(gastoEur) * Number(puntosPorEuro))
-        : 0;
-
-    await supabase.from("cliente_notificaciones").insert({
-      restaurante_id: reserva.restaurante_id,
-      cliente_id: clienteIdFinal,
-      tipo: gastoValido && puntosActivo ? "puntos" : "info",
-      titulo:
-        gastoValido && puntosActivo ? "Puntos añadidos" : "Visita registrada",
-      mensaje:
-        gastoValido && puntosActivo
-          ? `El restaurante ha registrado tu visita con un gasto de ${gastoEur}€. Se han añadido ${puntosCalculados} puntos a tu cuenta.`
-          : "El restaurante ha registrado tu visita en el historial.",
-      url: null,
-      leida: false,
+    const { data, error } = await supabase.rpc("registrar_consumo_reserva", {
+      p_reserva_id: consumoModal.reserva.id,
+      p_restaurante_id: restauranteId,
+      p_gasto: gasto,
+      p_metodo_pago: consumoModal.metodo_pago,
+      p_notas: consumoModal.notas || null,
     });
 
-    setReservas((prev) =>
-      prev.map((r) =>
-        r.id === reserva.id
-          ? { ...r, atendida: true, cliente_id: clienteIdFinal }
-          : r
-      )
-    );
-
-    if (reservaSeleccionada?.id === reserva.id) {
-      setReservaSeleccionada((prev) =>
-        prev ? { ...prev, atendida: true, cliente_id: clienteIdFinal } : prev
-      );
-    }
-
-    fetch("https://n8n.gastrohelp.es/webhook/resena-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        reserva_id: reserva.id,
-        restaurante_id: reserva.restaurante_id,
-        cliente_id: clienteIdFinal,
-        email: reserva.email,
-        nombre: reserva.cliente,
-        telefono: normalizarTelefono(reserva.telefono) || reserva.telefono,
-        resena_solicitada: reserva.resena_solicitada,
-        ya_dejo_resena: reserva.ya_dejo_resena,
-        gasto_eur: gastoValido ? gastoEur : null,
-        puntos_activo: puntosActivo,
-        puntos_por_euro: puntosPorEuro,
-      }),
-    });
-
-    setProcesando(null);
-    programarRefreshRealtime();
-  };
-
-  const clickHaVenido = (r: Reserva) => {
-    if (!puntosActivo) {
-      marcarHaVenido(r, true);
+    if (error) {
+      console.error("ERROR REGISTRAR CONSUMO", error);
+      setError(error.message || "No se pudo registrar el consumo.");
+      setSaving(null);
       return;
     }
 
-    setReservaParaGasto(r);
-    setGastoInput("");
-    setShowGastoModal(true);
+    const result = data as any;
+    if (result?.ok === false) {
+      setError(result?.error === "CONSUMO_YA_REGISTRADO" ? "Esta reserva ya tiene consumo registrado." : "No se pudo registrar el consumo.");
+      setSaving(null);
+      setConsumoModal(null);
+      void cargarTodo({ silent: true });
+      return;
+    }
+
+    setConsumoModal(null);
+    setSaving(null);
+    await cargarTodo({ silent: true });
   };
 
-  const confirmarGastoYMarcar = async () => {
-    if (!reservaParaGasto) return;
-
-    const raw = (gastoInput || "").trim().replace(",", ".");
-    const n = raw === "" ? null : Number(raw);
-    const gasto = n !== null && Number.isFinite(n) && n >= 0 ? n : null;
-
-    setShowGastoModal(false);
-    await marcarHaVenido(reservaParaGasto, true, gasto);
-
-    setReservaParaGasto(null);
-    setGastoInput("");
+  const cambiarMesa = async (reserva: Reserva, mesaId: string | null) => {
+    if (!restauranteId) return;
+    setSaving(reserva.id);
+    const { error } = await supabase.from("reservas").update({ mesa_id: mesaId }).eq("id", reserva.id).eq("restaurante_id", restauranteId);
+    if (!error) setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, mesa_id: mesaId } : r)));
+    setSaving(null);
   };
 
-  const reservasFiltradas = useMemo(() => {
-    return reservas
-      .filter((r) => {
-        if (filtro === "hoy") return r.fecha === "Hoy";
-        if (filtro === "pendientes") return r.estado === "pendiente";
-        return true;
-      })
-      .filter((r) =>
-        r.cliente.toLowerCase().includes(busqueda.toLowerCase().trim())
-      );
-  }, [reservas, filtro, busqueda]);
+  const copiar = async (texto: string) => {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 1500);
+    } catch {}
+  };
 
-  const eventos = useMemo(() => {
-    return reservasFiltradas.map((r) => {
-      const start = new Date(r.fecha_hora_reserva);
-      const end = new Date(start.getTime() + 90 * 60 * 1000);
-
-      return {
-        id: r.id,
-        title: `${r.cliente} · ${r.personas}p`,
-        start,
-        end,
-        extendedProps: { estado: r.estado, atendida: r.atendida },
-      };
+  const crearBloqueo = async () => {
+    if (!restauranteId) return;
+    if (!nuevoBloqueo.fecha || !nuevoBloqueo.hora_inicio || !nuevoBloqueo.hora_fin) return;
+    setSaving("bloqueo");
+    const { error } = await supabase.from("bloqueos_reservas").insert({
+      restaurante_id: restauranteId,
+      fecha: nuevoBloqueo.fecha,
+      hora_inicio: nuevoBloqueo.hora_inicio,
+      hora_fin: nuevoBloqueo.hora_fin,
+      motivo: nuevoBloqueo.motivo || "Horario bloqueado",
+      activo: true,
     });
-  }, [reservasFiltradas]);
-
-  const abrirDetalleReserva = (id: string) => {
-    const r = reservas.find((x) => x.id === id) || null;
-    setReservaSeleccionada(r);
-    setShowDetalle(!!r);
+    if (!error) {
+      setNuevoBloqueo({ fecha: fechaISO(new Date()), ...BLOQUEO_INICIAL });
+      await cargarTodo({ silent: true });
+    }
+    setSaving(null);
   };
 
-  const eventClassNames = (arg: EventClassNamesArg) => {
-    const estado = (arg.event.extendedProps as any)?.estado as
-      | Estado
-      | undefined;
-    const atendida = (arg.event.extendedProps as any)?.atendida as
-      | boolean
-      | null
-      | undefined;
-
-    const base = [
-      "!border",
-      "!rounded-lg",
-      "!px-0",
-      "!py-0",
-      "shadow-sm",
-      "hover:shadow-md",
-      "transition-shadow",
-      "!opacity-100",
-      "cursor-pointer",
-      "select-none",
-      "overflow-hidden",
-      "!text-slate-950",
-      "dark:!text-white",
-    ];
-
-    if (estado === "cancelada") {
-      return [
-        ...base,
-        "!border-rose-300",
-        "dark:!border-rose-400/30",
-        "!bg-rose-100",
-        "dark:!bg-rose-400/10",
-      ];
-    }
-
-    if (estado === "pendiente") {
-      return [
-        ...base,
-        "!border-amber-300",
-        "dark:!border-amber-400/30",
-        "!bg-amber-100",
-        "dark:!bg-amber-400/10",
-      ];
-    }
-
-    if (atendida === true) {
-      return [
-        ...base,
-        "!border-emerald-300",
-        "dark:!border-emerald-400/30",
-        "!bg-emerald-100",
-        "dark:!bg-emerald-400/10",
-      ];
-    }
-
-    return [
-      ...base,
-      "!border-sky-300",
-      "dark:!border-sky-400/30",
-      "!bg-sky-100",
-      "dark:!bg-sky-400/10",
-    ];
+  const toggleBloqueo = async (b: Bloqueo) => {
+    if (!restauranteId) return;
+    const { error } = await supabase.from("bloqueos_reservas").update({ activo: !b.activo }).eq("id", b.id).eq("restaurante_id", restauranteId);
+    if (!error) setBloqueos((prev) => prev.map((x) => (x.id === b.id ? { ...x, activo: !x.activo } : x)));
   };
 
-  const eventContent = (arg: EventContentArg) => {
-    const estado = (arg.event.extendedProps as any)?.estado as
-      | Estado
-      | undefined;
-    const atendida = (arg.event.extendedProps as any)?.atendida as
-      | boolean
-      | null
-      | undefined;
+  const borrarBloqueo = async (b: Bloqueo) => {
+    if (!restauranteId) return;
+    const { error } = await supabase.from("bloqueos_reservas").delete().eq("id", b.id).eq("restaurante_id", restauranteId);
+    if (!error) setBloqueos((prev) => prev.filter((x) => x.id !== b.id));
+  };
 
-    const dotClass =
-      estado === "cancelada"
-        ? "bg-rose-700 dark:bg-rose-300"
-        : estado === "pendiente"
-        ? "bg-amber-700 dark:bg-amber-300"
-        : atendida === true
-        ? "bg-emerald-700 dark:bg-emerald-300"
-        : "bg-sky-700 dark:bg-sky-300";
+  const reservasAgrupadasDia = useMemo(() => {
+    const groups: Record<string, Reserva[]> = {};
+    for (const r of reservasDia) {
+      const key = r.turno || (Number(horaCorta(r.fecha_hora_reserva).slice(0, 2)) < 17 ? "Comida" : "Cena");
+      groups[key] ||= [];
+      groups[key].push(r);
+    }
+    return groups;
+  }, [reservasDia]);
 
-    const txt = isDark ? "#f8fafc" : "#020617";
-
+  if (loadingRestaurante || loading) {
     return (
-      <div className="px-2 py-1.5 min-w-0" style={{ color: txt }}>
-        <div className="flex items-center gap-2 min-w-0" style={{ color: txt }}>
-          <span className={`h-1.5 w-1.5 rounded-full ${dotClass}`} />
-          {arg.timeText ? (
-            <span
-              className="shrink-0 text-[11px] font-bold"
-              style={{ color: txt }}
-            >
-              {arg.timeText}
-            </span>
-          ) : null}
-          <span
-            className="truncate text-[11px] font-semibold"
-            style={{ color: txt }}
-          >
-            {arg.event.title}
-          </span>
+      <div className="flex min-h-[50vh] items-center justify-center">
+        <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-slate-700 shadow-sm">
+          <Loader2 className="animate-spin" size={18} /> Cargando reservas...
         </div>
       </div>
     );
-  };
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-white">
-            Reservas
-          </h1>
-
-          <div className="hidden sm:flex items-center rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
-            <button
-              type="button"
-              onClick={() => setVista("calendario")}
-              className={[
-                "px-3 py-1 text-xs rounded-full transition",
-                vista === "calendario"
-                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10",
-              ].join(" ")}
-            >
-              Calendario
+    <div className="space-y-6 bg-slate-50 text-slate-950">
+      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-blue-700">
+              <CalendarDays size={14} /> Reservas Pro
+            </div>
+            <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Reservas</h1>
+            <p className="mt-1 max-w-2xl text-sm text-slate-600">Controla confirmaciones, mesas, no-shows, bloqueos y recordatorios desde una sola pantalla.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setVista("calendario")} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100">
+              <CalendarDays size={16} /> Calendario
             </button>
-            <button
-              type="button"
-              onClick={() => setVista("tabla")}
-              className={[
-                "px-3 py-1 text-xs rounded-full transition",
-                vista === "tabla"
-                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10",
-              ].join(" ")}
-            >
-              Tabla
+            <button onClick={() => cargarTodo()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
+              <RefreshCw size={16} /> Refrescar
+            </button>
+            <button onClick={() => setOpenModal(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
+              <Plus size={16} /> Nueva reserva
             </button>
           </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3 sm:justify-end">
-          <div className="sm:hidden flex items-center rounded-full border border-slate-200 bg-white/80 p-1 shadow-sm backdrop-blur dark:border-white/10 dark:bg-white/5">
-            <button
-              type="button"
-              onClick={() => setVista("calendario")}
-              className={[
-                "px-3 py-1 text-xs rounded-full transition",
-                vista === "calendario"
-                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10",
-              ].join(" ")}
-            >
-              Calendario
-            </button>
-            <button
-              type="button"
-              onClick={() => setVista("tabla")}
-              className={[
-                "px-3 py-1 text-xs rounded-full transition",
-                vista === "tabla"
-                  ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900"
-                  : "text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-white/10",
-              ].join(" ")}
-            >
-              Tabla
-            </button>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => cargarReservas("refresh")}
-            disabled={!restauranteId || refreshingReservas || loadingReservas}
-            className="px-4 py-2 rounded-lg border border-slate-200 bg-white text-slate-900 text-sm shadow-sm hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed dark:border-white/10 dark:bg-white/5 dark:text-white"
-          >
-            Refrescar
-          </button>
-
-          <button
-            type="button"
-            disabled={!restauranteId}
-            onClick={() => setOpenModal(true)}
-            className="px-4 py-2 rounded-lg bg-slate-900 text-white text-sm shadow-sm hover:shadow-md transition-shadow disabled:opacity-50 disabled:cursor-not-allowed dark:bg-white dark:text-slate-900"
-          >
-            Añadir reserva
-          </button>
         </div>
       </div>
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="inline-flex items-center gap-2">
-            <span className="text-xs text-slate-600 dark:text-slate-300">
-              Filtro
-            </span>
-            <select
-              value={filtro}
-              onChange={(e) => setFiltro(e.target.value as Filtro)}
-              className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:ring-white/10"
-            >
-              <option value="todas">Todas</option>
-              <option value="hoy">Hoy</option>
-              <option value="pendientes">Pendientes</option>
-            </select>
-          </div>
-
-          <div className="relative">
-            <input
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por cliente..."
-              className="h-9 w-full sm:w-80 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-400 dark:focus:ring-white/10"
-            />
-          </div>
+      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</div> : null}
+      {copiado ? <div className="fixed right-5 top-5 z-50 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-lg">Mensaje copiado</div> : null}
+      {saving ? <div className="fixed bottom-5 right-5 z-50 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg">Guardando...</div> : null}
+      {(openModal || consumoModal || bloqueoEnEdicion) && !saving ? (
+        <div className="fixed bottom-5 right-5 z-50 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black text-amber-800 shadow-lg">
+          Autoactualización pausada mientras editas
         </div>
+      ) : null}
 
-        <div className="text-xs text-slate-500 dark:text-slate-300">
-          {reservasFiltradas.length} reserva
-          {reservasFiltradas.length === 1 ? "" : "s"}
-        </div>
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <StatCard label="Reservas hoy" value={stats.hoy} sub={`${stats.personasHoy} personas`} icon={<ClipboardList size={18} />} />
+        <StatCard label="Pendientes" value={stats.pendientes} sub="sin confirmar" icon={<Clock3 size={18} />} />
+        <StatCard label="Sin mesa" value={stats.sinMesa} sub="por asignar" icon={<Table2 size={18} />} />
+        <StatCard label="No-shows" value={stats.noShows} sub="marcados" icon={<UserX size={18} />} />
+        <StatCard label="Bloqueos" value={bloqueos.filter((b) => b.activo).length} sub="activos" icon={<DoorClosed size={18} />} />
       </div>
 
-      <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-300">
-        <span>{lastUpdated}</span>
-        {refreshingReservas && <span>Refrescando reservas...</span>}
-      </div>
+      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["calendario", "Calendario"],
+                ["hoy", "Vista día"],
+                ["semana", "Semana"],
+                ["lista", "Lista"],
+                ["bloqueos", "Bloqueos"],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  onClick={() => setVista(id)}
+                  className={`rounded-xl px-4 py-2 text-sm font-bold transition ${vista === id ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
-      {errorReservas && (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-400/20 dark:bg-amber-400/10 dark:text-amber-100">
-          {errorReservas}
-        </div>
-      )}
-
-      {loadingReservas && (
-        <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
-          Cargando reservas...
-        </div>
-      )}
-
-      {vista === "calendario" && (
-        <div className="card overflow-hidden">
-          <div className="px-4 py-3 border-b border-slate-200/70 bg-white/70 backdrop-blur dark:border-white/10 dark:bg-white/5">
-            <div className="flex items-center justify-between">
-              <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                Calendario
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  value={busqueda}
+                  onChange={(e) => setBusqueda(e.target.value)}
+                  placeholder="Buscar cliente..."
+                  className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100 sm:w-72"
+                />
               </div>
-              <div className="text-xs text-slate-500 dark:text-slate-300">
-                Click en un evento para ver acciones
+              <select value={filtro} onChange={(e) => setFiltro(e.target.value as FiltroEstado)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+                <option value="todas">Todas</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="confirmada">Confirmadas</option>
+                <option value="sin_mesa">Sin mesa</option>
+                <option value="no_show">No-show</option>
+                <option value="cancelada">Canceladas</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="flex items-center gap-2 text-sm font-black text-slate-950">
+            <AlertTriangle size={17} className="text-blue-600" /> Acciones recomendadas
+          </div>
+          <div className="mt-3 space-y-2">
+            {acciones.map((a, idx) => (
+              <div key={idx} className={`rounded-2xl border p-3 ${a.type === "danger" ? "border-rose-200 bg-rose-50" : a.type === "warn" ? "border-amber-200 bg-amber-50" : a.type === "ok" ? "border-emerald-200 bg-emerald-50" : "border-blue-200 bg-blue-50"}`}>
+                <p className="text-sm font-black text-slate-950">{a.title}</p>
+                <p className="mt-1 text-xs font-semibold text-slate-600">{a.text}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {vista === "calendario" ? (
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-black capitalize text-slate-950">{monthTitle(mesActivo)}</h2>
+              <p className="text-sm text-slate-500">Pulsa un día para abrir sus reservas.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setDiaActivo(fechaISO(addMonths(mesActivo, -1)))}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Mes anterior
+              </button>
+              <button
+                onClick={() => setDiaActivo(fechaISO(new Date()))}
+                className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100"
+              >
+                Hoy
+              </button>
+              <button
+                onClick={() => setDiaActivo(fechaISO(addMonths(mesActivo, 1)))}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50"
+              >
+                Mes siguiente
+              </button>
             </div>
           </div>
 
-          <div className="p-3 sm:p-4" style={calendarStyle}>
-            <FullCalendar
-              key={isDark ? "dark" : "light"}
-              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-              initialView="dayGridMonth"
-              locale="es"
-              firstDay={1}
-              height="auto"
-              nowIndicator={true}
-              dayMaxEvents={4}
-              moreLinkClick="day"
-              moreLinkText="más"
-              eventDisplay="block"
-              headerToolbar={{
-                left: "prev,next today",
-                center: "title",
-                right: "dayGridMonth,timeGridWeek,timeGridDay",
-              }}
-              buttonText={{
-                today: "Hoy",
-                month: "Mes",
-                week: "Semana",
-                day: "Día",
-              }}
-              titleFormat={{ year: "numeric", month: "long" }}
-              dayHeaderFormat={{ weekday: "short" }}
-              events={eventos as any}
-              slotMinTime="08:00:00"
-              slotMaxTime="24:00:00"
-              allDaySlot={false}
-              eventTextColor={isDark ? "#f8fafc" : "#020617"}
-              eventClick={(info) => abrirDetalleReserva(info.event.id)}
-              eventDidMount={(info) => {
-                const color = isDark ? "#f8fafc" : "#0f172a";
+          <div className="grid grid-cols-7 gap-2 text-center text-xs font-black uppercase tracking-wide text-slate-400">
+            {["L", "M", "X", "J", "V", "S", "D"].map((dia) => (
+              <div key={dia} className="py-2">{dia}</div>
+            ))}
+          </div>
 
-                (info.el as HTMLElement).style.setProperty(
-                  "color",
-                  color,
-                  "important"
-                );
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-7">
+            {diasCalendario.map((dia) => {
+              const key = fechaISO(dia);
+              const reservasDelDia = reservasFiltradas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === key);
+              const bloqueosDelDia = bloqueos.filter((b) => b.fecha === key && b.activo);
+              const enMesActual = dia.getMonth() === mesActivo.getMonth();
+              const esHoy = key === fechaISO(new Date());
+              const pendientesDia = reservasDelDia.filter((r) => r.estado === "pendiente").length;
 
-                info.el
-                  .querySelectorAll<HTMLElement>(
-                    ".fc-event-main, .fc-event-main-frame, .fc-event-time, .fc-event-title, .fc-event-title-container"
-                  )
-                  .forEach((el) =>
-                    el.style.setProperty("color", color, "important")
-                  );
-              }}
-              eventClassNames={eventClassNames}
-              eventContent={eventContent}
-            />
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => {
+                    setDiaActivo(key);
+                    setVista("hoy");
+                  }}
+                  className={`min-h-36 rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                    esHoy
+                      ? "border-blue-300 bg-blue-50"
+                      : enMesActual
+                      ? "border-slate-200 bg-white"
+                      : "border-slate-100 bg-slate-50 text-slate-400"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`text-sm font-black ${enMesActual ? "text-slate-950" : "text-slate-400"}`}>
+                      {dia.getDate()}
+                    </span>
+                    {reservasDelDia.length ? (
+                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-black text-white">
+                        {reservasDelDia.length}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 space-y-1.5">
+                    {bloqueosDelDia.slice(0, 1).map((b) => (
+                      <div key={b.id} className="truncate rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700">
+                        Bloqueo {b.hora_inicio.slice(0, 5)}
+                      </div>
+                    ))}
+                    {reservasDelDia.slice(0, 3).map((r) => (
+                      <div key={r.id} className="truncate rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-700">
+                        {horaCorta(r.fecha_hora_reserva)} · {r.nombre_cliente}
+                      </div>
+                    ))}
+                    {pendientesDia ? (
+                      <div className="rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-black text-amber-700">
+                        {pendientesDia} pendiente{pendientesDia === 1 ? "" : "s"}
+                      </div>
+                    ) : null}
+                    {reservasDelDia.length > 3 ? (
+                      <p className="text-[11px] font-bold text-slate-500">+{reservasDelDia.length - 3} más</p>
+                    ) : null}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
+      ) : null}
 
-      {vista === "tabla" && (
-        <div className="card overflow-hidden">
-          <div
-            className="overflow-x-auto reservas-table"
-            style={{
-              ["--tbl-text" as any]: isDark
-                ? "rgba(248,250,252,1)"
-                : "rgba(15,23,42,1)",
-              ["--tbl-head" as any]: isDark
-                ? "rgba(226,232,240,1)"
-                : "rgba(51,65,85,1)",
-              ["--tbl-border" as any]: isDark
-                ? "rgba(255,255,255,0.10)"
-                : "rgba(2,6,23,0.12)",
-            }}
-          >
-            <style jsx>{`
-              .reservas-table table {
-                border-collapse: collapse !important;
-              }
+      {vista === "hoy" ? (
+        <div className="grid gap-4 xl:grid-cols-[280px_1fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <label className="text-xs font-black uppercase tracking-wide text-slate-500">Día</label>
+            <input type="date" value={diaActivo} onChange={(e) => setDiaActivo(e.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+            <div className="mt-4 rounded-2xl bg-slate-50 p-3">
+              <p className="text-sm font-black text-slate-950">{fechaCompleta(diaActivo)}</p>
+              <p className="mt-1 text-xs text-slate-500">{reservasDia.length} reserva{reservasDia.length === 1 ? "" : "s"} visibles</p>
+            </div>
+            <div className="mt-4 space-y-2">
+              {bloqueos.filter((b) => b.fecha === diaActivo && b.activo).map((b) => (
+                <div key={b.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs font-black text-slate-950">Bloqueo {b.hora_inicio.slice(0,5)} - {b.hora_fin.slice(0,5)}</p>
+                  <p className="mt-1 text-xs text-slate-500">{b.motivo || "Horario bloqueado"}</p>
+                </div>
+              ))}
+            </div>
+          </div>
 
-              .reservas-table table,
-              .reservas-table tbody,
-              .reservas-table td {
-                color: var(--tbl-text) !important;
-              }
-
-              .reservas-table thead th {
-                color: var(--tbl-head) !important;
-              }
-
-              .reservas-table tbody td {
-                border-bottom: 1px solid var(--tbl-border) !important;
-              }
-
-              .reservas-table tbody tr:last-child td {
-                border-bottom: 0 !important;
-              }
-            `}</style>
-
-            <table className="w-full text-sm">
-              <thead className="border-b border-slate-200/70 bg-white/70 backdrop-blur sticky top-0 z-10 dark:border-white/10 dark:bg-white/5">
-                <tr>
-                  <th className="px-6 py-3 text-left font-semibold">
-                    Cliente
-                  </th>
-                  <th className="px-6 py-3 text-left font-semibold">Fecha</th>
-                  <th className="px-6 py-3 text-left font-semibold">Hora</th>
-                  <th className="px-6 py-3 text-left font-semibold">
-                    Personas
-                  </th>
-                  <th className="px-6 py-3 text-left font-semibold">Estado</th>
-                  <th className="px-6 py-3 text-left font-semibold">
-                    Acciones
-                  </th>
-                  <th className="px-6 py-3 text-left font-semibold">
-                    Ha venido
-                  </th>
-                </tr>
-              </thead>
-
-              <tbody>
-                {reservasFiltradas.map((r) => (
-                  <tr
-                    key={r.id}
-                    className="hover:bg-slate-50/60 dark:hover:bg-white/5"
-                  >
-                    <td className="px-6 py-4 font-medium">{r.cliente}</td>
-                    <td className="px-6 py-4">{r.fecha}</td>
-                    <td className="px-6 py-4">{r.hora}</td>
-                    <td className="px-6 py-4">{r.personas}</td>
-
-                    <td className="px-6 py-4">
-                      <EstadoBadge estado={r.estado} isDark={isDark} />
-                    </td>
-
-                    <td className="px-6 py-4">
-                      <div className="flex gap-2">
-                        {r.estado === "pendiente" && (
-                          <button
-                            onClick={() =>
-                              actualizarEstado(r.id, "confirmada")
-                            }
-                            className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white shadow-sm hover:shadow-md transition-shadow"
-                          >
-                            Confirmar
-                          </button>
-                        )}
-
-                        {r.estado !== "cancelada" && (
-                          <button
-                            onClick={() =>
-                              actualizarEstado(r.id, "cancelada")
-                            }
-                            className="text-xs px-3 py-1.5 rounded-lg bg-rose-600 text-white shadow-sm hover:shadow-md transition-shadow"
-                          >
-                            Cancelar
-                          </button>
-                        )}
-                      </div>
-                    </td>
-
-                    <td className="px-6 py-4">
-                      {r.atendida === null && r.estado === "confirmada" && (
-                        <div className="flex gap-2">
-                          <button
-                            disabled={procesando === r.id}
-                            onClick={() => clickHaVenido(r)}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg border border-emerald-500/30 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200 dark:hover:bg-emerald-400/15"
-                            title={
-                              puntosActivo
-                                ? "Ha venido (pedirá gasto)"
-                                : "Ha venido"
-                            }
-                          >
-                            ✓
-                          </button>
-
-                          <button
-                            disabled={procesando === r.id}
-                            onClick={() => marcarHaVenido(r, false)}
-                            className="w-8 h-8 flex items-center justify-center rounded-lg border border-rose-500/30 text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-400/30 dark:bg-rose-400/10 dark:text-rose-100 dark:hover:bg-rose-400/15"
-                            title="No ha venido"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      )}
-
-                      {r.atendida !== null && (
-                        <AtendidaBadge atendida={r.atendida} isDark={isDark} />
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {!loadingReservas && reservasFiltradas.length === 0 && (
-              <div className="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-300">
-                No hay reservas con los filtros actuales.
+          <div className="space-y-4">
+            {Object.keys(reservasAgrupadasDia).length ? Object.entries(reservasAgrupadasDia).map(([turno, items]) => (
+              <section key={turno} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-4 flex items-center justify-between">
+                  <h2 className="text-lg font-black text-slate-950">{turno}</h2>
+                  <Badge className="border-slate-200 bg-slate-50 text-slate-600">{items.length} reserva{items.length === 1 ? "" : "s"}</Badge>
+                </div>
+                <div className="space-y-3">
+                  {items.map((r) => <ReservaCard key={r.id} reserva={r} mesas={mesas} onEstado={cambiarEstado} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} />)}
+                </div>
+              </section>
+            )) : (
+              <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+                <p className="text-lg font-black text-slate-950">No hay reservas para este día</p>
+                <p className="mt-1 text-sm text-slate-500">Cambia de fecha o añade una nueva reserva.</p>
               </div>
             )}
           </div>
         </div>
-      )}
+      ) : null}
+
+      {vista === "semana" ? (
+        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-black text-slate-950">Semana</h2>
+              <p className="text-sm text-slate-500">Vista rápida para organizar mesas y turnos.</p>
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setDiaActivo(fechaISO(addDays(semanaInicio, -7)))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">Semana anterior</button>
+              <button onClick={() => setDiaActivo(fechaISO(addDays(semanaInicio, 7)))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">Semana siguiente</button>
+            </div>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-7">
+            {diasSemana.map((dia) => {
+              const key = fechaISO(dia);
+              const items = reservasFiltradas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === key);
+              const bloqueosDia = bloqueos.filter((b) => b.fecha === key && b.activo);
+              return (
+                <div key={key} className="min-h-44 rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                  <button onClick={() => { setDiaActivo(key); setVista("hoy"); }} className="w-full text-left">
+                    <p className="text-sm font-black text-slate-950">{fechaBonita(key)}</p>
+                    <p className="text-xs text-slate-500">{items.length} reservas</p>
+                  </button>
+                  <div className="mt-3 space-y-2">
+                    {bloqueosDia.map((b) => <div key={b.id} className="rounded-xl bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700">Bloqueo {b.hora_inicio.slice(0,5)}</div>)}
+                    {items.slice(0, 5).map((r) => (
+                      <div key={r.id} className="rounded-xl bg-white p-2 shadow-sm">
+                        <p className="truncate text-xs font-black text-slate-950">{horaCorta(r.fecha_hora_reserva)} · {r.nombre_cliente}</p>
+                        <p className="mt-0.5 text-[11px] text-slate-500">{r.personas}p · {nombreMesa(r, mesas)}</p>
+                      </div>
+                    ))}
+                    {items.length > 5 ? <p className="text-xs font-bold text-slate-500">+{items.length - 5} más</p> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      {vista === "lista" ? (
+        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-100 p-4">
+            <h2 className="text-lg font-black text-slate-950">Lista completa</h2>
+            <p className="text-sm text-slate-500">{reservasFiltradas.length} reservas visibles con los filtros actuales.</p>
+          </div>
+          <div className="divide-y divide-slate-100">
+            {reservasFiltradas.map((r) => <div key={r.id} className="p-4"><ReservaCard reserva={r} mesas={mesas} onEstado={cambiarEstado} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} /></div>)}
+            {!reservasFiltradas.length ? <div className="p-10 text-center text-sm font-semibold text-slate-500">No hay reservas con estos filtros.</div> : null}
+          </div>
+        </div>
+      ) : null}
+
+      {vista === "bloqueos" ? (
+        <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-lg font-black text-slate-950">Bloquear horario</h2>
+            <p className="mt-1 text-sm text-slate-500">Útil para eventos privados, descansos, cocina cerrada o aforo completo.</p>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-black uppercase tracking-wide text-slate-500">Fecha</label>
+                <input type="date" value={nuevoBloqueo.fecha} onChange={(e) => setNuevoBloqueo((p) => ({ ...p, fecha: e.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">Inicio</label>
+                  <input type="time" value={nuevoBloqueo.hora_inicio} onChange={(e) => setNuevoBloqueo((p) => ({ ...p, hora_inicio: e.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+                </div>
+                <div>
+                  <label className="text-xs font-black uppercase tracking-wide text-slate-500">Fin</label>
+                  <input type="time" value={nuevoBloqueo.hora_fin} onChange={(e) => setNuevoBloqueo((p) => ({ ...p, hora_fin: e.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-black uppercase tracking-wide text-slate-500">Motivo</label>
+                <input value={nuevoBloqueo.motivo} onChange={(e) => setNuevoBloqueo((p) => ({ ...p, motivo: e.target.value }))} className="mt-1 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+              </div>
+              <button onClick={crearBloqueo} className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700">
+                <DoorClosed size={16} /> Guardar bloqueo
+              </button>
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h2 className="text-lg font-black text-slate-950">Bloqueos creados</h2>
+            <div className="mt-4 space-y-3">
+              {bloqueos.map((b) => (
+                <div key={b.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-black text-slate-950">{fechaBonita(b.fecha)} · {b.hora_inicio.slice(0,5)} - {b.hora_fin.slice(0,5)}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">{b.motivo || "Horario bloqueado"}</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button onClick={() => toggleBloqueo(b)} className={`rounded-xl px-3 py-2 text-xs font-black ${b.activo ? "bg-emerald-100 text-emerald-700" : "bg-slate-200 text-slate-600"}`}>{b.activo ? "Activo" : "Oculto"}</button>
+                    <button onClick={() => borrarBloqueo(b)} className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">Borrar</button>
+                  </div>
+                </div>
+              ))}
+              {!bloqueos.length ? <div className="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm font-semibold text-slate-500">No hay bloqueos todavía.</div> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {consumoModal ? (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-4 sm:items-center">
+          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-700">
+                  <Banknote size={14} /> Fidelización
+                </div>
+                <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950">Registrar consumo</h2>
+                <p className="mt-1 text-sm font-semibold text-slate-500">{consumoModal.reserva.nombre_cliente} · {consumoModal.reserva.personas} persona{consumoModal.reserva.personas === 1 ? "" : "s"}</p>
+              </div>
+              <button onClick={() => setConsumoModal(null)} className="rounded-2xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50">
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-semibold text-blue-900">
+              Al confirmar, la reserva quedará como atendida, se guardará el gasto y se sumarán los puntos en la app del cliente. No se puede duplicar el consumo de la misma reserva.
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-black uppercase tracking-wide text-slate-500">Total gastado</label>
+                <div className="mt-1 flex h-12 items-center rounded-2xl border border-slate-200 bg-white px-3 focus-within:ring-2 focus-within:ring-emerald-100">
+                  <input
+                    value={consumoModal.gasto}
+                    onChange={(e) => setConsumoModal((p) => (p ? { ...p, gasto: e.target.value } : p))}
+                    placeholder="38,50"
+                    inputMode="decimal"
+                    className="w-full bg-transparent text-lg font-black text-slate-950 outline-none"
+                    autoFocus
+                  />
+                  <span className="text-sm font-black text-slate-400">€</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-black uppercase tracking-wide text-slate-500">Método de pago</label>
+                <select
+                  value={consumoModal.metodo_pago}
+                  onChange={(e) => setConsumoModal((p) => (p ? { ...p, metodo_pago: e.target.value } : p))}
+                  className="mt-1 h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-100"
+                >
+                  <option value="tarjeta">Tarjeta</option>
+                  <option value="efectivo">Efectivo</option>
+                  <option value="bizum">Bizum</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="mt-4">
+              <label className="text-xs font-black uppercase tracking-wide text-slate-500">Notas internas opcionales</label>
+              <textarea
+                value={consumoModal.notas}
+                onChange={(e) => setConsumoModal((p) => (p ? { ...p, notas: e.target.value } : p))}
+                placeholder="Ej: vino incluido, descuento aplicado..."
+                className="mt-1 min-h-24 w-full resize-none rounded-2xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+              <button onClick={() => setConsumoModal(null)} className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancelar</button>
+              <button onClick={registrarConsumo} disabled={saving === consumoModal.reserva.id} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-60">
+                {saving === consumoModal.reserva.id ? <Loader2 className="animate-spin" size={16} /> : <Banknote size={16} />}
+                Registrar y sumar puntos
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <AddReservaModal
         open={openModal}
         onClose={() => setOpenModal(false)}
         restauranteId={restauranteId}
         onCreated={() => {
-          queryClient.invalidateQueries({ queryKey: queryKeys.reservas.all });
-          cargarReservas("refresh");
+          setOpenModal(false);
+          cargarTodo();
         }}
       />
-
-      {showDetalle && reservaSeleccionada && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div
-            className="w-full max-w-lg rounded-2xl p-5 shadow-xl border"
-            style={{
-              backgroundColor: isDark ? "#020617" : "#ffffff",
-              borderColor: isDark
-                ? "rgba(255,255,255,0.10)"
-                : "rgba(2,6,23,0.12)",
-            }}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div
-                  className="text-sm font-semibold truncate"
-                  style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
-                >
-                  {reservaSeleccionada.cliente}
-                </div>
-
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <span
-                    className="text-xs"
-                    style={{
-                      color: isDark
-                        ? "rgba(226,232,240,0.85)"
-                        : "rgba(71,85,105,1)",
-                    }}
-                  >
-                    {new Date(
-                      reservaSeleccionada.fecha_hora_reserva
-                    ).toLocaleString("es-ES")}
-                  </span>
-                  <span className="text-xs text-slate-400">•</span>
-                  <span
-                    className="text-xs"
-                    style={{
-                      color: isDark
-                        ? "rgba(226,232,240,0.85)"
-                        : "rgba(71,85,105,1)",
-                    }}
-                  >
-                    {reservaSeleccionada.personas} persona
-                    {reservaSeleccionada.personas === 1 ? "" : "s"}
-                  </span>
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <EstadoBadge
-                    estado={reservaSeleccionada.estado}
-                    isDark={isDark}
-                  />
-                  <AtendidaBadge
-                    atendida={reservaSeleccionada.atendida}
-                    isDark={isDark}
-                  />
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowDetalle(false);
-                  setReservaSeleccionada(null);
-                }}
-                className="rounded-lg px-3 py-1 text-xs border"
-                style={{
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.12)"
-                    : "rgba(2,6,23,0.12)",
-                  color: isDark
-                    ? "rgba(226,232,240,1)"
-                    : "rgba(51,65,85,1)",
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.06)"
-                    : "rgba(255,255,255,1)",
-                }}
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div
-                className="rounded-xl border p-3"
-                style={{
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.04)"
-                    : "rgba(255,255,255,1)",
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.10)"
-                    : "rgba(2,6,23,0.12)",
-                }}
-              >
-                <div className="text-xs text-slate-500 dark:text-slate-300">
-                  Teléfono
-                </div>
-                <div
-                  className="mt-1 text-sm font-medium break-words"
-                  style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
-                >
-                  {reservaSeleccionada.telefono || "-"}
-                </div>
-              </div>
-
-              <div
-                className="rounded-xl border p-3"
-                style={{
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.04)"
-                    : "rgba(255,255,255,1)",
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.10)"
-                    : "rgba(2,6,23,0.12)",
-                }}
-              >
-                <div className="text-xs text-slate-500 dark:text-slate-300">
-                  Email
-                </div>
-                <div
-                  className="mt-1 text-sm font-medium break-words"
-                  style={{ color: isDark ? "#f8fafc" : "#0f172a" }}
-                >
-                  {reservaSeleccionada.email || "-"}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 flex flex-col gap-3">
-              <div
-                className="rounded-xl border p-3"
-                style={{
-                  backgroundColor: isDark
-                    ? "rgba(255,255,255,0.04)"
-                    : "rgba(255,255,255,1)",
-                  borderColor: isDark
-                    ? "rgba(255,255,255,0.10)"
-                    : "rgba(2,6,23,0.12)",
-                }}
-              >
-                <div className="text-xs text-slate-500 dark:text-slate-300">
-                  Acciones
-                </div>
-
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {reservaSeleccionada.estado === "pendiente" && (
-                    <button
-                      onClick={async () => {
-                        await actualizarEstado(
-                          reservaSeleccionada.id,
-                          "confirmada"
-                        );
-                      }}
-                      className="text-xs px-3 py-2 rounded-lg bg-emerald-600 text-white shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      Confirmar
-                    </button>
-                  )}
-
-                  {reservaSeleccionada.estado !== "cancelada" && (
-                    <button
-                      onClick={async () => {
-                        await actualizarEstado(
-                          reservaSeleccionada.id,
-                          "cancelada"
-                        );
-                      }}
-                      className="text-xs px-3 py-2 rounded-lg bg-rose-600 text-white shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      Cancelar
-                    </button>
-                  )}
-
-                  {reservaSeleccionada.atendida === null &&
-                    reservaSeleccionada.estado === "confirmada" && (
-                      <>
-                        <button
-                          disabled={procesando === reservaSeleccionada.id}
-                          onClick={() => clickHaVenido(reservaSeleccionada)}
-                          className="text-xs px-3 py-2 rounded-lg border border-emerald-500/30 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
-                          style={{
-                            backgroundColor: isDark
-                              ? "rgba(16,185,129,0.12)"
-                              : undefined,
-                            color: isDark
-                              ? "rgba(167,243,208,1)"
-                              : undefined,
-                            borderColor: isDark
-                              ? "rgba(16,185,129,0.25)"
-                              : undefined,
-                          }}
-                          title={
-                            puntosActivo
-                              ? "Ha venido (pedirá gasto)"
-                              : "Ha venido"
-                          }
-                        >
-                          ✓ Ha venido
-                        </button>
-
-                        <button
-                          disabled={procesando === reservaSeleccionada.id}
-                          onClick={async () => {
-                            await marcarHaVenido(reservaSeleccionada, false);
-                          }}
-                          className="text-xs px-3 py-2 rounded-lg border border-rose-500/30 text-rose-700 bg-rose-50 hover:bg-rose-100 disabled:opacity-50"
-                          style={{
-                            backgroundColor: isDark
-                              ? "rgba(244,63,94,0.10)"
-                              : undefined,
-                            color: isDark
-                              ? "rgba(254,205,211,1)"
-                              : undefined,
-                            borderColor: isDark
-                              ? "rgba(244,63,94,0.22)"
-                              : undefined,
-                          }}
-                        >
-                          ✕ No ha venido
-                        </button>
-                      </>
-                    )}
-                </div>
-              </div>
-
-              <div className="text-xs text-slate-500 dark:text-slate-300">
-                Esto mantiene la lógica actual de reservas, puntos y webhooks.
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showGastoModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-950">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-sm font-semibold text-slate-900 dark:text-white">
-                  Registrar gasto
-                </div>
-                <div className="mt-1 text-xs text-slate-500 dark:text-slate-300">
-                  Solo suma puntos si introduces gasto (€).
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setShowGastoModal(false);
-                  setReservaParaGasto(null);
-                  setGastoInput("");
-                }}
-                className="rounded-lg border border-slate-200 px-3 py-1 text-xs text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <div className="mt-4">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                Gasto (€)
-              </label>
-              <input
-                type="text"
-                inputMode="decimal"
-                value={gastoInput}
-                onChange={(e) => setGastoInput(e.target.value)}
-                placeholder="Ej: 35,50"
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-400 dark:focus:ring-white/10"
-              />
-              <div className="mt-2 text-xs text-slate-500 dark:text-slate-300">
-                Relación actual: {puntosPorEuro} puntos por €.
-              </div>
-            </div>
-
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowGastoModal(false);
-                  setReservaParaGasto(null);
-                  setGastoInput("");
-                }}
-                className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50 dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmarGastoYMarcar}
-                className="rounded-lg bg-slate-900 px-4 py-2 text-sm text-white shadow-sm hover:shadow-md transition-shadow dark:bg-white dark:text-slate-900"
-              >
-                Confirmar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

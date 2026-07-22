@@ -7,15 +7,27 @@ import { useTheme } from "@/app/(app)/components/ThemeProvider";
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { getRestauranteUsuario } from "@/app/(app)/lib/getRestauranteUsuario";
 
+type NivelCliente = "nuevo" | "frecuente" | "habitual" | "vip" | "maestro";
+type TipoCupon = "cumpleanos" | "horas_valle";
+type Tab = "premios" | "cupones";
+
+type ConfigFidelizacion = {
+  puntos_por_euro: number;
+  nivel_frecuente_desde: number;
+  nivel_habitual_desde: number;
+  nivel_vip_desde: number;
+  nivel_maestro_desde: number;
+};
+
 type Cupon = {
   id: string;
   nombre: string;
   beneficio: string;
+  condiciones: any;
+  nivel_minimo: NivelCliente;
   activo: boolean;
   creado_en: string;
 };
-
-type TipoCupon = "cumpleanos" | "horas_valle";
 
 type PremioPuntos = {
   id: string;
@@ -23,14 +35,39 @@ type PremioPuntos = {
   descripcion: string | null;
   puntos_requeridos: number;
   imagen_url: string | null;
+  nivel_minimo: NivelCliente;
   activo: boolean;
   creado_en: string;
 };
 
-type Tab = "cupones" | "premios";
+const NIVELES: Array<{ value: NivelCliente; label: string; desc: string }> = [
+  { value: "nuevo", label: "Nuevo", desc: "Disponible para todos" },
+  { value: "frecuente", label: "Frecuente", desc: "Cliente que empieza a repetir" },
+  { value: "habitual", label: "Habitual", desc: "Cliente recurrente" },
+  { value: "vip", label: "VIP", desc: "Mejores clientes" },
+  { value: "maestro", label: "Maestro", desc: "Máxima fidelidad" },
+];
 
 function clsx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
+}
+
+function nivelLabel(nivel?: string | null) {
+  return NIVELES.find((n) => n.value === nivel)?.label ?? "Nuevo";
+}
+
+function nivelRank(nivel?: string | null) {
+  if (nivel === "maestro") return 5;
+  if (nivel === "vip") return 4;
+  if (nivel === "habitual") return 3;
+  if (nivel === "frecuente") return 2;
+  return 1;
+}
+
+function tipoCuponLabel(condiciones: any) {
+  if (condiciones?.tipo === "horas_valle") return "Horas valle";
+  if (condiciones?.tipo === "cumpleanos") return "Cumpleaños";
+  return "Automático";
 }
 
 export default function CuponesPage() {
@@ -38,97 +75,113 @@ export default function CuponesPage() {
 
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
   const [moduloPermitido, setModuloPermitido] = useState<boolean | null>(null);
-
   const [tab, setTab] = useState<Tab>("premios");
 
+  const [config, setConfig] = useState<ConfigFidelizacion>({
+    puntos_por_euro: 1,
+    nivel_frecuente_desde: 2,
+    nivel_habitual_desde: 5,
+    nivel_vip_desde: 10,
+    nivel_maestro_desde: 20,
+  });
+
   const [cupones, setCupones] = useState<Cupon[]>([]);
-  const [loadingCupones, setLoadingCupones] = useState(true);
+  const [premios, setPremios] = useState<PremioPuntos[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const [showCuponForm, setShowCuponForm] = useState(false);
+  const [editingCuponId, setEditingCuponId] = useState<string | null>(null);
   const [nombre, setNombre] = useState("");
   const [beneficio, setBeneficio] = useState("");
-  const [savingCupon, setSavingCupon] = useState(false);
   const [tipo, setTipo] = useState<TipoCupon>("cumpleanos");
-
+  const [cuponNivel, setCuponNivel] = useState<NivelCliente>("nuevo");
   const [validezDiasCumple, setValidezDiasCumple] = useState<number>(7);
   const [diasAntesCumple, setDiasAntesCumple] = useState<number>(0);
-
   const [diasSemana, setDiasSemana] = useState<number[]>([1, 2, 3, 4]);
   const [horaInicio, setHoraInicio] = useState<string>("20:00");
   const [horaFin, setHoraFin] = useState<string>("21:00");
   const [cadaXVisitas, setCadaXVisitas] = useState<number>(2);
-
-  const [premios, setPremios] = useState<PremioPuntos[]>([]);
-  const [loadingPremios, setLoadingPremios] = useState(true);
+  const [savingCupon, setSavingCupon] = useState(false);
 
   const [showPremioForm, setShowPremioForm] = useState(false);
   const [editingPremioId, setEditingPremioId] = useState<string | null>(null);
-
   const [premioNombre, setPremioNombre] = useState("");
   const [premioDescripcion, setPremioDescripcion] = useState("");
   const [premioPuntos, setPremioPuntos] = useState<number>(100);
   const [premioImagenUrl, setPremioImagenUrl] = useState("");
   const [premioFile, setPremioFile] = useState<File | null>(null);
+  const [premioNivel, setPremioNivel] = useState<NivelCliente>("nuevo");
   const [premioActivo, setPremioActivo] = useState(true);
   const [savingPremio, setSavingPremio] = useState(false);
 
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const pageWrap = "mx-auto max-w-7xl p-6";
 
-  const pageWrap = useMemo(() => clsx("p-6", "mx-auto", "max-w-6xl"), []);
+  const cardBase = useMemo(
+    () =>
+      clsx(
+        "rounded-3xl border shadow-sm",
+        dark ? "border-gray-800 bg-gray-950 text-gray-100" : "border-gray-200 bg-white text-gray-950"
+      ),
+    [dark]
+  );
 
-  const cardBase = useMemo(() => {
-    return clsx(
-      "rounded-2xl border shadow-sm",
-      dark ? "border-gray-800 bg-gray-950" : "border-gray-200 bg-white"
-    );
-  }, [dark]);
+  const btnPrimary = useMemo(
+    () =>
+      clsx(
+        "rounded-xl px-4 py-2 text-sm font-black transition disabled:opacity-60",
+        dark ? "bg-white text-black hover:opacity-90" : "bg-black text-white hover:opacity-90"
+      ),
+    [dark]
+  );
 
-  const btnPrimary = useMemo(() => {
-    return clsx(
-      "rounded-xl px-4 py-2 text-sm font-semibold transition",
-      dark ? "bg-white text-black hover:opacity-90" : "bg-black text-white hover:opacity-90",
-      "disabled:opacity-60"
-    );
-  }, [dark]);
+  const btnGhost = useMemo(
+    () =>
+      clsx(
+        "rounded-xl border px-4 py-2 text-sm font-bold transition disabled:opacity-60",
+        dark
+          ? "border-gray-800 bg-transparent text-gray-100 hover:bg-gray-900"
+          : "border-gray-200 bg-white text-gray-900 hover:bg-gray-50"
+      ),
+    [dark]
+  );
 
-  const btnGhost = useMemo(() => {
-    return clsx(
-      "rounded-xl border px-4 py-2 text-sm font-medium transition",
-      dark
-        ? "border-gray-800 bg-transparent text-gray-200 hover:bg-gray-900"
-        : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50",
-      "disabled:opacity-60"
-    );
-  }, [dark]);
+  const btnDanger = useMemo(
+    () =>
+      clsx(
+        "rounded-xl border px-4 py-2 text-sm font-bold transition",
+        dark
+          ? "border-gray-800 bg-transparent text-red-300 hover:bg-gray-900"
+          : "border-gray-200 bg-white text-red-600 hover:bg-red-50"
+      ),
+    [dark]
+  );
 
-  const btnDanger = useMemo(() => {
-    return clsx(
-      "rounded-xl border px-4 py-2 text-sm font-medium transition",
-      dark
-        ? "border-gray-800 bg-transparent text-red-300 hover:bg-gray-900"
-        : "border-gray-200 bg-white text-red-600 hover:bg-red-50"
-    );
-  }, [dark]);
+  const inputBase = useMemo(
+    () =>
+      clsx(
+        "mt-1 w-full rounded-xl border px-3 py-2 text-sm font-semibold outline-none",
+        dark
+          ? "border-gray-800 bg-gray-950 text-gray-100 placeholder:text-gray-500 focus:border-gray-700"
+          : "border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:border-blue-400"
+      ),
+    [dark]
+  );
 
-  const inputBase = useMemo(() => {
-    return clsx(
-      "mt-1 w-full rounded-xl border px-3 py-2 text-sm outline-none",
-      dark
-        ? "border-gray-800 bg-gray-950 text-gray-100 placeholder:text-gray-500 focus:border-gray-700"
-        : "border-gray-200 bg-white text-gray-900 placeholder:text-gray-400 focus:border-gray-300"
-    );
-  }, [dark]);
+  const smallText = dark ? "text-gray-400" : "text-slate-500";
 
-  const pill = (active: boolean) =>
+  const nivelBadge = (nivel: NivelCliente) => {
+    const base = "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black";
+    if (nivel === "vip") return clsx(base, "bg-purple-100 text-purple-700");
+    if (nivel === "habitual") return clsx(base, "bg-amber-100 text-amber-700");
+    if (nivel === "frecuente") return clsx(base, "bg-blue-100 text-blue-700");
+    return clsx(base, "bg-slate-100 text-slate-700");
+  };
+
+  const activeBadge = (active: boolean) =>
     clsx(
-      "inline-flex rounded-full px-3 py-1 text-xs font-semibold",
-      active
-        ? dark
-          ? "bg-white/10 text-white"
-          : "bg-black/10 text-black"
-        : dark
-        ? "bg-gray-900 text-gray-300"
-        : "bg-gray-100 text-gray-600"
+      "inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-black",
+      active ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"
     );
 
   const toggleDiaSemana = (dia: number) => {
@@ -156,9 +209,11 @@ export default function CuponesPage() {
   };
 
   const resetCuponForm = () => {
+    setEditingCuponId(null);
     setNombre("");
     setBeneficio("");
     setTipo("cumpleanos");
+    setCuponNivel("nuevo");
     setValidezDiasCumple(7);
     setDiasAntesCumple(0);
     setDiasSemana([1, 2, 3, 4]);
@@ -174,42 +229,48 @@ export default function CuponesPage() {
     setPremioPuntos(100);
     setPremioImagenUrl("");
     setPremioFile(null);
+    setPremioNivel("nuevo");
     setPremioActivo(true);
   };
 
-  const cargarCupones = async (rid: string) => {
-    const { data, error } = await supabase
-      .from("cupones")
-      .select("id,nombre,beneficio,activo,creado_en")
-      .eq("restaurante_id", rid)
-      .order("creado_en", { ascending: false });
+  const cargarTodo = async (rid: string) => {
+    const [cuponesRes, premiosRes, configRes] = await Promise.all([
+      supabase
+        .from("cupones")
+        .select("id,nombre,beneficio,condiciones,nivel_minimo,activo,creado_en")
+        .eq("restaurante_id", rid)
+        .order("creado_en", { ascending: false }),
+      supabase
+        .from("premios_puntos")
+        .select("id,nombre,descripcion,puntos_requeridos,imagen_url,nivel_minimo,activo,creado_en")
+        .eq("restaurante_id", rid)
+        .order("creado_en", { ascending: false }),
+      supabase
+        .from("fidelizacion_config")
+        .select("puntos_por_euro,nivel_frecuente_desde,nivel_habitual_desde,nivel_vip_desde,nivel_maestro_desde")
+        .eq("restaurante_id", rid)
+        .maybeSingle(),
+    ]);
 
-    if (error) throw error;
-    setCupones((data ?? []) as Cupon[]);
-  };
+    if (cuponesRes.error) throw cuponesRes.error;
+    if (premiosRes.error) throw premiosRes.error;
+    if (configRes.error) throw configRes.error;
 
-  const cargarPremios = async (rid: string) => {
-    const { data, error } = await supabase
-      .from("premios_puntos")
-      .select("id,nombre,descripcion,puntos_requeridos,imagen_url,activo,creado_en")
-      .eq("restaurante_id", rid)
-      .order("creado_en", { ascending: false });
-
-    if (error) throw error;
-    setPremios((data ?? []) as PremioPuntos[]);
+    setCupones((cuponesRes.data ?? []) as Cupon[]);
+    setPremios((premiosRes.data ?? []) as PremioPuntos[]);
+    if (configRes.data) setConfig(configRes.data as ConfigFidelizacion);
   };
 
   useEffect(() => {
     const run = async () => {
+      setLoading(true);
       setErrorMsg(null);
 
       const rid = await getRestauranteUsuario();
-
       if (!rid) {
-        setErrorMsg("No se encontró restaurante_id para este usuario.");
         setModuloPermitido(false);
-        setLoadingCupones(false);
-        setLoadingPremios(false);
+        setErrorMsg("No se encontró restaurante asociado.");
+        setLoading(false);
         return;
       }
 
@@ -222,31 +283,26 @@ export default function CuponesPage() {
         .maybeSingle();
 
       if (moduloError) {
-        setErrorMsg(moduloError.message);
         setModuloPermitido(false);
-        setLoadingCupones(false);
-        setLoadingPremios(false);
+        setErrorMsg(moduloError.message);
+        setLoading(false);
         return;
       }
 
       if (!moduloData?.fidelizacion) {
         setModuloPermitido(false);
-        setLoadingCupones(false);
-        setLoadingPremios(false);
+        setLoading(false);
         return;
       }
 
       setModuloPermitido(true);
 
       try {
-        setLoadingCupones(true);
-        setLoadingPremios(true);
-        await Promise.all([cargarCupones(rid), cargarPremios(rid)]);
+        await cargarTodo(rid);
       } catch (e: any) {
-        setErrorMsg(e?.message ?? "Error al cargar datos");
+        setErrorMsg(e?.message ?? "Error cargando fidelización.");
       } finally {
-        setLoadingCupones(false);
-        setLoadingPremios(false);
+        setLoading(false);
       }
     };
 
@@ -284,7 +340,7 @@ export default function CuponesPage() {
     await supabase.from("cliente_notificaciones").insert(avisos);
   };
 
-  const crearCupon = async () => {
+  const guardarCupon = async () => {
     if (!restauranteId || !moduloPermitido) return;
 
     const n = nombre.trim();
@@ -295,64 +351,117 @@ export default function CuponesPage() {
       return;
     }
 
-    if (tipo === "horas_valle") {
-      if (!horaInicio || !horaFin) {
-        setErrorMsg("Rellena hora inicio y hora fin.");
-        return;
-      }
-
-      if (!diasSemana.length) {
-        setErrorMsg("Selecciona al menos un día.");
-        return;
-      }
-
-      const x = Math.max(1, Number(cadaXVisitas) || 1);
-
-      if (!Number.isFinite(x) || x < 1) {
-        setErrorMsg("Cada X visitas debe ser 1 o más.");
-        return;
-      }
+    if (tipo === "horas_valle" && (!horaInicio || !horaFin || !diasSemana.length)) {
+      setErrorMsg("Configura días y horas para el cupón de horas valle.");
+      return;
     }
 
     setSavingCupon(true);
     setErrorMsg(null);
 
-    const condiciones = buildCondiciones();
-
-    const { error } = await supabase.from("cupones").insert({
-      restaurante_id: restauranteId,
-      nombre: n,
-      beneficio: b,
-      condiciones,
-      activo: true,
-    });
-
-    if (error) {
-      setErrorMsg(error.message);
-      setSavingCupon(false);
-      return;
-    }
-
-    await avisarClientesRestaurante({
-      tipo: "cupon",
-      titulo: "Nuevo cupón disponible",
-      mensaje: `El restaurante ha creado un nuevo cupón: "${n}". ${b}`,
-    });
-
-    resetCuponForm();
-    setShowCuponForm(false);
-
     try {
-      await cargarCupones(restauranteId);
+      const payload = {
+        nombre: n,
+        beneficio: b,
+        condiciones: buildCondiciones(),
+        nivel_minimo: cuponNivel,
+        activo: true,
+      };
+
+      if (editingCuponId) {
+        const { error } = await supabase
+          .from("cupones")
+          .update(payload)
+          .eq("id", editingCuponId)
+          .eq("restaurante_id", restauranteId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from("cupones").insert({
+          restaurante_id: restauranteId,
+          ...payload,
+        });
+        if (error) throw error;
+
+        await avisarClientesRestaurante({
+          tipo: "cupon",
+          titulo: "Nueva ventaja disponible",
+          mensaje: `Hay una nueva ventaja para clientes ${nivelLabel(cuponNivel)}: ${n}. ${b}`,
+        });
+      }
+
+      resetCuponForm();
+      setShowCuponForm(false);
+      await cargarTodo(restauranteId);
     } catch (e: any) {
-      setErrorMsg(e?.message ?? "Cupón creado, pero falló la recarga.");
+      setErrorMsg(e?.message ?? "Error guardando cupón.");
     } finally {
       setSavingCupon(false);
     }
   };
 
+  const editarCupon = (c: Cupon) => {
+    const cond = c.condiciones ?? {};
+    setEditingCuponId(c.id);
+    setNombre(c.nombre);
+    setBeneficio(c.beneficio);
+    setTipo(cond.tipo === "horas_valle" ? "horas_valle" : "cumpleanos");
+    setCuponNivel(c.nivel_minimo ?? "nuevo");
+    setValidezDiasCumple(Number(cond.validez_dias ?? 7));
+    setDiasAntesCumple(Number(cond.dias_antes ?? 0));
+    setDiasSemana(Array.isArray(cond.dias_semana) ? cond.dias_semana : [1, 2, 3, 4]);
+    setHoraInicio(String(cond.hora_inicio ?? "20:00"));
+    setHoraFin(String(cond.hora_fin ?? "21:00"));
+    setCadaXVisitas(Number(cond.cada_x_visitas ?? 2));
+    setShowCuponForm(true);
+    setTab("cupones");
+  };
+
+  const toggleCuponActivo = async (c: Cupon) => {
+    if (!restauranteId || !moduloPermitido) return;
+
+    const { error } = await supabase
+      .from("cupones")
+      .update({ activo: !c.activo })
+      .eq("id", c.id)
+      .eq("restaurante_id", restauranteId);
+
+    if (error) {
+      setErrorMsg(error.message);
+      return;
+    }
+
+    setCupones((prev) => prev.map((x) => (x.id === c.id ? { ...x, activo: !x.activo } : x)));
+  };
+
+  const borrarCupon = async (c: Cupon) => {
+    if (!restauranteId || !moduloPermitido) return;
+    const ok = window.confirm(`Eliminar "${c.nombre}"?`);
+    if (!ok) return;
+
+    const { error } = await supabase
+      .from("cupones")
+      .delete()
+      .eq("id", c.id)
+      .eq("restaurante_id", restauranteId);
+
+    if (error) {
+      setErrorMsg(error.message);
+      return;
+    }
+
+    setCupones((prev) => prev.filter((x) => x.id !== c.id));
+  };
+
   async function uploadPremioImageIfNeeded(rid: string) {
     if (!premioFile) return premioImagenUrl.trim() || null;
+
+    const tiposPermitidos = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!tiposPermitidos.includes(premioFile.type)) {
+      throw new Error("La imagen debe ser JPG, PNG, WEBP o GIF.");
+    }
+    if (premioFile.size > 5 * 1024 * 1024) {
+      throw new Error("La imagen no puede superar los 5 MB.");
+    }
 
     const ext = premioFile.name.split(".").pop() || "jpg";
     const safeName = premioNombre
@@ -361,14 +470,12 @@ export default function CuponesPage() {
       .replace(/\s+/g, "-")
       .replace(/[^a-z0-9\-]/g, "");
 
-    const path = `${rid}/${Date.now()}-${safeName}.${ext}`;
+    const path = `${rid}/${Date.now()}-${safeName || "premio"}.${ext}`;
 
-    const { error: upErr } = await supabase.storage
-      .from("premios")
-      .upload(path, premioFile, {
-        upsert: false,
-        contentType: premioFile.type || "image/jpeg",
-      });
+    const { error: upErr } = await supabase.storage.from("premios").upload(path, premioFile, {
+      upsert: false,
+      contentType: premioFile.type || "image/jpeg",
+    });
 
     if (upErr) throw upErr;
 
@@ -376,7 +483,7 @@ export default function CuponesPage() {
     return data.publicUrl || null;
   }
 
-  const upsertPremio = async () => {
+  const guardarPremio = async () => {
     if (!restauranteId || !moduloPermitido) return;
 
     const n = premioNombre.trim();
@@ -393,45 +500,41 @@ export default function CuponesPage() {
 
     try {
       const img = await uploadPremioImageIfNeeded(restauranteId);
+      const payload = {
+        nombre: n,
+        descripcion: desc,
+        puntos_requeridos: puntos,
+        imagen_url: img,
+        nivel_minimo: premioNivel,
+        activo: premioActivo,
+      };
 
       if (editingPremioId) {
         const { error } = await supabase
           .from("premios_puntos")
-          .update({
-            nombre: n,
-            descripcion: desc,
-            puntos_requeridos: puntos,
-            imagen_url: img,
-            activo: premioActivo,
-          })
+          .update(payload)
           .eq("id", editingPremioId)
           .eq("restaurante_id", restauranteId);
-
         if (error) throw error;
       } else {
         const { error } = await supabase.from("premios_puntos").insert({
           restaurante_id: restauranteId,
-          nombre: n,
-          descripcion: desc,
-          puntos_requeridos: puntos,
-          imagen_url: img,
-          activo: premioActivo,
+          ...payload,
         });
-
         if (error) throw error;
 
         await avisarClientesRestaurante({
           tipo: "premio",
           titulo: "Nuevo premio disponible",
-          mensaje: `El restaurante ha creado un nuevo premio: "${n}" por ${puntos} puntos.`,
+          mensaje: `Nuevo premio para clientes ${nivelLabel(premioNivel)}: ${n} por ${puntos} puntos.`,
         });
       }
 
       resetPremioForm();
       setShowPremioForm(false);
-      await cargarPremios(restauranteId);
+      await cargarTodo(restauranteId);
     } catch (e: any) {
-      setErrorMsg(e?.message ?? "Error guardando premio");
+      setErrorMsg(e?.message ?? "Error guardando premio.");
     } finally {
       setSavingPremio(false);
     }
@@ -444,8 +547,10 @@ export default function CuponesPage() {
     setPremioPuntos(p.puntos_requeridos);
     setPremioImagenUrl(p.imagen_url ?? "");
     setPremioFile(null);
+    setPremioNivel(p.nivel_minimo ?? "nuevo");
     setPremioActivo(p.activo);
     setShowPremioForm(true);
+    setTab("premios");
   };
 
   const togglePremioActivo = async (p: PremioPuntos) => {
@@ -462,14 +567,11 @@ export default function CuponesPage() {
       return;
     }
 
-    setPremios((prev) =>
-      prev.map((x) => (x.id === p.id ? { ...x, activo: !x.activo } : x))
-    );
+    setPremios((prev) => prev.map((x) => (x.id === p.id ? { ...x, activo: !x.activo } : x)));
   };
 
   const borrarPremio = async (p: PremioPuntos) => {
     if (!restauranteId || !moduloPermitido) return;
-
     const ok = window.confirm(`Eliminar "${p.nombre}"?`);
     if (!ok) return;
 
@@ -487,90 +589,35 @@ export default function CuponesPage() {
     setPremios((prev) => prev.filter((x) => x.id !== p.id));
   };
 
-  const TabButton = ({
-    value,
-    title,
-    subtitle,
-    count,
-  }: {
-    value: Tab;
-    title: string;
-    subtitle: string;
-    count?: number;
-  }) => {
-    const active = tab === value;
+  const estadisticas = useMemo(() => {
+    const premiosActivos = premios.filter((p) => p.activo).length;
+    const cuponesActivos = cupones.filter((c) => c.activo).length;
+    const ventajasVip = [...premios, ...cupones].filter((x: any) => x.nivel_minimo === "vip").length;
+    const maxNivel = [...premios, ...cupones]
+      .map((x: any) => x.nivel_minimo as NivelCliente)
+      .sort((a, b) => nivelRank(b) - nivelRank(a))[0];
 
-    return (
-      <button
-        type="button"
-        onClick={() => setTab(value)}
-        className={clsx(
-          "flex w-full items-start justify-between gap-3 rounded-2xl border px-4 py-3 text-left transition",
-          active
-            ? dark
-              ? "border-gray-700 bg-gray-900"
-              : "border-gray-300 bg-gray-50"
-            : dark
-            ? "border-gray-800 bg-gray-950 hover:bg-gray-900/60"
-            : "border-gray-200 bg-white hover:bg-gray-50"
-        )}
-      >
-        <div className="flex flex-col gap-1">
-          <div className="text-sm font-semibold">{title}</div>
-          <div className={clsx("text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-            {subtitle}
-          </div>
-        </div>
+    return { premiosActivos, cuponesActivos, ventajasVip, maxNivel: maxNivel ?? "nuevo" };
+  }, [premios, cupones]);
 
-        {typeof count === "number" ? (
-          <span className={clsx("mt-0.5", pill(true))}>{count}</span>
-        ) : null}
-      </button>
-    );
+  const abrirNuevoPremio = () => {
+    resetPremioForm();
+    setShowPremioForm(true);
+    setShowCuponForm(false);
+    setTab("premios");
   };
 
-  const topAction = () => {
-    if (tab === "cupones") {
-      return (
-        <div className="flex gap-2">
-          <Link href="/dashboard/fidelizacion/canjes" className={btnGhost}>
-            Ver canjes
-          </Link>
-
-          <button onClick={() => setShowCuponForm((v) => !v)} className={btnPrimary}>
-            {showCuponForm ? "Cerrar" : "Nuevo cupón"}
-          </button>
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex gap-2">
-        <Link href="/dashboard/fidelizacion/canjes" className={btnGhost}>
-          Ver canjes
-        </Link>
-
-        <button
-          onClick={() => {
-            resetPremioForm();
-            setShowPremioForm((v) => !v);
-          }}
-          className={btnPrimary}
-        >
-          {showPremioForm ? "Cerrar" : "Nuevo premio"}
-        </button>
-      </div>
-    );
+  const abrirNuevoCupon = () => {
+    resetCuponForm();
+    setShowCuponForm(true);
+    setShowPremioForm(false);
+    setTab("cupones");
   };
 
   if (moduloPermitido === null) {
     return (
       <div className={pageWrap}>
-        <div className={clsx(cardBase, "p-6")}>
-          <p className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-            Comprobando acceso...
-          </p>
-        </div>
+        <div className={clsx(cardBase, "p-6 text-sm font-bold", smallText)}>Cargando fidelización…</div>
       </div>
     );
   }
@@ -582,15 +629,10 @@ export default function CuponesPage() {
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600">
             <Lock size={24} />
           </div>
-
-          <h1 className={clsx("mt-5 text-2xl font-bold", dark ? "text-gray-100" : "text-gray-900")}>
-            Módulo no contratado
-          </h1>
-
-          <p className={clsx("mx-auto mt-2 max-w-md text-sm", dark ? "text-gray-400" : "text-gray-500")}>
+          <h1 className="mt-5 text-2xl font-black">Módulo no contratado</h1>
+          <p className={clsx("mx-auto mt-2 max-w-md text-sm", smallText)}>
             Este restaurante no tiene activado el módulo de fidelización.
           </p>
-
           <Link href="/dashboard" className={clsx("mt-6 inline-flex", btnPrimary)}>
             Volver al dashboard
           </Link>
@@ -601,496 +643,490 @@ export default function CuponesPage() {
 
   return (
     <div className={pageWrap}>
-      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-        <div>
-          <h1 className={clsx("text-2xl font-semibold tracking-tight", dark ? "text-gray-100" : "text-gray-900")}>
-            Fidelización
-          </h1>
-          <div className={clsx("mt-1 text-sm", dark ? "text-gray-400" : "text-gray-500")}>
-            Restaurante: {restauranteId ?? "—"}
+      <div
+        className={clsx(
+          "rounded-[2rem] border p-6 shadow-sm",
+          dark
+            ? "border-gray-800 bg-gradient-to-br from-gray-950 to-gray-900"
+            : "border-slate-200 bg-gradient-to-br from-white to-slate-50"
+        )}
+      >
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-blue-700">
+              Fidelización y ventajas
+            </div>
+            <h1 className="mt-4 text-3xl font-black tracking-tight">Programa de fidelización</h1>
+            <p className={clsx("mt-2 max-w-2xl text-sm font-semibold", smallText)}>
+              Crea premios por puntos y ventajas por nivel para que el cliente vuelva más veces.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link href="/dashboard/fidelizacion/canjes" className={btnGhost}>
+              Ver canjes
+            </Link>
+            <Link href="/clientes" className={btnGhost}>
+              Configurar niveles
+            </Link>
+            <button type="button" onClick={tab === "premios" ? abrirNuevoPremio : abrirNuevoCupon} className={btnPrimary}>
+              {tab === "premios" ? "Nuevo premio" : "Nuevo cupón"}
+            </button>
           </div>
         </div>
 
-        {topAction()}
-      </div>
-
-      <div className="mt-6 grid gap-3 md:grid-cols-2">
-        <TabButton
-          value="premios"
-          title="Premios por puntos"
-          subtitle="Recompensas canjeables por puntos"
-          count={loadingPremios ? undefined : premios.length}
-        />
-        <TabButton
-          value="cupones"
-          title="Cupones automáticos"
-          subtitle="Cumpleaños y horas valle"
-          count={loadingCupones ? undefined : cupones.length}
-        />
-      </div>
-
-      {errorMsg && (
-        <div className="mt-6 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
-          {errorMsg}
+        <div className="mt-6 grid gap-3 md:grid-cols-4">
+          <StatCard title="Premios activos" value={estadisticas.premiosActivos} subtitle="Canjeables por puntos" />
+          <StatCard title="Cupones activos" value={estadisticas.cuponesActivos} subtitle="Ventajas automáticas" />
+          <StatCard title="Ventajas VIP" value={estadisticas.ventajasVip} subtitle="Solo mejores clientes" />
+          <StatCard title="Puntos por euro" value={config.puntos_por_euro || 1} subtitle="Base del restaurante" />
         </div>
-      )}
 
-      {tab === "premios" && (
-        <div className="mt-6">
-          {showPremioForm && (
-            <div className={clsx(cardBase, "p-5")}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className={clsx("text-sm font-semibold", dark ? "text-gray-100" : "text-gray-900")}>
-                    {editingPremioId ? "Editar premio" : "Nuevo premio"}
-                  </div>
-                  <div className={clsx("mt-1 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-                    Puedes subir imagen o usar URL.
-                  </div>
-                </div>
+        <div className="mt-5 grid gap-2 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-semibold text-blue-900 md:grid-cols-5">
+          <div>Nuevo: 0-{Math.max(0, config.nivel_frecuente_desde - 1)} visitas</div>
+          <div>Frecuente: desde {config.nivel_frecuente_desde}</div>
+          <div>Habitual: desde {config.nivel_habitual_desde}</div>
+          <div>VIP: desde {config.nivel_vip_desde}</div>
+          <div>Maestro: desde {config.nivel_maestro_desde}</div>
+        </div>
+      </div>
 
-                <button
-                  type="button"
-                  className={btnGhost}
-                  onClick={() => {
-                    resetPremioForm();
-                    setShowPremioForm(false);
-                  }}
-                >
-                  Cancelar
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                    Nombre
-                  </label>
-                  <input
-                    value={premioNombre}
-                    onChange={(e) => setPremioNombre(e.target.value)}
-                    className={inputBase}
-                  />
-                </div>
-
-                <div>
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                    Puntos
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={premioPuntos}
-                    onChange={(e) => setPremioPuntos(Number(e.target.value))}
-                    className={inputBase}
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                    Imagen (subir)
-                  </label>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setPremioFile(e.target.files?.[0] ?? null)}
-                    className={inputBase}
-                  />
-                  <div className={clsx("mt-2 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-                    Si subes archivo, se guarda en Storage y se usa esa URL.
-                  </div>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                    Imagen (URL opcional)
-                  </label>
-                  <input
-                    value={premioImagenUrl}
-                    onChange={(e) => setPremioImagenUrl(e.target.value)}
-                    className={inputBase}
-                    placeholder="https://..."
-                  />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                    Descripción (opcional)
-                  </label>
-                  <input
-                    value={premioDescripcion}
-                    onChange={(e) => setPremioDescripcion(e.target.value)}
-                    className={inputBase}
-                  />
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    id="premio_activo"
-                    type="checkbox"
-                    checked={premioActivo}
-                    onChange={(e) => setPremioActivo(e.target.checked)}
-                    className="h-4 w-4"
-                  />
-                  <label
-                    htmlFor="premio_activo"
-                    className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-700")}
-                  >
-                    Activo
-                  </label>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <button onClick={upsertPremio} disabled={savingPremio} className={btnPrimary}>
-                  {savingPremio
-                    ? "Guardando…"
-                    : editingPremioId
-                    ? "Guardar cambios"
-                    : "Guardar premio"}
-                </button>
-              </div>
-            </div>
+      <div className="mt-6 flex flex-wrap gap-2">
+        <button
+          type="button"
+          onClick={() => setTab("premios")}
+          className={clsx(
+            "rounded-2xl px-5 py-3 text-sm font-black transition",
+            tab === "premios" ? "bg-blue-600 text-white" : dark ? "bg-gray-900 text-gray-200" : "bg-white text-slate-800"
           )}
+        >
+          Premios por puntos · {premios.length}
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("cupones")}
+          className={clsx(
+            "rounded-2xl px-5 py-3 text-sm font-black transition",
+            tab === "cupones" ? "bg-blue-600 text-white" : dark ? "bg-gray-900 text-gray-200" : "bg-white text-slate-800"
+          )}
+        >
+          Cupones y ventajas · {cupones.length}
+        </button>
+      </div>
 
-          <div className="mt-6">
-            {loadingPremios ? (
-              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                Cargando…
+      {errorMsg && <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-700">{errorMsg}</div>}
+
+      {loading ? (
+        <div className={clsx(cardBase, "mt-6 p-6 text-sm font-bold", smallText)}>Cargando…</div>
+      ) : null}
+
+      {tab === "premios" && !loading ? (
+        <div className="mt-6">
+          {showPremioForm ? (
+            <EditorPremio
+              cardBase={cardBase}
+              btnGhost={btnGhost}
+              btnPrimary={btnPrimary}
+              inputBase={inputBase}
+              smallText={smallText}
+              editing={Boolean(editingPremioId)}
+              nombre={premioNombre}
+              setNombre={setPremioNombre}
+              descripcion={premioDescripcion}
+              setDescripcion={setPremioDescripcion}
+              puntos={premioPuntos}
+              setPuntos={setPremioPuntos}
+              imagenUrl={premioImagenUrl}
+              setImagenUrl={setPremioImagenUrl}
+              setFile={setPremioFile}
+              nivel={premioNivel}
+              setNivel={setPremioNivel}
+              activo={premioActivo}
+              setActivo={setPremioActivo}
+              saving={savingPremio}
+              onSave={guardarPremio}
+              onCancel={() => {
+                resetPremioForm();
+                setShowPremioForm(false);
+              }}
+            />
+          ) : null}
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <CreateCard title="Añadir premio" subtitle="Premio por puntos y nivel" onClick={abrirNuevoPremio} dark={dark} />
+            {premios.map((p) => (
+              <div key={p.id} className={clsx(cardBase, "overflow-hidden")}>
+                <div className="relative">
+                  {p.imagen_url ? (
+                    <img src={p.imagen_url} alt={p.nombre} className="h-36 w-full object-cover" />
+                  ) : (
+                    <div className={clsx("flex h-36 w-full items-center justify-center text-xs font-bold", dark ? "bg-gray-900 text-gray-400" : "bg-slate-100 text-slate-500")}>
+                      Sin imagen
+                    </div>
+                  )}
+                  <div className="absolute left-3 top-3 flex gap-2">
+                    <span className={activeBadge(p.activo)}>{p.activo ? "Activo" : "Pausado"}</span>
+                    <span className={nivelBadge(p.nivel_minimo)}>{nivelLabel(p.nivel_minimo)}</span>
+                  </div>
+                </div>
+                <div className="p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-base font-black">{p.nombre}</div>
+                      <div className={clsx("mt-1 text-sm font-semibold", smallText)}>{p.descripcion || "Sin descripción"}</div>
+                    </div>
+                    <div className={clsx("shrink-0 rounded-2xl px-3 py-2 text-sm font-black", dark ? "bg-gray-900" : "bg-slate-100")}>
+                      {p.puntos_requeridos} pts
+                    </div>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button type="button" className={btnGhost} onClick={() => editarPremio(p)}>Editar</button>
+                    <button type="button" className={btnGhost} onClick={() => togglePremioActivo(p)}>{p.activo ? "Pausar" : "Activar"}</button>
+                    <button type="button" className={btnDanger} onClick={() => borrarPremio(p)}>Eliminar</button>
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {tab === "cupones" && !loading ? (
+        <div className="mt-6">
+          {showCuponForm ? (
+            <EditorCupon
+              cardBase={cardBase}
+              btnGhost={btnGhost}
+              btnPrimary={btnPrimary}
+              inputBase={inputBase}
+              smallText={smallText}
+              editing={Boolean(editingCuponId)}
+              nombre={nombre}
+              setNombre={setNombre}
+              beneficio={beneficio}
+              setBeneficio={setBeneficio}
+              tipo={tipo}
+              setTipo={setTipo}
+              nivel={cuponNivel}
+              setNivel={setCuponNivel}
+              validezDiasCumple={validezDiasCumple}
+              setValidezDiasCumple={setValidezDiasCumple}
+              diasAntesCumple={diasAntesCumple}
+              setDiasAntesCumple={setDiasAntesCumple}
+              diasSemana={diasSemana}
+              toggleDiaSemana={toggleDiaSemana}
+              horaInicio={horaInicio}
+              setHoraInicio={setHoraInicio}
+              horaFin={horaFin}
+              setHoraFin={setHoraFin}
+              cadaXVisitas={cadaXVisitas}
+              setCadaXVisitas={setCadaXVisitas}
+              saving={savingCupon}
+              onSave={guardarCupon}
+              onCancel={() => {
+                resetCuponForm();
+                setShowCuponForm(false);
+              }}
+            />
+          ) : null}
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            <CreateCard title="Añadir cupón" subtitle="Ventaja por nivel o condición" onClick={abrirNuevoCupon} dark={dark} />
+            {cupones.map((c) => (
+              <div key={c.id} className={clsx(cardBase, "p-5")}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className={activeBadge(c.activo)}>{c.activo ? "Activo" : "Pausado"}</span>
+                      <span className={nivelBadge(c.nivel_minimo)}>{nivelLabel(c.nivel_minimo)}</span>
+                    </div>
+                    <h3 className="mt-4 text-lg font-black">{c.nombre}</h3>
+                    <p className={clsx("mt-1 text-sm font-semibold", smallText)}>{c.beneficio}</p>
+                  </div>
+                  <div className={clsx("rounded-2xl px-3 py-2 text-xs font-black", dark ? "bg-gray-900" : "bg-slate-100")}>
+                    {tipoCuponLabel(c.condiciones)}
+                  </div>
+                </div>
+
+                <div className={clsx("mt-5 rounded-2xl p-4 text-xs font-bold", dark ? "bg-gray-900 text-gray-300" : "bg-slate-50 text-slate-600")}>
+                  {c.condiciones?.tipo === "horas_valle" ? (
+                    <span>
+                      Válido de {c.condiciones?.hora_inicio ?? "—"} a {c.condiciones?.hora_fin ?? "—"}. Cada {c.condiciones?.cada_x_visitas ?? 1} visitas.
+                    </span>
+                  ) : (
+                    <span>
+                      Cumpleaños · {c.condiciones?.dias_antes ?? 0} días antes · {c.condiciones?.validez_dias ?? 7} días de validez.
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button type="button" className={btnGhost} onClick={() => editarCupon(c)}>Editar</button>
+                  <button type="button" className={btnGhost} onClick={() => toggleCuponActivo(c)}>{c.activo ? "Pausar" : "Activar"}</button>
+                  <button type="button" className={btnDanger} onClick={() => borrarCupon(c)}>Eliminar</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+
+  function StatCard({ title, value, subtitle }: { title: string; value: number | string; subtitle: string }) {
+    return (
+      <div className={clsx("rounded-2xl border p-4", dark ? "border-gray-800 bg-gray-950/60" : "border-slate-200 bg-white")}>
+        <div className={clsx("text-xs font-black uppercase tracking-[0.14em]", smallText)}>{title}</div>
+        <div className="mt-2 text-2xl font-black">{value}</div>
+        <div className={clsx("mt-1 text-xs font-bold", smallText)}>{subtitle}</div>
+      </div>
+    );
+  }
+}
+
+function CreateCard({ title, subtitle, onClick, dark }: { title: string; subtitle: string; onClick: () => void; dark: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        "group flex min-h-[210px] flex-col items-center justify-center rounded-3xl border border-dashed p-6 text-center transition",
+        dark ? "border-gray-700 bg-gray-950 hover:bg-gray-900" : "border-slate-300 bg-white hover:bg-slate-50"
+      )}
+    >
+      <div className={clsx("flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-black", dark ? "bg-gray-900" : "bg-slate-100")}>
+        +
+      </div>
+      <div className="mt-4 text-base font-black">{title}</div>
+      <div className={clsx("mt-1 text-xs font-bold", dark ? "text-gray-400" : "text-slate-500")}>{subtitle}</div>
+    </button>
+  );
+}
+
+function NivelSelect({
+  value,
+  onChange,
+  inputBase,
+}: {
+  value: NivelCliente;
+  onChange: (v: NivelCliente) => void;
+  inputBase: string;
+}) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value as NivelCliente)} className={inputBase}>
+      {NIVELES.map((n) => (
+        <option key={n.value} value={n.value}>
+          {n.label} · {n.desc}
+        </option>
+      ))}
+    </select>
+  );
+}
+
+function EditorPremio(props: {
+  cardBase: string;
+  btnGhost: string;
+  btnPrimary: string;
+  inputBase: string;
+  smallText: string;
+  editing: boolean;
+  nombre: string;
+  setNombre: (v: string) => void;
+  descripcion: string;
+  setDescripcion: (v: string) => void;
+  puntos: number;
+  setPuntos: (v: number) => void;
+  imagenUrl: string;
+  setImagenUrl: (v: string) => void;
+  setFile: (v: File | null) => void;
+  nivel: NivelCliente;
+  setNivel: (v: NivelCliente) => void;
+  activo: boolean;
+  setActivo: (v: boolean) => void;
+  saving: boolean;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className={clsx(props.cardBase, "p-5")}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-black">{props.editing ? "Editar premio" : "Nuevo premio"}</div>
+          <div className={clsx("mt-1 text-sm font-semibold", props.smallText)}>
+            Elige puntos, imagen y nivel mínimo para desbloquearlo.
+          </div>
+        </div>
+        <button type="button" className={props.btnGhost} onClick={props.onCancel}>Cancelar</button>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <Field label="Nombre" inputBase={props.inputBase} value={props.nombre} onChange={props.setNombre} />
+        <div>
+          <Label>Puntos necesarios</Label>
+          <input type="number" min={1} value={props.puntos} onChange={(e) => props.setPuntos(Number(e.target.value))} className={props.inputBase} />
+        </div>
+        <div>
+          <Label>Nivel mínimo</Label>
+          <NivelSelect value={props.nivel} onChange={props.setNivel} inputBase={props.inputBase} />
+        </div>
+        <div className="flex items-end gap-2 pb-2">
+          <input id="premio_activo" type="checkbox" checked={props.activo} onChange={(e) => props.setActivo(e.target.checked)} className="h-4 w-4" />
+          <label htmlFor="premio_activo" className="text-sm font-bold">Activo en app cliente</label>
+        </div>
+        <div className="md:col-span-2">
+          <Label>Descripción</Label>
+          <input value={props.descripcion} onChange={(e) => props.setDescripcion(e.target.value)} className={props.inputBase} placeholder="Ej: Postre gratis para clientes habituales" />
+        </div>
+        <div>
+          <Label>Imagen subida</Label>
+          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={(e) => props.setFile(e.target.files?.[0] ?? null)} className={props.inputBase} />
+        </div>
+        <div>
+          <Label>Imagen por URL</Label>
+          <input value={props.imagenUrl} onChange={(e) => props.setImagenUrl(e.target.value)} className={props.inputBase} placeholder="https://..." />
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <button type="button" className={props.btnPrimary} onClick={props.onSave} disabled={props.saving}>
+          {props.saving ? "Guardando…" : props.editing ? "Guardar cambios" : "Crear premio"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function EditorCupon(props: {
+  cardBase: string;
+  btnGhost: string;
+  btnPrimary: string;
+  inputBase: string;
+  smallText: string;
+  editing: boolean;
+  nombre: string;
+  setNombre: (v: string) => void;
+  beneficio: string;
+  setBeneficio: (v: string) => void;
+  tipo: TipoCupon;
+  setTipo: (v: TipoCupon) => void;
+  nivel: NivelCliente;
+  setNivel: (v: NivelCliente) => void;
+  validezDiasCumple: number;
+  setValidezDiasCumple: (v: number) => void;
+  diasAntesCumple: number;
+  setDiasAntesCumple: (v: number) => void;
+  diasSemana: number[];
+  toggleDiaSemana: (d: number) => void;
+  horaInicio: string;
+  setHoraInicio: (v: string) => void;
+  horaFin: string;
+  setHoraFin: (v: string) => void;
+  cadaXVisitas: number;
+  setCadaXVisitas: (v: number) => void;
+  saving: boolean;
+  onSave: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className={clsx(props.cardBase, "p-5")}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-lg font-black">{props.editing ? "Editar cupón" : "Nuevo cupón"}</div>
+          <div className={clsx("mt-1 text-sm font-semibold", props.smallText)}>
+            Crea ventajas por cumpleaños, horas valle o nivel de cliente.
+          </div>
+        </div>
+        <button type="button" className={props.btnGhost} onClick={props.onCancel}>Cancelar</button>
+      </div>
+
+      <div className="mt-5 grid gap-4 md:grid-cols-2">
+        <Field label="Nombre" inputBase={props.inputBase} value={props.nombre} onChange={props.setNombre} />
+        <Field label="Beneficio" inputBase={props.inputBase} value={props.beneficio} onChange={props.setBeneficio} />
+        <div>
+          <Label>Tipo</Label>
+          <select value={props.tipo} onChange={(e) => props.setTipo(e.target.value as TipoCupon)} className={props.inputBase}>
+            <option value="cumpleanos">Cumpleaños</option>
+            <option value="horas_valle">Horas valle</option>
+          </select>
+        </div>
+        <div>
+          <Label>Nivel mínimo</Label>
+          <NivelSelect value={props.nivel} onChange={props.setNivel} inputBase={props.inputBase} />
+        </div>
+
+        {props.tipo === "cumpleanos" ? (
+          <>
+            <div>
+              <Label>Enviar X días antes</Label>
+              <input type="number" min={0} value={props.diasAntesCumple} onChange={(e) => props.setDiasAntesCumple(Number(e.target.value))} className={props.inputBase} />
+            </div>
+            <div>
+              <Label>Validez en días</Label>
+              <input type="number" min={1} value={props.validezDiasCumple} onChange={(e) => props.setValidezDiasCumple(Number(e.target.value))} className={props.inputBase} />
+            </div>
+          </>
+        ) : (
+          <div className="md:col-span-2">
+            <Label>Días válidos</Label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[
+                { d: 1, t: "L" },
+                { d: 2, t: "M" },
+                { d: 3, t: "X" },
+                { d: 4, t: "J" },
+                { d: 5, t: "V" },
+                { d: 6, t: "S" },
+                { d: 0, t: "D" },
+              ].map((x) => (
                 <button
+                  key={x.d}
                   type="button"
-                  onClick={() => {
-                    resetPremioForm();
-                    setShowPremioForm(true);
-                  }}
+                  onClick={() => props.toggleDiaSemana(x.d)}
                   className={clsx(
-                    "group flex min-h-[180px] flex-col items-center justify-center rounded-2xl border border-dashed p-6 transition",
-                    dark
-                      ? "border-gray-700 bg-gray-950 hover:bg-gray-900"
-                      : "border-gray-300 bg-white hover:bg-gray-50"
+                    "rounded-full border px-3 py-1 text-sm font-black transition",
+                    props.diasSemana.includes(x.d) ? "border-blue-600 bg-blue-600 text-white" : "border-slate-200 bg-white text-slate-700"
                   )}
                 >
-                  <div
-                    className={clsx(
-                      "flex h-12 w-12 items-center justify-center rounded-2xl text-2xl font-semibold",
-                      dark ? "bg-gray-900 text-gray-100" : "bg-gray-100 text-gray-900"
-                    )}
-                  >
-                    +
-                  </div>
-                  <div className={clsx("mt-3 text-sm font-semibold", dark ? "text-gray-100" : "text-gray-900")}>
-                    Añadir premio
-                  </div>
-                  <div className={clsx("mt-1 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-                    Nombre, puntos e imagen
-                  </div>
+                  {x.t}
                 </button>
-
-                {premios.map((p) => (
-                  <div key={p.id} className={clsx(cardBase, "overflow-hidden")}>
-                    <div className="relative">
-                      {p.imagen_url ? (
-                        <img src={p.imagen_url} alt={p.nombre} className="h-32 w-full object-cover" />
-                      ) : (
-                        <div
-                          className={clsx(
-                            "flex h-32 w-full items-center justify-center text-xs",
-                            dark ? "bg-gray-900 text-gray-400" : "bg-gray-100 text-gray-500"
-                          )}
-                        >
-                          Sin imagen
-                        </div>
-                      )}
-
-                      <div className="absolute right-3 top-3">
-                        <span className={pill(p.activo)}>{p.activo ? "Activo" : "Pausado"}</span>
-                      </div>
-                    </div>
-
-                    <div className="p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className={clsx("text-sm font-semibold", dark ? "text-gray-100" : "text-gray-900")}>
-                            {p.nombre}
-                          </div>
-                          {p.descripcion ? (
-                            <div className={clsx("mt-1 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-                              {p.descripcion}
-                            </div>
-                          ) : null}
-                        </div>
-
-                        <div
-                          className={clsx(
-                            "shrink-0 rounded-xl px-3 py-2 text-sm font-semibold",
-                            dark ? "bg-gray-900 text-gray-100" : "bg-gray-100 text-gray-900"
-                          )}
-                        >
-                          {p.puntos_requeridos} pts
-                        </div>
-                      </div>
-
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        <button type="button" className={btnGhost} onClick={() => editarPremio(p)}>
-                          Editar
-                        </button>
-                        <button type="button" className={btnGhost} onClick={() => togglePremioActivo(p)}>
-                          {p.activo ? "Pausar" : "Activar"}
-                        </button>
-                        <button type="button" className={btnDanger} onClick={() => borrarPremio(p)}>
-                          Eliminar
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+              ))}
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <div>
+                <Label>Hora inicio</Label>
+                <input type="time" value={props.horaInicio} onChange={(e) => props.setHoraInicio(e.target.value)} className={props.inputBase} />
               </div>
-            )}
-
-            {!loadingPremios && premios.length === 0 && (
-              <div className={clsx("mt-4 text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                No hay premios por puntos todavía.
+              <div>
+                <Label>Hora fin</Label>
+                <input type="time" value={props.horaFin} onChange={(e) => props.setHoraFin(e.target.value)} className={props.inputBase} />
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {tab === "cupones" && (
-        <div className="mt-6">
-          {showCuponForm && (
-            <div className={clsx(cardBase, "p-5")}>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <div className={clsx("text-sm font-semibold", dark ? "text-gray-100" : "text-gray-900")}>
-                    Nuevo cupón
-                  </div>
-                  <div className={clsx("mt-1 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-                    Cumpleaños o horas valle.
-                  </div>
-                </div>
-
-                <button type="button" className={btnGhost} onClick={() => setShowCuponForm(false)}>
-                  Cancelar
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-4 md:grid-cols-2">
-                <div>
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                    Nombre
-                  </label>
-                  <input value={nombre} onChange={(e) => setNombre(e.target.value)} className={inputBase} />
-                </div>
-
-                <div>
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                    Beneficio
-                  </label>
-                  <input value={beneficio} onChange={(e) => setBeneficio(e.target.value)} className={inputBase} />
-                </div>
-
-                <div className="md:col-span-2">
-                  <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                    Tipo
-                  </label>
-                  <select value={tipo} onChange={(e) => setTipo(e.target.value as TipoCupon)} className={inputBase}>
-                    <option value="cumpleanos">Cumpleaños</option>
-                    <option value="horas_valle">Horas valle (happy hour)</option>
-                  </select>
-                </div>
-
-                {tipo === "cumpleanos" && (
-                  <>
-                    <div>
-                      <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                        Enviar X días antes
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        value={diasAntesCumple}
-                        onChange={(e) => setDiasAntesCumple(Number(e.target.value))}
-                        className={inputBase}
-                      />
-                    </div>
-
-                    <div>
-                      <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                        Validez (días)
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={validezDiasCumple}
-                        onChange={(e) => setValidezDiasCumple(Number(e.target.value))}
-                        className={inputBase}
-                      />
-                    </div>
-
-                    <div className={clsx("md:col-span-2 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-                      El cliente debe tener fecha de nacimiento guardada.
-                    </div>
-                  </>
-                )}
-
-                {tipo === "horas_valle" && (
-                  <div className="md:col-span-2">
-                    <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                      Días válidos
-                    </label>
-
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {[
-                        { d: 1, t: "L" },
-                        { d: 2, t: "M" },
-                        { d: 3, t: "X" },
-                        { d: 4, t: "J" },
-                        { d: 5, t: "V" },
-                        { d: 6, t: "S" },
-                        { d: 0, t: "D" },
-                      ].map((x) => (
-                        <button
-                          key={x.d}
-                          type="button"
-                          onClick={() => toggleDiaSemana(x.d)}
-                          className={clsx(
-                            "rounded-full border px-3 py-1 text-sm transition",
-                            diasSemana.includes(x.d)
-                              ? dark
-                                ? "border-white bg-white text-black"
-                                : "border-black bg-black text-white"
-                              : dark
-                              ? "border-gray-800 bg-transparent text-gray-200 hover:bg-gray-900"
-                              : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                          )}
-                        >
-                          {x.t}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <div>
-                        <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                          Hora inicio
-                        </label>
-                        <input
-                          type="time"
-                          value={horaInicio}
-                          onChange={(e) => setHoraInicio(e.target.value)}
-                          className={inputBase}
-                        />
-                      </div>
-
-                      <div>
-                        <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                          Hora fin
-                        </label>
-                        <input
-                          type="time"
-                          value={horaFin}
-                          onChange={(e) => setHoraFin(e.target.value)}
-                          className={inputBase}
-                        />
-                      </div>
-
-                      <div className="md:col-span-2">
-                        <label className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                          Cada X visitas
-                        </label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={cadaXVisitas}
-                          onChange={(e) => setCadaXVisitas(Number(e.target.value))}
-                          className={inputBase}
-                        />
-                        <div className={clsx("mt-1 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-                          Ej: 2 = cupón en la visita 2, 4, 6…
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                <button onClick={crearCupon} disabled={savingCupon} className={btnPrimary}>
-                  {savingCupon ? "Guardando…" : "Guardar cupón"}
-                </button>
-
-                <button
-                  type="button"
-                  className={btnGhost}
-                  onClick={() => {
-                    resetCuponForm();
-                    setShowCuponForm(false);
-                  }}
-                >
-                  Salir
-                </button>
+              <div>
+                <Label>Cada X visitas</Label>
+                <input type="number" min={1} value={props.cadaXVisitas} onChange={(e) => props.setCadaXVisitas(Number(e.target.value))} className={props.inputBase} />
               </div>
             </div>
-          )}
-
-          <div className="mt-6">
-            {loadingCupones ? (
-              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                Cargando…
-              </div>
-            ) : cupones.length === 0 ? (
-              <div className={clsx("text-sm", dark ? "text-gray-300" : "text-gray-600")}>
-                No hay cupones.
-              </div>
-            ) : (
-              <div className={clsx(cardBase, "overflow-hidden")}>
-                <div className={dark ? "bg-gray-900" : "bg-gray-100"}>
-                  <div
-                    className={clsx(
-                      "grid grid-cols-12 gap-2 px-4 py-3 text-xs font-semibold uppercase tracking-wide",
-                      dark ? "text-gray-200" : "text-gray-800"
-                    )}
-                  >
-                    <div className="col-span-4">Nombre</div>
-                    <div className="col-span-5">Beneficio</div>
-                    <div className="col-span-1 text-center">Activo</div>
-                    <div className="col-span-2">Creado</div>
-                  </div>
-                </div>
-
-                <div>
-                  {cupones.map((c) => (
-                    <div
-                      key={c.id}
-                      className={clsx(
-                        "grid grid-cols-12 gap-2 px-4 py-3 text-sm",
-                        dark
-                          ? "border-t border-gray-800 hover:bg-gray-900/60 text-gray-100"
-                          : "border-t border-gray-200 hover:bg-gray-50 text-gray-900"
-                      )}
-                    >
-                      <div className="col-span-4 font-medium">{c.nombre}</div>
-                      <div className={clsx("col-span-5", dark ? "text-gray-200" : "text-gray-700")}>
-                        {c.beneficio}
-                      </div>
-                      <div className="col-span-1 text-center">
-                        <span className={pill(c.activo)}>{c.activo ? "Sí" : "No"}</span>
-                      </div>
-                      <div className={clsx("col-span-2 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
-                        {new Date(c.creado_en).toLocaleString("es-ES")}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
+
+      <div className="mt-5">
+        <button type="button" className={props.btnPrimary} onClick={props.onSave} disabled={props.saving}>
+          {props.saving ? "Guardando…" : props.editing ? "Guardar cambios" : "Crear cupón"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function Label({ children }: { children: React.ReactNode }) {
+  return <label className="text-sm font-black text-slate-700">{children}</label>;
+}
+
+function Field({ label, inputBase, value, onChange }: { label: string; inputBase: string; value: string; onChange: (v: string) => void }) {
+  return (
+    <div>
+      <Label>{label}</Label>
+      <input value={value} onChange={(e) => onChange(e.target.value)} className={inputBase} />
     </div>
   );
 }

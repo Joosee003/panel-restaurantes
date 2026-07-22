@@ -120,15 +120,15 @@ function getEstadoLabel(estado: EstadoMargen): string {
 
 function getEstadoClass(estado: EstadoMargen): string {
   if (estado === "alto") {
-    return "inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200";
+    return "inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800";
   }
   if (estado === "medio") {
-    return "inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200";
+    return "inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800";
   }
   if (estado === "bajo") {
-    return "inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-200";
+    return "inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700";
   }
-  return "inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-500/20 dark:text-red-200";
+  return "inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700";
 }
 
 function getMensajeMargen(estado: EstadoMargen): string {
@@ -139,11 +139,11 @@ function getMensajeMargen(estado: EstadoMargen): string {
 }
 
 const cardClass =
-  "rounded-3xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900";
+  "rounded-3xl border border-slate-200 !bg-white !text-slate-900 shadow-sm";
 const inputClass =
-  "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-slate-500";
+  "w-full rounded-xl border border-slate-200 !bg-white px-3 py-2.5 text-sm !text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400";
 const buttonSecondaryClass =
-  "inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800";
+  "inline-flex touch-manipulation items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 transition active:scale-[0.98] hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60";
 
 export default function PlatoDetallePage() {
   const params = useParams();
@@ -194,16 +194,19 @@ export default function PlatoDetallePage() {
     setLoading(true);
     setError(null);
 
-    const [platoRes, ingredientesRes, relacionesRes, rentabilidadRes] =
-      await Promise.all([
-        supabase.from("platos").select("*").eq("id", platoId).single(),
-        supabase.from("ingredientes").select("*").order("nombre", { ascending: true }),
-        supabase.from("plato_ingredientes").select("*").eq("plato_id", platoId),
-        supabase.from("vw_rentabilidad_platos").select("*").eq("id", platoId).maybeSingle(),
-      ]);
+    const platoRes = await supabase
+      .from("platos")
+      .select("*")
+      .eq("id", platoId)
+      .single();
 
-    if (platoRes.error) {
-      setError(platoRes.error.message);
+    if (platoRes.error || !platoRes.data) {
+      setError(platoRes.error?.message ?? "No se pudo cargar el plato.");
+      setPlato(null);
+      setIngredientes([]);
+      setRelaciones([]);
+      setRentabilidad(null);
+      setCantidadesEditables({});
       setLoading(false);
       return;
     }
@@ -214,6 +217,27 @@ export default function PlatoDetallePage() {
     setCategoria(platoData.categoria ?? "");
     setPrecioVenta(String(toNumber(platoData.precio_venta)));
     setActivo(Boolean(platoData.activo));
+
+    const [ingredientesRes, relacionesRes, rentabilidadRes] = await Promise.all([
+      supabase
+        .from("ingredientes")
+        .select("*")
+        .eq("restaurante_id", platoData.restaurante_id)
+        .eq("activo", true)
+        .order("nombre", { ascending: true }),
+
+      supabase
+        .from("plato_ingredientes")
+        .select("*")
+        .eq("plato_id", platoData.id),
+
+      supabase
+        .from("vw_rentabilidad_platos")
+        .select("*")
+        .eq("id", platoData.id)
+        .eq("restaurante_id", platoData.restaurante_id)
+        .maybeSingle(),
+    ]);
 
     if (ingredientesRes.error) {
       setError(ingredientesRes.error.message);
@@ -314,7 +338,8 @@ export default function PlatoDetallePage() {
         precio_venta: toNumber(precioVenta),
         activo,
       })
-      .eq("id", plato.id);
+      .eq("id", plato.id)
+      .eq("restaurante_id", plato.restaurante_id);
 
     if (error) {
       setError(error.message);
@@ -379,7 +404,8 @@ export default function PlatoDetallePage() {
     const { error } = await supabase
       .from("plato_ingredientes")
       .update({ cantidad_usada: valor })
-      .eq("id", relacionId);
+      .eq("id", relacionId)
+      .eq("plato_id", platoId);
 
     if (error) {
       setError(error.message);
@@ -401,7 +427,8 @@ export default function PlatoDetallePage() {
     const { error } = await supabase
       .from("plato_ingredientes")
       .delete()
-      .eq("id", id);
+      .eq("id", id)
+      .eq("plato_id", platoId);
 
     if (error) {
       setError(error.message);
@@ -498,7 +525,11 @@ export default function PlatoDetallePage() {
 
     clearMessages();
 
-    const { error } = await supabase.from("platos").delete().eq("id", plato.id);
+    const { error } = await supabase
+      .from("platos")
+      .delete()
+      .eq("id", plato.id)
+      .eq("restaurante_id", plato.restaurante_id);
 
     if (error) {
       setError(error.message);
@@ -509,7 +540,7 @@ export default function PlatoDetallePage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 px-4 py-6 text-slate-900 dark:bg-slate-950 dark:text-white sm:px-6 lg:px-8">
+    <div className="min-h-screen !bg-slate-50 px-4 py-6 !text-slate-900 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-wrap items-center gap-3">
           <Link
@@ -538,23 +569,23 @@ export default function PlatoDetallePage() {
         </div>
 
         {error && (
-          <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
+          <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm text-rose-700">
             {error}
           </div>
         )}
 
         {okMessage && (
-          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-700 dark:border-emerald-500/20 dark:bg-emerald-500/10 dark:text-emerald-300">
+          <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-5 text-sm text-emerald-700">
             {okMessage}
           </div>
         )}
 
         {loading ? (
-          <div className={`${cardClass} p-8 text-sm text-slate-500 dark:text-slate-400`}>
+          <div className={`${cardClass} p-8 text-sm text-slate-500`}>
             Cargando plato...
           </div>
         ) : !plato ? (
-          <div className={`${cardClass} p-8 text-sm text-slate-500 dark:text-slate-400`}>
+          <div className={`${cardClass} p-8 text-sm text-slate-500`}>
             No se encontró el plato.
           </div>
         ) : (
@@ -562,14 +593,14 @@ export default function PlatoDetallePage() {
             <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
               <div className={`xl:col-span-2 ${cardClass} p-6`}>
                 <div className="flex items-center gap-3">
-                  <div className="rounded-2xl bg-slate-100 p-3 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                  <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
                     <ChefHat size={22} />
                   </div>
                   <div>
-                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+                    <h1 className="text-2xl font-bold !text-slate-900">
                       Editar plato
                     </h1>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Aquí cambias lo básico del plato.
                     </p>
                   </div>
@@ -577,7 +608,7 @@ export default function PlatoDetallePage() {
 
                 <div className="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
                   <div className="md:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
                       Nombre del plato
                     </label>
                     <input
@@ -592,7 +623,7 @@ export default function PlatoDetallePage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
                       Categoría
                     </label>
                     <input
@@ -607,7 +638,7 @@ export default function PlatoDetallePage() {
                   </div>
 
                   <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
                       Precio de venta (€)
                     </label>
                     <input
@@ -624,7 +655,7 @@ export default function PlatoDetallePage() {
                   </div>
 
                   <div className="md:col-span-2">
-                    <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-300">
+                    <label className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                       <input
                         type="checkbox"
                         checked={activo}
@@ -642,8 +673,8 @@ export default function PlatoDetallePage() {
                 <div className="mt-6 flex flex-wrap gap-3">
                   <button
                     onClick={guardarPlato}
-                    disabled={savingPlato}
-                    className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                    disabled={savingPlato || !nombre.trim() || toNumber(precioVenta) <= 0}
+                    className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save size={16} />
                     {savingPlato ? "Guardando..." : "Guardar cambios"}
@@ -651,7 +682,7 @@ export default function PlatoDetallePage() {
 
                   <button
                     onClick={borrarPlato}
-                    className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-5 py-3 text-sm font-medium text-rose-700 transition hover:bg-rose-50 dark:border-rose-500/20 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                    className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-5 py-3 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
                   >
                     <Trash2 size={16} />
                     Borrar plato
@@ -662,36 +693,36 @@ export default function PlatoDetallePage() {
               <div className="space-y-4">
                 <div className={`${cardClass} p-5`}>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Coste total
                     </p>
-                    <Euro size={18} className="text-slate-400 dark:text-slate-500" />
+                    <Euro size={18} className="text-slate-400" />
                   </div>
-                  <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
                     {formatEuro(toNumber(rentabilidad?.coste_total))}
                   </p>
                 </div>
 
                 <div className={`${cardClass} p-5`}>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Beneficio
                     </p>
-                    <CircleDollarSign size={18} className="text-slate-400 dark:text-slate-500" />
+                    <CircleDollarSign size={18} className="text-slate-400" />
                   </div>
-                  <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
                     {formatEuro(toNumber(rentabilidad?.beneficio_eur))}
                   </p>
                 </div>
 
                 <div className={`${cardClass} p-5`}>
                   <div className="flex items-center justify-between">
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-slate-500">
                       Margen
                     </p>
-                    <Percent size={18} className="text-slate-400 dark:text-slate-500" />
+                    <Percent size={18} className="text-slate-400" />
                   </div>
-                  <p className="mt-2 text-3xl font-bold text-slate-900 dark:text-white">
+                  <p className="mt-2 text-3xl font-bold text-slate-900">
                     {formatPercent(toNumber(rentabilidad?.margen_pct))}
                   </p>
                   <div className="mt-3">
@@ -703,14 +734,14 @@ export default function PlatoDetallePage() {
 
                 <div className={`${cardClass} p-5`}>
                   <div className="flex items-start gap-3">
-                    <div className="rounded-2xl bg-amber-100 p-3 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
+                    <div className="rounded-2xl bg-amber-100 p-3 text-amber-800">
                       <TriangleAlert size={18} />
                     </div>
                     <div>
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white">
+                      <p className="text-sm font-semibold text-slate-900">
                         Lectura rápida
                       </p>
-                      <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                      <p className="mt-1 text-sm text-slate-600">
                         {getMensajeMargen(estadoMargen)}
                       </p>
                     </div>
@@ -723,14 +754,14 @@ export default function PlatoDetallePage() {
               <div className="xl:col-span-1 space-y-6">
                 <div className={`${cardClass} p-6`}>
                   <div className="flex items-center gap-3">
-                    <div className="rounded-2xl bg-slate-100 p-3 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
                       <Plus size={20} />
                     </div>
                     <div>
-                      <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                      <h2 className="text-lg font-semibold !text-slate-900">
                         Añadir a la receta
                       </h2>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <p className="text-sm text-slate-500">
                         Selecciona ingrediente y cantidad.
                       </p>
                     </div>
@@ -738,7 +769,7 @@ export default function PlatoDetallePage() {
 
                   <div className="mt-6 space-y-4">
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      <label className="mb-2 block text-sm font-medium text-slate-700">
                         Ingrediente
                       </label>
                       <select
@@ -759,7 +790,7 @@ export default function PlatoDetallePage() {
                     </div>
 
                     <div>
-                      <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                      <label className="mb-2 block text-sm font-medium text-slate-700">
                         Cantidad usada
                       </label>
                       <input
@@ -778,8 +809,8 @@ export default function PlatoDetallePage() {
 
                     <button
                       onClick={agregarIngrediente}
-                      disabled={savingRelacion}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                      disabled={savingRelacion || !ingredienteSeleccionado || toNumber(cantidadUsada) <= 0}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       <Package size={16} />
                       {savingRelacion ? "Añadiendo..." : "Añadir ingrediente"}
@@ -809,14 +840,14 @@ export default function PlatoDetallePage() {
                 {mostrarNuevoIngrediente && (
                   <div className={`${cardClass} p-6`}>
                     <div className="flex items-center gap-3">
-                      <div className="rounded-2xl bg-slate-100 p-3 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                      <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
                         <Package size={20} />
                       </div>
                       <div>
-                        <h2 className="text-lg font-semibold text-slate-900 dark:text-white">
+                        <h2 className="text-lg font-semibold !text-slate-900">
                           Nuevo ingrediente rápido
                         </h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">
+                        <p className="text-sm text-slate-500">
                           Créalo aquí sin salir de este plato.
                         </p>
                       </div>
@@ -824,7 +855,7 @@ export default function PlatoDetallePage() {
 
                     <div className="mt-6 space-y-4">
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
                           Nombre
                         </label>
                         <input
@@ -841,7 +872,7 @@ export default function PlatoDetallePage() {
                       </div>
 
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
                           Unidad
                         </label>
                         <select
@@ -864,7 +895,7 @@ export default function PlatoDetallePage() {
 
                       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                          <label className="mb-2 block text-sm font-medium text-slate-700">
                             Coste compra (€)
                           </label>
                           <input
@@ -883,7 +914,7 @@ export default function PlatoDetallePage() {
                         </div>
 
                         <div>
-                          <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                          <label className="mb-2 block text-sm font-medium text-slate-700">
                             Cantidad comprada
                           </label>
                           <input
@@ -903,7 +934,7 @@ export default function PlatoDetallePage() {
                       </div>
 
                       <div>
-                        <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                        <label className="mb-2 block text-sm font-medium text-slate-700">
                           Merma (%)
                         </label>
                         <input
@@ -924,20 +955,20 @@ export default function PlatoDetallePage() {
 
                       {toNumber(nuevoIngrediente.coste_compra) > 0 &&
                         toNumber(nuevoIngrediente.cantidad_compra) > 0 && (
-                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm dark:border-slate-800 dark:bg-slate-950">
-                            <p className="font-medium text-slate-900 dark:text-white">
+                          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm">
+                            <p className="font-medium text-slate-900">
                               Vista previa
                             </p>
-                            <div className="mt-2 space-y-1 text-slate-600 dark:text-slate-400">
+                            <div className="mt-2 space-y-1 text-slate-600">
                               <p>
                                 Cantidad útil:{" "}
-                                <span className="font-medium text-slate-900 dark:text-white">
+                                <span className="font-medium text-slate-900">
                                   {formatNumber(previewNuevoIngrediente.cantidadUtil)} {nuevoIngrediente.unidad}
                                 </span>
                               </p>
                               <p>
                                 Coste útil por unidad:{" "}
-                                <span className="font-medium text-slate-900 dark:text-white">
+                                <span className="font-medium text-slate-900">
                                   {formatEuro(previewNuevoIngrediente.costeUtil)} / {nuevoIngrediente.unidad}
                                 </span>
                               </p>
@@ -947,8 +978,15 @@ export default function PlatoDetallePage() {
 
                       <button
                         onClick={crearIngredienteRapido}
-                        disabled={creatingIngrediente}
-                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-200"
+                        disabled={
+                          creatingIngrediente ||
+                          !nuevoIngrediente.nombre.trim() ||
+                          toNumber(nuevoIngrediente.coste_compra) <= 0 ||
+                          toNumber(nuevoIngrediente.cantidad_compra) <= 0 ||
+                          toNumber(nuevoIngrediente.merma_pct) < 0 ||
+                          toNumber(nuevoIngrediente.merma_pct) > 100
+                        }
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {creatingIngrediente ? "Creando..." : "Crear ingrediente"}
                       </button>
@@ -960,22 +998,22 @@ export default function PlatoDetallePage() {
               <div className="xl:col-span-2">
                 <div className={`${cardClass} p-6`}>
                   <div className="flex items-center gap-3">
-                    <div className="rounded-2xl bg-slate-100 p-3 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                    <div className="rounded-2xl bg-slate-100 p-3 text-slate-700">
                       <Package size={20} />
                     </div>
                     <div>
-                      <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+                      <h2 className="text-xl font-semibold !text-slate-900">
                         Receta del plato
                       </h2>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <p className="text-sm text-slate-500">
                         Aquí cambias cantidades rápido, sin borrar nada.
                       </p>
                     </div>
                   </div>
 
                   {relacionesConIngrediente.length === 0 ? (
-                    <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-8 dark:border-slate-800 dark:bg-slate-950">
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-8">
+                      <p className="text-sm text-slate-500">
                         Este plato todavía no tiene ingredientes asignados.
                       </p>
                     </div>
@@ -984,25 +1022,25 @@ export default function PlatoDetallePage() {
                       <table className="min-w-full border-separate border-spacing-y-2">
                         <thead>
                           <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Ingrediente
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Unidad
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Coste útil / unidad
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Cantidad usada
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Coste estimado
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Guardar
                             </th>
-                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                               Quitar
                             </th>
                           </tr>
@@ -1012,17 +1050,17 @@ export default function PlatoDetallePage() {
                           {relacionesConIngrediente.map((item) => (
                             <tr
                               key={item.id}
-                              className="rounded-2xl bg-slate-50 shadow-sm transition hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800"
+                              className="rounded-2xl bg-slate-50 shadow-sm transition hover:bg-slate-100"
                             >
-                              <td className="rounded-l-2xl px-4 py-4 font-medium text-slate-900 dark:text-white">
+                              <td className="rounded-l-2xl px-4 py-4 font-medium text-slate-900">
                                 {item.ingrediente?.nombre ?? "Ingrediente"}
                               </td>
 
-                              <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-300">
+                              <td className="px-4 py-4 text-sm text-slate-600">
                                 {item.ingrediente?.unidad ?? "-"}
                               </td>
 
-                              <td className="px-4 py-4 text-sm text-slate-600 dark:text-slate-300">
+                              <td className="px-4 py-4 text-sm text-slate-600">
                                 {item.costeUnidad > 0
                                   ? `${formatEuro(item.costeUnidad)} / ${item.ingrediente?.unidad ?? ""}`
                                   : "—"}
@@ -1041,11 +1079,11 @@ export default function PlatoDetallePage() {
                                     }));
                                     clearMessages();
                                   }}
-                                  className="w-32 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-950 dark:text-white dark:focus:border-slate-500"
+                                  className="w-32 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-slate-400"
                                 />
                               </td>
 
-                              <td className="px-4 py-4 text-sm font-medium text-slate-900 dark:text-white">
+                              <td className="px-4 py-4 text-sm font-medium text-slate-900">
                                 {formatEuro(item.costeEstimado)}
                               </td>
 
@@ -1063,7 +1101,7 @@ export default function PlatoDetallePage() {
                               <td className="rounded-r-2xl px-4 py-4">
                                 <button
                                   onClick={() => borrarRelacion(item.id)}
-                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50 dark:border-rose-500/20 dark:bg-slate-900 dark:text-rose-300 dark:hover:bg-rose-500/10"
+                                  className="inline-flex items-center gap-2 rounded-xl border border-rose-200 bg-white px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-50"
                                 >
                                   <Trash2 size={14} />
                                   Quitar

@@ -22,46 +22,22 @@ export default function ThemeProvider({
   children: React.ReactNode;
 }) {
   const [dark, setDark] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem("theme");
-
-    const shouldUseDark =
-      savedTheme === "dark" ||
-      (!savedTheme &&
-        window.matchMedia("(prefers-color-scheme: dark)").matches);
-
-    setDark(shouldUseDark);
-    setMounted(true);
-
-    if (shouldUseDark) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+    document.documentElement.classList.remove("dark");
+    localStorage.setItem("theme", "light");
+    setDark(false);
   }, []);
 
   function toggle() {
-    const next = !dark;
-
-    setDark(next);
-
-    if (next) {
-      document.documentElement.classList.add("dark");
-      localStorage.setItem("theme", "dark");
-    } else {
-      document.documentElement.classList.remove("dark");
-      localStorage.setItem("theme", "light");
-    }
+    // Panel fijado en modo claro para evitar pantallas mezcladas: fondo claro + tarjetas oscuras.
+    document.documentElement.classList.remove("dark");
+    localStorage.setItem("theme", "light");
+    setDark(false);
   }
 
   return (
-    <ThemeContext.Provider
-      value={{ dark, theme: dark ? "dark" : "light", toggle }}
-    >
+    <ThemeContext.Provider value={{ dark, theme: "light", toggle }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
+import { useRestaurante } from "../../../../hooks/useRestaurante";
 
 type PlatoRentabilidad = {
   id: string;
@@ -50,9 +51,6 @@ type VentaPlato = {
   } | null;
 };
 
-type RestauranteUsuario = {
-  restaurante_id: string;
-};
 
 function clsx(...a: Array<string | false | null | undefined>) {
   return a.filter(Boolean).join(" ");
@@ -208,7 +206,8 @@ export default function VentasPlatosPage() {
     strongTextClass,
   } = getThemeClasses(dark);
 
-  const [restauranteId, setRestauranteId] = useState<string | null>(null);
+  const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
+  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
   const [platos, setPlatos] = useState<PlatoRentabilidad[]>([]);
   const [ventas, setVentas] = useState<VentaPlato[]>([]);
   const [loading, setLoading] = useState(true);
@@ -230,36 +229,18 @@ export default function VentasPlatosPage() {
     setLoading(true);
     setError(null);
 
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
+    if (loadingRestaurante) return;
 
-    if (authError || !user) {
-      setError("No se pudo obtener el usuario autenticado.");
+    if (!restauranteId) {
+      setError('No se encontró restaurante activo. Entra desde Admin y pulsa “Usar en panel” sobre el restaurante correcto.');
       setLoading(false);
       return;
     }
-
-    const { data: restauranteData, error: restauranteError } = await supabase
-      .from("usuarios_restaurantes")
-      .select("restaurante_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (restauranteError || !restauranteData?.restaurante_id) {
-      setError("No se pudo obtener el restaurante del usuario.");
-      setLoading(false);
-      return;
-    }
-
-    const restaurante = restauranteData as RestauranteUsuario;
-    setRestauranteId(restaurante.restaurante_id);
 
     const { data: platosData, error: platosError } = await supabase
       .from("vw_rentabilidad_platos")
       .select("id, restaurante_id, nombre, categoria, precio_venta, coste_total, beneficio_eur, margen_pct")
-      .eq("restaurante_id", restaurante.restaurante_id)
+      .eq("restaurante_id", restauranteId)
       .order("nombre", { ascending: true });
 
     if (platosError) {
@@ -283,7 +264,7 @@ export default function VentasPlatosPage() {
         )
       `
       )
-      .eq("restaurante_id", restaurante.restaurante_id)
+      .eq("restaurante_id", restauranteId)
       .order("fecha", { ascending: false })
       .order("created_at", { ascending: false });
 
@@ -300,7 +281,7 @@ export default function VentasPlatosPage() {
 
   useEffect(() => {
     cargarDatos();
-  }, []);
+  }, [restauranteId, loadingRestaurante]);
 
   const platoSeleccionado = useMemo(() => {
     return platos.find((p) => p.id === platoId) ?? null;
@@ -441,7 +422,16 @@ export default function VentasPlatosPage() {
 
     clearMessages();
 
-    const { error } = await supabase.from("ventas_platos").delete().eq("id", id);
+    if (!restauranteId) {
+      setError("No hay restaurante asociado al usuario.");
+      return;
+    }
+
+    const { error } = await supabase
+      .from("ventas_platos")
+      .delete()
+      .eq("id", id)
+      .eq("restaurante_id", restauranteId);
 
     if (error) {
       setError(error.message);
@@ -666,7 +656,7 @@ export default function VentasPlatosPage() {
               <button
                 type="button"
                 onClick={crearVenta}
-                disabled={saving}
+                disabled={saving || !platoSeleccionado || preview.cantidad <= 0 || !fecha}
                 className={`${buttonPrimaryClass} w-full justify-center`}
               >
                 <Save size={16} />

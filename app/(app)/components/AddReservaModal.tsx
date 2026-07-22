@@ -148,9 +148,9 @@ export default function AddReservaModal({
           personas: Number(personas),
           fecha_hora_reserva: fechaHoraReserva,
           estado: "pendiente",
-          origen: "panel",
+          origen: "panel_nativo",
         })
-        .select("id, restaurante_id")
+        .select("id")
         .single();
 
       if (errorReserva || !reservaCreada) {
@@ -158,9 +158,6 @@ export default function AddReservaModal({
         alert("Error creando reserva.");
         return;
       }
-
-      const reservaId = reservaCreada.id;
-      const rid = reservaCreada.restaurante_id;
 
       limpiarFormulario();
 
@@ -170,18 +167,6 @@ export default function AddReservaModal({
       window.setTimeout(() => {
         Promise.resolve(onCreated?.()).catch((err) => {
           console.error("Error recargando reservas:", err);
-        });
-
-        fetch("https://n8n.gastrohelp.es/webhook/panel-reserva-creada", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reserva_id: reservaId,
-            restaurante_id: rid,
-            origen: "panel",
-          }),
-        }).catch((err) => {
-          console.log("No se pudo notificar a n8n:", err);
         });
       }, 0);
     } catch (err) {

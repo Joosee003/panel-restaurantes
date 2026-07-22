@@ -1,0 +1,24 @@
+GASTROHELP - RESERVAS NATIVAS (SOLO ARCHIVOS CAMBIADOS)
+
+1. Cierra el servidor local si esta ejecutandose (Ctrl + C en la terminal).
+2. Abre este ZIP.
+3. Copia TODO su contenido dentro de:
+   C:\Users\Usuario\panel-restaurantes
+4. Cuando Windows pregunte, elige "Reemplazar los archivos en el destino".
+5. No borres ninguna otra carpeta del proyecto.
+6. Abre una terminal en VS Code y ejecuta:
+   npm run dev
+7. Abre la demostracion:
+   http://localhost:3000/restaurante/el-pescador-casa-barriguita
+
+La migracion de Supabase ya fue aplicada. Las webs reales y las reservas
+online continúan desactivadas. El flujo nuevo de n8n sigue como borrador.
+
+VARIABLES NECESARIAS EN .env.local
+
+NEXT_PUBLIC_SUPABASE_URL=tu_url_actual
+NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_clave_anon_actual
+SUPABASE_SERVICE_ROLE_KEY=tu_clave_service_role
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+
+Para la demostracion no necesitas configurar todavía el webhook de n8n.

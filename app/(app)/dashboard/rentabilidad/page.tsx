@@ -7,20 +7,21 @@ import {
   ChefHat,
   CircleDollarSign,
   Euro,
-  Filter,
   Percent,
   RefreshCw,
   Search,
   TrendingDown,
-  TrendingUp,
-  TriangleAlert,
   Package,
   Plus,
   Pencil,
   ShoppingCart,
+  ArrowRight,
+  Lightbulb,
+  Target,
 } from "lucide-react";
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
+import { useRestaurante } from "../../../hooks/useRestaurante";
 
 type PlatoRentabilidad = {
   id: string;
@@ -31,6 +32,17 @@ type PlatoRentabilidad = {
   coste_total: number | string | null;
   beneficio_eur: number | string | null;
   margen_pct: number | string | null;
+};
+
+type VentaPlato = {
+  id: string;
+  restaurante_id: string;
+  plato_id: string;
+  fecha: string;
+  cantidad: number;
+  ingreso_total: number | string;
+  coste_total: number | string;
+  beneficio_total: number | string;
 };
 
 type EstadoMargen = "alto" | "medio" | "bajo" | "critico";
@@ -46,14 +58,19 @@ function toNumber(value: number | string | null | undefined): number {
 }
 
 function formatEuro(value: number): string {
-  return new Intl.NumberFormat("es-ES", {
-    style: "currency",
-    currency: "EUR",
-  }).format(value);
+  return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
 }
 
 function formatPercent(value: number): string {
   return `${value.toFixed(1)}%`;
+}
+
+function getMonthStart(date = new Date()): string {
+  return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().split("T")[0];
+}
+
+function getNextMonthStart(date = new Date()): string {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 1).toISOString().split("T")[0];
 }
 
 function getEstadoMargen(margen: number): EstadoMargen {
@@ -64,165 +81,63 @@ function getEstadoMargen(margen: number): EstadoMargen {
 }
 
 function getEstadoLabel(estado: EstadoMargen): string {
-  if (estado === "alto") return "Margen alto";
-  if (estado === "medio") return "Margen medio";
-  if (estado === "bajo") return "Margen bajo";
-  return "Margen crítico";
+  if (estado === "alto") return "Muy rentable";
+  if (estado === "medio") return "Correcto";
+  if (estado === "bajo") return "Revisar";
+  return "Pérdidas";
 }
 
-function getAccionSugerida(plato: {
-  margen: number;
-  beneficio: number;
-  coste: number;
-  precio: number;
-}): string {
-  if (plato.margen < 0 || plato.beneficio < 0) return "Revisar precio o receta";
-  if (plato.margen < 50) return "Ajustar coste";
+function getAccionSugerida(plato: { margen: number; beneficio: number; coste: number; precio: number }): string {
+  if (plato.margen < 0 || plato.beneficio < 0) return "Revisar precio o receta hoy";
+  if (plato.margen < 50) return "Subir precio o reducir coste";
   if (plato.margen < 70) return "Vigilar margen";
-  return "Potenciar venta";
-}
-
-function getThemeClasses(dark: boolean) {
-  return {
-    pageClass: clsx(
-      "min-h-screen p-6 transition-colors",
-      dark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
-    ),
-
-    cardClass: clsx(
-      "rounded-3xl border shadow-sm transition-colors",
-      dark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"
-    ),
-
-    softCardClass: clsx(
-      "rounded-2xl border transition-colors",
-      dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50"
-    ),
-
-    innerCardClass: clsx(
-      "rounded-2xl border p-4 transition-colors",
-      dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50"
-    ),
-
-    mutedBoxClass: clsx(
-      "rounded-2xl p-3 text-xs leading-5",
-      dark ? "bg-slate-950 text-slate-300" : "bg-slate-100 text-slate-700"
-    ),
-
-    inputClass: clsx(
-      "w-full rounded-xl border px-3 py-2.5 text-sm outline-none transition",
-      dark
-        ? "border-slate-700 bg-slate-950 text-white placeholder:text-slate-500 focus:border-slate-500"
-        : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-400"
-    ),
-
-    buttonSecondaryClass: clsx(
-      "inline-flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60",
-      dark
-        ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800"
-        : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-    ),
-
-    buttonPrimaryClass: clsx(
-      "inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition",
-      dark
-        ? "bg-white text-slate-900 hover:bg-slate-200"
-        : "bg-slate-900 text-white hover:bg-slate-800"
-    ),
-
-    tabClass: clsx(
-      "inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-medium transition",
-      dark
-        ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700"
-        : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
-    ),
-
-    activeTabClass: clsx(
-      "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold",
-      dark ? "bg-white text-slate-900" : "bg-slate-900 text-white"
-    ),
-
-    highlightCardClass: clsx(
-      "rounded-3xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
-      dark
-        ? "border-emerald-500/20 bg-emerald-500/10"
-        : "border-emerald-200 bg-emerald-50"
-    ),
-
-    highlightIconClass: clsx(
-      "rounded-2xl p-3",
-      dark
-        ? "bg-emerald-500/20 text-emerald-200"
-        : "bg-emerald-100 text-emerald-700"
-    ),
-
-    titleClass: dark ? "text-white" : "text-slate-900",
-    textClass: dark ? "text-slate-300" : "text-slate-700",
-    mutedTextClass: dark ? "text-slate-400" : "text-slate-500",
-    strongTextClass: dark ? "text-white" : "text-slate-900",
-
-    iconBoxClass: clsx(
-      "rounded-2xl p-3",
-      dark ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-700"
-    ),
-
-    tableRowClass: clsx(
-      "rounded-2xl shadow-sm transition",
-      dark ? "bg-slate-950 hover:bg-slate-800" : "bg-slate-50 hover:bg-slate-100"
-    ),
-
-    emptyClass: clsx(
-      "mt-6 rounded-2xl border p-8 transition-colors",
-      dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50"
-    ),
-
-    pillClass: clsx(
-      "mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium",
-      dark ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-700"
-    ),
-  };
+  return "Potenciar en carta";
 }
 
 function badgeEstadoClass(estado: EstadoMargen): string {
-  if (estado === "alto") {
-    return "inline-flex rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200";
-  }
-  if (estado === "medio") {
-    return "inline-flex rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-200";
-  }
-  if (estado === "bajo") {
-    return "inline-flex rounded-full bg-rose-100 px-2.5 py-1 text-xs font-semibold text-rose-700 dark:bg-rose-500/20 dark:text-rose-200";
-  }
-  return "inline-flex rounded-full bg-red-100 px-2.5 py-1 text-xs font-semibold text-red-700 dark:bg-red-500/20 dark:text-red-200";
+  if (estado === "alto") return "bg-emerald-100 text-emerald-800 ring-emerald-200 dark:bg-emerald-500/15 dark:text-emerald-200 dark:ring-emerald-500/20";
+  if (estado === "medio") return "bg-amber-100 text-amber-800 ring-amber-200 dark:bg-amber-500/15 dark:text-amber-200 dark:ring-amber-500/20";
+  if (estado === "bajo") return "bg-orange-100 text-orange-800 ring-orange-200 dark:bg-orange-500/15 dark:text-orange-200 dark:ring-orange-500/20";
+  return "bg-rose-100 text-rose-800 ring-rose-200 dark:bg-rose-500/15 dark:text-rose-200 dark:ring-rose-500/20";
+}
+
+function getTheme(dark: boolean) {
+  return {
+    page: clsx("min-h-screen px-4 py-6 sm:px-6 lg:px-8", dark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-950"),
+    card: clsx("rounded-3xl border p-5 shadow-sm", dark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"),
+    soft: clsx("rounded-2xl border p-4", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50"),
+    input: clsx("w-full rounded-2xl border px-4 py-3 text-sm font-medium outline-none transition", dark ? "border-slate-700 bg-slate-950 text-white placeholder:text-slate-500 focus:border-slate-400" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-400"),
+    primary: clsx("inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition active:scale-[0.98]", dark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800"),
+    secondary: clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold transition active:scale-[0.98]", dark ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"),
+    muted: dark ? "text-slate-400" : "text-slate-500",
+    text: dark ? "text-slate-300" : "text-slate-600",
+    title: dark ? "text-white" : "text-slate-950",
+    icon: clsx("rounded-2xl p-3", dark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"),
+  };
+}
+
+function KpiCard({ icon, label, value, helper, dark }: { icon: React.ReactNode; label: string; value: string; helper: string; dark: boolean }) {
+  const t = getTheme(dark);
+  return (
+    <div className={t.card}>
+      <div className="flex items-start justify-between gap-3">
+        <div className={t.icon}>{icon}</div>
+      </div>
+      <div className={clsx("mt-4 text-xs font-black uppercase tracking-[0.14em]", t.muted)}>{label}</div>
+      <div className={clsx("mt-1 text-3xl font-black tracking-tight", t.title)}>{value}</div>
+      <div className={clsx("mt-1 text-sm font-semibold", t.muted)}>{helper}</div>
+    </div>
+  );
 }
 
 export default function RentabilidadPage() {
   const { dark } = useTheme();
-
-  const {
-    pageClass,
-    cardClass,
-    softCardClass,
-    innerCardClass,
-    mutedBoxClass,
-    inputClass,
-    buttonSecondaryClass,
-    buttonPrimaryClass,
-    tabClass,
-    activeTabClass,
-    highlightCardClass,
-    highlightIconClass,
-    titleClass,
-    textClass,
-    mutedTextClass,
-    strongTextClass,
-    iconBoxClass,
-    tableRowClass,
-    emptyClass,
-    pillClass,
-  } = getThemeClasses(dark);
+  const t = getTheme(dark);
+  const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
+  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
 
   const [platos, setPlatos] = useState<PlatoRentabilidad[]>([]);
+  const [ventas, setVentas] = useState<VentaPlato[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -234,35 +149,49 @@ export default function RentabilidadPage() {
     setLoading(true);
     setErrorMsg(null);
 
-    const { data, error } = await supabase
-      .from("vw_rentabilidad_platos")
-      .select("*")
-      .order("margen_pct", { ascending: false });
+    if (loadingRestaurante) return;
 
-    if (error) {
-      setErrorMsg(error.message);
-      setPlatos([]);
+    const rid = restauranteId;
+    if (!rid) {
+      setErrorMsg('No se encontró restaurante activo. Entra desde Admin y pulsa “Usar en panel” sobre el restaurante correcto.');
       setLoading(false);
       return;
     }
 
-    setPlatos((data as PlatoRentabilidad[]) ?? []);
+    const [platosRes, ventasRes] = await Promise.all([
+      supabase
+        .from("vw_rentabilidad_platos")
+        .select("id,restaurante_id,nombre,categoria,precio_venta,coste_total,beneficio_eur,margen_pct")
+        .eq("restaurante_id", rid)
+        .order("margen_pct", { ascending: true }),
+      supabase
+        .from("ventas_platos")
+        .select("id,restaurante_id,plato_id,fecha,cantidad,ingreso_total,coste_total,beneficio_total")
+        .eq("restaurante_id", rid)
+        .gte("fecha", getMonthStart())
+        .lt("fecha", getNextMonthStart()),
+    ]);
+
+    if (platosRes.error) {
+      setErrorMsg(platosRes.error.message);
+      setPlatos([]);
+      setVentas([]);
+      setLoading(false);
+      return;
+    }
+
+    if (ventasRes.error) {
+      setErrorMsg(ventasRes.error.message);
+    }
+
+    setPlatos((platosRes.data as PlatoRentabilidad[]) ?? []);
+    setVentas((ventasRes.data as VentaPlato[]) ?? []);
     setLoading(false);
   };
 
   useEffect(() => {
     cargarDatos();
-  }, []);
-
-  const categorias = useMemo(() => {
-    return Array.from(
-      new Set(
-        platos
-          .map((p) => (p.categoria ?? "").trim())
-          .filter((c) => c.length > 0)
-      )
-    ).sort((a, b) => a.localeCompare(b, "es"));
-  }, [platos]);
+  }, [restauranteId, loadingRestaurante]);
 
   const platosPreparados = useMemo(() => {
     return platos.map((p) => {
@@ -271,7 +200,6 @@ export default function RentabilidadPage() {
       const beneficio = toNumber(p.beneficio_eur);
       const margen = toNumber(p.margen_pct);
       const estado = getEstadoMargen(margen);
-
       return {
         ...p,
         precio,
@@ -279,652 +207,211 @@ export default function RentabilidadPage() {
         beneficio,
         margen,
         estado,
-        accionSugerida: getAccionSugerida({
-          margen,
-          beneficio,
-          coste,
-          precio,
-        }),
+        accionSugerida: getAccionSugerida({ margen, beneficio, coste, precio }),
       };
     });
   }, [platos]);
 
+  const categorias = useMemo(() => {
+    return Array.from(new Set(platosPreparados.map((p) => (p.categoria ?? "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "es"));
+  }, [platosPreparados]);
+
   const platosFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();
-
     return platosPreparados.filter((p) => {
-      const matchBusqueda =
-        !texto ||
-        p.nombre.toLowerCase().includes(texto) ||
-        (p.categoria ?? "").toLowerCase().includes(texto);
-
-      const matchCategoria =
-        categoriaFiltro === "todas" || (p.categoria ?? "") === categoriaFiltro;
-
-      const matchEstado =
-        estadoFiltro === "todos" || p.estado === estadoFiltro;
-
+      const matchBusqueda = !texto || p.nombre.toLowerCase().includes(texto) || (p.categoria ?? "").toLowerCase().includes(texto);
+      const matchCategoria = categoriaFiltro === "todas" || (p.categoria ?? "") === categoriaFiltro;
+      const matchEstado = estadoFiltro === "todos" || p.estado === estadoFiltro;
       return matchBusqueda && matchCategoria && matchEstado;
     });
   }, [platosPreparados, busqueda, categoriaFiltro, estadoFiltro]);
 
   const resumen = useMemo(() => {
-    const totalPlatos = platosFiltrados.length;
+    const total = platosPreparados.length;
+    const margenMedio = total ? platosPreparados.reduce((acc, p) => acc + p.margen, 0) / total : 0;
+    const beneficioMedio = total ? platosPreparados.reduce((acc, p) => acc + p.beneficio, 0) / total : 0;
+    const platosProblema = platosPreparados.filter((p) => p.estado === "bajo" || p.estado === "critico");
+    const mejorPlato = [...platosPreparados].sort((a, b) => b.beneficio - a.beneficio)[0] ?? null;
+    const peorPlato = [...platosPreparados].sort((a, b) => a.margen - b.margen)[0] ?? null;
+    const ingresoMes = ventas.reduce((acc, v) => acc + toNumber(v.ingreso_total), 0);
+    const beneficioMes = ventas.reduce((acc, v) => acc + toNumber(v.beneficio_total), 0);
+    const unidadesMes = ventas.reduce((acc, v) => acc + toNumber(v.cantidad), 0);
 
-    const costeMedio =
-      totalPlatos > 0
-        ? platosFiltrados.reduce((acc, p) => acc + p.coste, 0) / totalPlatos
-        : 0;
+    return { total, margenMedio, beneficioMedio, platosProblema, mejorPlato, peorPlato, ingresoMes, beneficioMes, unidadesMes };
+  }, [platosPreparados, ventas]);
 
-    const beneficioMedio =
-      totalPlatos > 0
-        ? platosFiltrados.reduce((acc, p) => acc + p.beneficio, 0) / totalPlatos
-        : 0;
-
-    const margenMedio =
-      totalPlatos > 0
-        ? platosFiltrados.reduce((acc, p) => acc + p.margen, 0) / totalPlatos
-        : 0;
-
-    const altos = platosFiltrados.filter((p) => p.estado === "alto").length;
-    const medios = platosFiltrados.filter((p) => p.estado === "medio").length;
-    const bajos = platosFiltrados.filter((p) => p.estado === "bajo").length;
-    const criticos = platosFiltrados.filter((p) => p.estado === "critico").length;
-
-    const mejorPlato =
-      [...platosFiltrados].sort((a, b) => b.margen - a.margen)[0] ?? null;
-
-    const peorPlato =
-      [...platosFiltrados].sort((a, b) => a.margen - b.margen)[0] ?? null;
-
-    let mensajePrincipal = "Tu carta está equilibrada.";
-    let mensajeSecundario = "Sigue vigilando los platos con peor margen.";
-
-    if (totalPlatos === 0) {
-      mensajePrincipal = "Todavía no hay datos de rentabilidad.";
-      mensajeSecundario = "Crea ingredientes y platos para empezar.";
-    } else if (criticos === totalPlatos) {
-      mensajePrincipal = "Toda la carta está en pérdidas.";
-      mensajeSecundario = "Conviene revisar precios o costes de ingredientes.";
-    } else if (criticos > 0) {
-      mensajePrincipal = "Tienes platos con pérdidas.";
-      mensajeSecundario = "Prioriza los platos en estado crítico.";
-    } else if (bajos > 0) {
-      mensajePrincipal = "Hay platos con margen bajo.";
-      mensajeSecundario = "Revisa receta, coste o precio de venta.";
-    } else if (altos === totalPlatos) {
-      mensajePrincipal = "Toda la carta tiene buen margen.";
-      mensajeSecundario = "Puedes potenciar ventas de los platos más rentables.";
+  const recomendaciones = useMemo(() => {
+    const items: Array<{ title: string; text: string; href: string; level: "danger" | "warning" | "good" }> = [];
+    if (resumen.peorPlato && (resumen.peorPlato.estado === "critico" || resumen.peorPlato.estado === "bajo")) {
+      items.push({
+        title: `Revisar ${resumen.peorPlato.nombre}`,
+        text: `Margen ${formatPercent(resumen.peorPlato.margen)}. Puede estar bajando el beneficio del restaurante.`,
+        href: `/dashboard/rentabilidad/platos/${resumen.peorPlato.id}`,
+        level: "danger",
+      });
     }
-
-    return {
-      totalPlatos,
-      costeMedio,
-      beneficioMedio,
-      margenMedio,
-      altos,
-      medios,
-      bajos,
-      criticos,
-      mejorPlato,
-      peorPlato,
-      mensajePrincipal,
-      mensajeSecundario,
-    };
-  }, [platosFiltrados]);
+    if (resumen.mejorPlato) {
+      items.push({
+        title: `Potenciar ${resumen.mejorPlato.nombre}`,
+        text: `Deja ${formatEuro(resumen.mejorPlato.beneficio)} por unidad. Conviene destacarlo en carta o recomendarlo.`,
+        href: `/dashboard/rentabilidad/platos/${resumen.mejorPlato.id}`,
+        level: "good",
+      });
+    }
+    if (resumen.total === 0) {
+      items.push({
+        title: "Añadir platos para empezar",
+        text: "Crea platos, añade ingredientes y verás margen, coste y beneficio automáticamente.",
+        href: "/dashboard/rentabilidad/platos/nuevo",
+        level: "warning",
+      });
+    }
+    if (ventas.length === 0 && resumen.total > 0) {
+      items.push({
+        title: "Registrar ventas reales",
+        text: "Así sabrás qué platos dan más dinero de verdad, no solo sobre papel.",
+        href: "/dashboard/rentabilidad/ventas",
+        level: "warning",
+      });
+    }
+    return items.slice(0, 3);
+  }, [resumen, ventas.length]);
 
   return (
-    <div className={pageClass}>
+    <div className={t.page}>
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className={`${cardClass} p-6`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl">
-              <div className={pillClass}>
-                <BarChart3 size={14} />
-                Rentabilidad de carta
-              </div>
-
-              <h1 className={`text-3xl font-bold tracking-tight ${titleClass}`}>
-                Rentabilidad por plato
-              </h1>
-
-              <p className={`mt-2 text-sm leading-6 ${mutedTextClass}`}>
-                Aquí ves qué platos dejan más margen y cuáles toca revisar.
-              </p>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className={clsx("mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black", dark ? "bg-slate-800 text-slate-300" : "bg-white text-slate-600 ring-1 ring-slate-200")}>
+              <CircleDollarSign size={14} /> Rentabilidad del restaurante
             </div>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                onClick={cargarDatos}
-                disabled={loading}
-                className={buttonSecondaryClass}
-              >
-                <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
-                {loading ? "Recargando..." : "Recargar"}
-              </button>
-
-              <Link
-                href="/dashboard/rentabilidad/ventas"
-                className={buttonPrimaryClass}
-              >
-                <ShoppingCart size={16} />
-                Ventas por plato
-              </Link>
-
-              <Link
-                href="/dashboard/rentabilidad/platos/nuevo"
-                className={buttonSecondaryClass}
-              >
-                <Plus size={16} />
-                Nuevo plato
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-5 flex flex-wrap gap-3">
-            <Link href="/dashboard/rentabilidad" className={activeTabClass}>
-              <BarChart3 size={16} />
-              Resumen
-            </Link>
-
-            <Link
-              href="/dashboard/rentabilidad/ingredientes"
-              className={tabClass}
-            >
-              <Package size={16} />
-              Ingredientes
-            </Link>
-
-            <Link href="/dashboard/rentabilidad/platos" className={tabClass}>
-              <ChefHat size={16} />
-              Platos
-            </Link>
-
-            <Link href="/dashboard/rentabilidad/ventas" className={tabClass}>
-              <ShoppingCart size={16} />
-              Ventas por plato
-            </Link>
-          </div>
-
-          <div className={`mt-5 ${innerCardClass}`}>
-            <p className={`text-sm font-semibold ${strongTextClass}`}>
-              {resumen.mensajePrincipal}
-            </p>
-            <p className={`mt-1 text-sm ${mutedTextClass}`}>
-              {resumen.mensajeSecundario}
+            <h1 className={clsx("text-3xl font-black tracking-tight sm:text-4xl", t.title)}>Qué platos te hacen ganar dinero</h1>
+            <p className={clsx("mt-2 max-w-2xl text-sm font-medium sm:text-base", t.text)}>
+              Vista pensada para decidir rápido: qué potenciar, qué revisar y dónde se está quedando el margen.
             </p>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <div className={`${softCardClass} p-5`}>
-              <div className="flex items-center justify-between">
-                <p className={`text-sm font-medium ${mutedTextClass}`}>Platos</p>
-                <ChefHat size={18} className="text-slate-400" />
-              </div>
-              <p className={`mt-3 text-3xl font-bold ${strongTextClass}`}>
-                {resumen.totalPlatos}
-              </p>
-            </div>
-
-            <div className={`${softCardClass} p-5`}>
-              <div className="flex items-center justify-between">
-                <p className={`text-sm font-medium ${mutedTextClass}`}>
-                  Coste medio
-                </p>
-                <Euro size={18} className="text-slate-400" />
-              </div>
-              <p className={`mt-3 text-3xl font-bold ${strongTextClass}`}>
-                {formatEuro(resumen.costeMedio)}
-              </p>
-            </div>
-
-            <div className={`${softCardClass} p-5`}>
-              <div className="flex items-center justify-between">
-                <p className={`text-sm font-medium ${mutedTextClass}`}>
-                  Beneficio medio
-                </p>
-                <CircleDollarSign size={18} className="text-slate-400" />
-              </div>
-              <p className={`mt-3 text-3xl font-bold ${strongTextClass}`}>
-                {formatEuro(resumen.beneficioMedio)}
-              </p>
-            </div>
-
-            <div className={`${softCardClass} p-5`}>
-              <div className="flex items-center justify-between">
-                <p className={`text-sm font-medium ${mutedTextClass}`}>
-                  Margen medio
-                </p>
-                <Percent size={18} className="text-slate-400" />
-              </div>
-              <p className={`mt-3 text-3xl font-bold ${strongTextClass}`}>
-                {formatPercent(resumen.margenMedio)}
-              </p>
-            </div>
-
-            <div className={`${softCardClass} p-5`}>
-              <div className="flex items-center justify-between">
-                <p className={`text-sm font-medium ${mutedTextClass}`}>
-                  Estado general
-                </p>
-                <Filter size={18} className="text-slate-400" />
-              </div>
-
-              <div className="mt-3 flex flex-wrap gap-2">
-                <span className={badgeEstadoClass("alto")}>
-                  Alto: {resumen.altos}
-                </span>
-                <span className={badgeEstadoClass("medio")}>
-                  Medio: {resumen.medios}
-                </span>
-                <span className={badgeEstadoClass("bajo")}>
-                  Bajo: {resumen.bajos}
-                </span>
-                <span className={badgeEstadoClass("critico")}>
-                  Crítico: {resumen.criticos}
-                </span>
-              </div>
-            </div>
+          <div className="flex flex-wrap gap-2">
+            <button onClick={cargarDatos} className={t.secondary} disabled={loading}>
+              <RefreshCw size={16} className={loading ? "animate-spin" : ""} /> Actualizar
+            </button>
+            <Link href="/dashboard/rentabilidad/ventas" className={t.secondary}>
+              <ShoppingCart size={16} /> Registrar venta
+            </Link>
+            <Link href="/dashboard/rentabilidad/platos/nuevo" className={t.primary}>
+              <Plus size={16} /> Nuevo plato
+            </Link>
           </div>
         </div>
 
-        <Link href="/dashboard/rentabilidad/ventas" className={highlightCardClass}>
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <KpiCard dark={dark} icon={<Euro size={22} />} label="Beneficio medio" value={formatEuro(resumen.beneficioMedio)} helper="Por plato de carta" />
+          <KpiCard dark={dark} icon={<Percent size={22} />} label="Margen medio" value={formatPercent(resumen.margenMedio)} helper={resumen.margenMedio >= 60 ? "Buen nivel" : "Revisar costes/precios"} />
+          <KpiCard dark={dark} icon={<TrendingDown size={22} />} label="Platos a revisar" value={String(resumen.platosProblema.length)} helper="Margen bajo o pérdidas" />
+          <KpiCard dark={dark} icon={<ShoppingCart size={22} />} label="Beneficio real mes" value={formatEuro(resumen.beneficioMes)} helper={`${resumen.unidadesMes} unidades registradas`} />
+        </div>
+
+        {errorMsg ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">
+            {errorMsg}
+          </div>
+        ) : null}
+
+        <div className="grid gap-4 lg:grid-cols-[1.25fr_0.75fr]">
+          <div className={t.card}>
             <div className="flex items-start gap-3">
-              <div className={highlightIconClass}>
-                <ShoppingCart size={22} />
+              <div className={clsx("rounded-2xl p-3", dark ? "bg-emerald-500/15 text-emerald-200" : "bg-emerald-100 text-emerald-700")}>
+                <Target size={22} />
               </div>
               <div>
-                <p className={`text-sm font-semibold ${strongTextClass}`}>
-                  Ventas por plato
-                </p>
-                <p className={`mt-1 text-sm ${textClass}`}>
-                  Registra unidades vendidas para calcular ingresos, costes y beneficio estimado del mes.
-                </p>
+                <h2 className={clsx("text-xl font-black", t.title)}>Acción recomendada</h2>
+                <p className={clsx("mt-1 text-sm font-medium", t.muted)}>Lo que más sentido tiene hacer ahora.</p>
               </div>
             </div>
 
-            <div
-              className={clsx(
-                "inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold",
-                dark ? "bg-white text-slate-900" : "bg-slate-900 text-white"
+            <div className="mt-5 grid gap-3 md:grid-cols-3">
+              {recomendaciones.length > 0 ? recomendaciones.map((item) => (
+                <Link key={item.title} href={item.href} className={clsx("group rounded-3xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md", item.level === "danger" ? "border-rose-200 bg-rose-50 dark:border-rose-500/20 dark:bg-rose-500/10" : item.level === "warning" ? "border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10" : "border-emerald-200 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10")}>
+                  <div className="flex items-center justify-between gap-3">
+                    <Lightbulb size={20} />
+                    <ArrowRight size={16} className="transition group-hover:translate-x-0.5" />
+                  </div>
+                  <div className={clsx("mt-4 text-base font-black", t.title)}>{item.title}</div>
+                  <div className={clsx("mt-1 text-sm font-semibold", dark ? "text-slate-300" : "text-slate-600")}>{item.text}</div>
+                </Link>
+              )) : (
+                <div className={clsx("rounded-3xl border p-4", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50")}>Sin recomendaciones por ahora.</div>
               )}
-            >
-              Abrir ventas
-              <ShoppingCart size={16} />
-            </div>
-          </div>
-        </Link>
-
-        <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-          <div className={`${cardClass} p-6`}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-200">
-                <TrendingUp size={20} />
-              </div>
-              <div>
-                <p className={`text-sm ${mutedTextClass}`}>Mejor resultado</p>
-                <h3 className={`text-lg font-semibold ${strongTextClass}`}>
-                  {resumen.mejorPlato?.nombre ?? "Sin datos"}
-                </h3>
-              </div>
-            </div>
-
-            <div className={`mt-5 space-y-2 text-sm ${textClass}`}>
-              <div className="flex items-center justify-between">
-                <span>Margen</span>
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.mejorPlato
-                    ? formatPercent(resumen.mejorPlato.margen)
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Beneficio</span>
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.mejorPlato
-                    ? formatEuro(resumen.mejorPlato.beneficio)
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Acción</span>
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.mejorPlato?.accionSugerida ?? "-"}
-                </span>
-              </div>
             </div>
           </div>
 
-          <div className={`${cardClass} p-6`}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-red-100 p-3 text-red-700 dark:bg-red-500/20 dark:text-red-200">
-                <TrendingDown size={20} />
-              </div>
-              <div>
-                <p className={`text-sm ${mutedTextClass}`}>Plato a revisar</p>
-                <h3 className={`text-lg font-semibold ${strongTextClass}`}>
-                  {resumen.peorPlato?.nombre ?? "Sin datos"}
-                </h3>
-              </div>
-            </div>
-
-            <div className={`mt-5 space-y-2 text-sm ${textClass}`}>
-              <div className="flex items-center justify-between">
-                <span>Margen</span>
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.peorPlato
-                    ? formatPercent(resumen.peorPlato.margen)
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Beneficio</span>
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.peorPlato
-                    ? formatEuro(resumen.peorPlato.beneficio)
-                    : "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Acción</span>
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.peorPlato?.accionSugerida ?? "-"}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className={`${cardClass} p-6`}>
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-amber-100 p-3 text-amber-800 dark:bg-amber-500/20 dark:text-amber-200">
-                <TriangleAlert size={20} />
-              </div>
-              <div>
-                <p className={`text-sm ${mutedTextClass}`}>Lectura rápida</p>
-                <h3 className={`text-lg font-semibold ${strongTextClass}`}>
-                  Resumen útil
-                </h3>
-              </div>
-            </div>
-
-            <div className={`mt-5 space-y-3 text-sm ${textClass}`}>
-              <p>
-                Alto margen:{" "}
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.altos}
-                </span>
-              </p>
-              <p>
-                Margen medio:{" "}
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.medios}
-                </span>
-              </p>
-              <p>
-                Margen bajo:{" "}
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.bajos}
-                </span>
-              </p>
-              <p>
-                Margen crítico:{" "}
-                <span className={`font-semibold ${strongTextClass}`}>
-                  {resumen.criticos}
-                </span>
-              </p>
-              <p className={mutedBoxClass}>
-                Aquí ves rápido qué platos te interesa potenciar y cuáles conviene
-                revisar primero.
-              </p>
+          <div className={t.card}>
+            <h2 className={clsx("text-xl font-black", t.title)}>Atajos rápidos</h2>
+            <div className="mt-4 grid gap-2">
+              <Link href="/dashboard/rentabilidad/platos" className={t.secondary}><ChefHat size={16} /> Gestionar platos</Link>
+              <Link href="/dashboard/rentabilidad/ingredientes" className={t.secondary}><Package size={16} /> Ingredientes y costes</Link>
+              <Link href="/dashboard/rentabilidad/ventas" className={t.secondary}><BarChart3 size={16} /> Ventas reales</Link>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
-          <Link
-            className={`${cardClass} p-5 transition hover:-translate-y-0.5 hover:shadow-md`}
-            href="/dashboard/rentabilidad/ingredientes"
-          >
-            <div className="flex items-center gap-3">
-              <div className={iconBoxClass}>
-                <Package size={20} />
-              </div>
-              <div>
-                <p className={`text-sm font-semibold ${strongTextClass}`}>
-                  Ingredientes
-                </p>
-                <p className={`text-sm ${mutedTextClass}`}>
-                  Crea y ajusta tu base de costes.
-                </p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            className={`${cardClass} p-5 transition hover:-translate-y-0.5 hover:shadow-md`}
-            href="/dashboard/rentabilidad/platos"
-          >
-            <div className="flex items-center gap-3">
-              <div className={iconBoxClass}>
-                <ChefHat size={20} />
-              </div>
-              <div>
-                <p className={`text-sm font-semibold ${strongTextClass}`}>
-                  Platos
-                </p>
-                <p className={`text-sm ${mutedTextClass}`}>
-                  Entra a cada plato y edita su receta.
-                </p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            className={`${cardClass} p-5 transition hover:-translate-y-0.5 hover:shadow-md`}
-            href="/dashboard/rentabilidad/ventas"
-          >
-            <div className="flex items-center gap-3">
-              <div className={iconBoxClass}>
-                <ShoppingCart size={20} />
-              </div>
-              <div>
-                <p className={`text-sm font-semibold ${strongTextClass}`}>
-                  Ventas por plato
-                </p>
-                <p className={`text-sm ${mutedTextClass}`}>
-                  Registra ventas y calcula beneficio mensual.
-                </p>
-              </div>
-            </div>
-          </Link>
-
-          <Link
-            className={`${cardClass} p-5 transition hover:-translate-y-0.5 hover:shadow-md`}
-            href="/dashboard/rentabilidad/platos/nuevo"
-          >
-            <div className="flex items-center gap-3">
-              <div className={iconBoxClass}>
-                <Plus size={20} />
-              </div>
-              <div>
-                <p className={`text-sm font-semibold ${strongTextClass}`}>
-                  Nuevo plato
-                </p>
-                <p className={`text-sm ${mutedTextClass}`}>
-                  Crea uno y añade ingredientes después.
-                </p>
-              </div>
-            </div>
-          </Link>
-        </div>
-
-        <div className={`${cardClass} p-6`}>
+        <div className={t.card}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h2 className={`text-xl font-semibold ${strongTextClass}`}>
-                Platos
-              </h2>
-              <p className={`mt-1 text-sm ${mutedTextClass}`}>
-                Busca por nombre o deja solo los platos que más conviene revisar.
-              </p>
+              <h2 className={clsx("text-xl font-black", t.title)}>Platos por rentabilidad</h2>
+              <p className={clsx("mt-1 text-sm font-medium", t.muted)}>Empieza por los rojos. Son los que más daño pueden hacer.</p>
             </div>
-
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
               <div className="relative">
-                <Search
-                  size={16}
-                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
-                />
-                <input
-                  type="text"
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  placeholder="Buscar plato o categoría"
-                  className={`${inputClass} pl-9`}
-                />
+                <Search className={clsx("pointer-events-none absolute left-3 top-3.5 h-4 w-4", t.muted)} />
+                <input className={clsx(t.input, "pl-10")} placeholder="Buscar plato..." value={busqueda} onChange={(e) => setBusqueda(e.target.value)} />
               </div>
-
-              <select
-                value={categoriaFiltro}
-                onChange={(e) => setCategoriaFiltro(e.target.value)}
-                className={inputClass}
-              >
-                <option value="todas">Todas las categorías</option>
-                {categorias.map((categoria) => (
-                  <option key={categoria} value={categoria}>
-                    {categoria}
-                  </option>
-                ))}
+              <select className={t.input} value={categoriaFiltro} onChange={(e) => setCategoriaFiltro(e.target.value)}>
+                <option value="todas">Todas</option>
+                {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
-
-              <select
-                value={estadoFiltro}
-                onChange={(e) => setEstadoFiltro(e.target.value)}
-                className={inputClass}
-              >
-                <option value="todos">Todos los márgenes</option>
-                <option value="alto">Margen alto</option>
-                <option value="medio">Margen medio</option>
-                <option value="bajo">Margen bajo</option>
-                <option value="critico">Margen crítico</option>
+              <select className={t.input} value={estadoFiltro} onChange={(e) => setEstadoFiltro(e.target.value)}>
+                <option value="todos">Todos</option>
+                <option value="critico">Pérdidas</option>
+                <option value="bajo">Revisar</option>
+                <option value="medio">Correcto</option>
+                <option value="alto">Muy rentable</option>
               </select>
             </div>
           </div>
 
-          {errorMsg && (
-            <div className="mt-6 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-300">
-              {errorMsg}
-            </div>
-          )}
-
           {loading ? (
-            <div className={`mt-6 text-sm ${mutedTextClass}`}>
-              Cargando rentabilidad...
-            </div>
+            <div className={clsx("mt-6 rounded-2xl border p-8 text-center text-sm font-semibold", dark ? "border-slate-800 bg-slate-950 text-slate-400" : "border-slate-200 bg-slate-50 text-slate-500")}>Cargando rentabilidad...</div>
           ) : platosFiltrados.length === 0 ? (
-            <div className={emptyClass}>
-              <div className="flex flex-col items-start gap-3">
-                <div className={iconBoxClass}>
-                  <ChefHat size={20} />
-                </div>
-                <div>
-                  <h3 className={`text-base font-semibold ${strongTextClass}`}>
-                    No hay platos para mostrar
-                  </h3>
-                  <p className={`mt-1 text-sm ${mutedTextClass}`}>
-                    Primero crea ingredientes y platos.
-                  </p>
-                </div>
-              </div>
-            </div>
+            <div className={clsx("mt-6 rounded-2xl border p-8 text-center", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50")}>No hay platos con estos filtros.</div>
           ) : (
-            <div className="mt-6 overflow-x-auto">
-              <table className="min-w-full border-separate border-spacing-y-2">
-                <thead>
-                  <tr>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Plato
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Categoría
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Precio
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Coste
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Beneficio
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Margen
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Estado
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Acción sugerida
-                    </th>
-                    <th className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide ${mutedTextClass}`}>
-                      Editar
-                    </th>
-                  </tr>
-                </thead>
+            <div className="mt-6 grid gap-3">
+              {platosFiltrados.map((p) => (
+                <div key={p.id} className={clsx("rounded-3xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50")}>
+                  <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={clsx("rounded-full px-2.5 py-1 text-xs font-black ring-1", badgeEstadoClass(p.estado))}>{getEstadoLabel(p.estado)}</span>
+                        {p.categoria ? <span className={clsx("text-xs font-bold", t.muted)}>{p.categoria}</span> : null}
+                      </div>
+                      <h3 className={clsx("mt-2 truncate text-lg font-black", t.title)}>{p.nombre}</h3>
+                      <p className={clsx("mt-1 text-sm font-semibold", t.muted)}>{p.accionSugerida}</p>
+                    </div>
 
-                <tbody>
-                  {platosFiltrados.map((plato) => (
-                    <tr key={plato.id} className={tableRowClass}>
-                      <td className="rounded-l-2xl px-4 py-4">
-                        <p className={`font-semibold ${strongTextClass}`}>
-                          {plato.nombre}
-                        </p>
-                      </td>
+                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+                      <div className={t.soft}><div className={clsx("text-xs font-bold", t.muted)}>Precio</div><div className={clsx("mt-1 font-black", t.title)}>{formatEuro(p.precio)}</div></div>
+                      <div className={t.soft}><div className={clsx("text-xs font-bold", t.muted)}>Coste</div><div className={clsx("mt-1 font-black", t.title)}>{formatEuro(p.coste)}</div></div>
+                      <div className={t.soft}><div className={clsx("text-xs font-bold", t.muted)}>Beneficio</div><div className={clsx("mt-1 font-black", p.beneficio < 0 ? "text-rose-600" : t.title)}>{formatEuro(p.beneficio)}</div></div>
+                      <div className={t.soft}><div className={clsx("text-xs font-bold", t.muted)}>Margen</div><div className={clsx("mt-1 font-black", p.estado === "critico" || p.estado === "bajo" ? "text-rose-600" : t.title)}>{formatPercent(p.margen)}</div></div>
+                    </div>
+                  </div>
 
-                      <td className={`px-4 py-4 text-sm ${textClass}`}>
-                        {plato.categoria || "-"}
-                      </td>
-
-                      <td className={`px-4 py-4 text-sm font-medium ${strongTextClass}`}>
-                        {formatEuro(plato.precio)}
-                      </td>
-
-                      <td className={`px-4 py-4 text-sm ${textClass}`}>
-                        {formatEuro(plato.coste)}
-                      </td>
-
-                      <td className={`px-4 py-4 text-sm font-medium ${strongTextClass}`}>
-                        {formatEuro(plato.beneficio)}
-                      </td>
-
-                      <td className={`px-4 py-4 text-sm font-medium ${strongTextClass}`}>
-                        {formatPercent(plato.margen)}
-                      </td>
-
-                      <td className="px-4 py-4">
-                        <span className={badgeEstadoClass(plato.estado)}>
-                          {getEstadoLabel(plato.estado)}
-                        </span>
-                      </td>
-
-                      <td className={`px-4 py-4 text-sm ${textClass}`}>
-                        {plato.accionSugerida}
-                      </td>
-
-                      <td className="rounded-r-2xl px-4 py-4">
-                        <Link
-                          href={`/dashboard/rentabilidad/platos/${plato.id}`}
-                          className={buttonSecondaryClass}
-                        >
-                          <Pencil size={14} />
-                          Editar receta
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Link href={`/dashboard/rentabilidad/platos/${p.id}`} className={t.primary}><Pencil size={15} /> Mejorar plato</Link>
+                    <Link href="/dashboard/rentabilidad/ventas" className={t.secondary}><ShoppingCart size={15} /> Registrar venta</Link>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

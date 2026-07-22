@@ -1,31 +1,33 @@
 "use client";
 
-import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
-  CalendarDays,
-  Users,
-  MessageSquareWarning,
-  Percent,
-  Sparkles,
-  Bell,
-  Moon,
-  TrendingUp,
   AlertTriangle,
-  Zap,
-  Check,
+  BarChart3,
+  ArrowRight,
+  Bell,
+  CalendarDays,
+  CheckCircle2,
+  ChefHat,
+  Clock3,
+  CreditCard,
+  MessageSquareWarning,
   RefreshCw,
+  Sparkles,
+  TrendingUp,
+  QrCode,
+  Users,
+  Utensils,
+  Wallet,
+  Zap,
 } from "lucide-react";
 
-import { useTheme } from "../components/ThemeProvider";
 import { supabase } from "../lib/supabaseClient";
-import { calcularOcupacion, detectarDiaFlojoSemana } from "../lib/ocupacion";
+import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
 import { withTimeout } from "../lib/safeQuery";
-import { useAutoRefresh } from "../lib/useAutoRefresh";
 
-/* ===== CHART ===== */
 const DashboardChart = dynamic(() => import("../components/DashboardChart"), {
   ssr: false,
   loading: () => (
@@ -34,6 +36,55 @@ const DashboardChart = dynamic(() => import("../components/DashboardChart"), {
     </div>
   ),
 });
+
+type Reserva = {
+  id: string;
+  nombre_cliente: string | null;
+  telefono?: string | null;
+  personas: number | null;
+  estado: string | null;
+  fecha_hora_reserva: string | null;
+};
+
+type PedidoQR = {
+  id: string;
+  mesa: string | null;
+  estado: string | null;
+  total: number | string | null;
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+type CierreMesa = {
+  id: string;
+  mesa: string | null;
+  total_cobrado: number | string | null;
+  metodo_pago: string | null;
+  creado_en: string | null;
+};
+
+type MetricasMensuales = {
+  reservas_mes_actual: number;
+  reservas_mes_anterior: number;
+  clientes_nuevos_mes_actual: number;
+  clientes_nuevos_mes_anterior: number;
+  resenas_nuevas_mes_actual: number;
+  resenas_nuevas_mes_anterior: number;
+  ventas_qr_mes_actual: number;
+  ventas_qr_mes_anterior: number;
+  cierres_qr_mes_actual: number;
+  cierres_qr_mes_anterior: number;
+};
+
+type Accion = {
+  id: string;
+  prioridad: "alta" | "media" | "baja" | "ok";
+  titulo: string;
+  descripcion: string;
+  href: string;
+  cta: string;
+  icono: any;
+};
 
 function getHoyMadrid() {
   return new Intl.DateTimeFormat("sv-SE", {
@@ -52,97 +103,191 @@ function getHoraMadrid() {
   }).format(new Date());
 }
 
-function formatearFechaReserva(valor?: string | null) {
-  if (!valor) return "";
-
-  const d = new Date(valor);
-  if (Number.isNaN(d.getTime())) return valor;
-
-  return d.toLocaleString("es-ES", {
+function inicioSemanaMadrid() {
+  const hoyTxt = getHoyMadrid();
+  const hoy = new Date(`${hoyTxt}T12:00:00`);
+  const dia = hoy.getDay() || 7;
+  hoy.setDate(hoy.getDate() - dia + 1);
+  return new Intl.DateTimeFormat("sv-SE", {
     timeZone: "Europe/Madrid",
-    day: "2-digit",
+    year: "numeric",
     month: "2-digit",
+    day: "2-digit",
+  }).format(hoy);
+}
+
+function formatFechaMadrid(fecha: Date) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Europe/Madrid",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(fecha);
+}
+
+function rangosMesMadrid() {
+  const hoyTxt = getHoyMadrid();
+  const hoy = new Date(`${hoyTxt}T12:00:00`);
+
+  const inicioMesActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1, 12);
+  const inicioMesSiguiente = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 1, 12);
+  const inicioMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 1, 12);
+
+  return {
+    inicioMesActual: `${formatFechaMadrid(inicioMesActual)} 00:00:00`,
+    inicioMesSiguiente: `${formatFechaMadrid(inicioMesSiguiente)} 00:00:00`,
+    inicioMesAnterior: `${formatFechaMadrid(inicioMesAnterior)} 00:00:00`,
+  };
+}
+
+function euro(valor: number) {
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+  }).format(valor || 0);
+}
+
+function numero(valor: number | string | null | undefined) {
+  const n = Number(valor ?? 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function deltaMensual(actual: number, anterior: number) {
+  const diferencia = actual - anterior;
+
+  if (anterior === 0) {
+    return {
+      diferencia,
+      variacion: actual > 0 ? 100 : 0,
+    };
+  }
+
+  return {
+    diferencia,
+    variacion: Math.round(((actual - anterior) / anterior) * 100),
+  };
+}
+
+function signoNumero(valor: number) {
+  if (valor > 0) return `+${valor}`;
+  return String(valor);
+}
+
+function signoPct(valor: number) {
+  if (valor > 0) return `+${valor}%`;
+  return `${valor}%`;
+}
+
+function estadoLimpio(estado?: string | null) {
+  return String(estado || "nuevo")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function esPedidoCerrado(estado?: string | null) {
+  const e = estadoLimpio(estado);
+  return [
+    "servido",
+    "servida",
+    "entregado",
+    "entregada",
+    "cobrado",
+    "cobrada",
+    "cerrado",
+    "cerrada",
+    "cancelado",
+    "cancelada",
+  ].includes(e);
+}
+
+function minutosDesde(fecha?: string | null) {
+  if (!fecha) return 0;
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return 0;
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 60000));
+}
+
+function formatHora(fecha?: string | null) {
+  if (!fecha) return "--:--";
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return "--:--";
+  return d.toLocaleTimeString("es-ES", {
+    timeZone: "Europe/Madrid",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function formatReserva(fecha?: string | null) {
+  if (!fecha) return "Sin hora";
+  const d = new Date(fecha);
+  if (Number.isNaN(d.getTime())) return fecha;
+  return d.toLocaleTimeString("es-ES", {
+    timeZone: "Europe/Madrid",
     hour: "2-digit",
     minute: "2-digit",
   });
 }
 
 export default function DashboardPage() {
-  const { toggle, dark } = useTheme();
-  const isDark = dark;
-
   const loadingRef = useRef(false);
-  const realtimeTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const [restaurante, setRestaurante] = useState<any>(null);
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
-
-  const [loadingInicial, setLoadingInicial] = useState(true);
+  const [restauranteNombre, setRestauranteNombre] = useState("Dashboard");
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [dashboardError, setDashboardError] = useState<string | null>(null);
-  const [lastUpdated, setLastUpdated] = useState<string>("Actualizado");
+  const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState("Sin actualizar");
 
-  const [reservasHoy, setReservasHoy] = useState(0);
-  const [clientesNuevosHoy, setClientesNuevosHoy] = useState(0);
+  const [reservasHoy, setReservasHoy] = useState<Reserva[]>([]);
+  const [clientesSemana, setClientesSemana] = useState(0);
   const [resenasPendientes, setResenasPendientes] = useState(0);
-
-  const [acciones, setAcciones] = useState<any[]>([]);
-  const [alertas, setAlertas] = useState<any[]>([]);
-  const [accionesRestaurante, setAccionesRestaurante] = useState<any[]>([]);
-
-  const [huecosDetectados, setHuecosDetectados] = useState(0);
-  const [reservasEnRiesgo, setReservasEnRiesgo] = useState(0);
-
-  const [ocupacionValor, setOcupacionValor] = useState("0%");
-  const [ocupacionContexto, setOcupacionContexto] = useState("Buen ritmo");
-  const [pctComidaState, setPctComidaState] = useState(0);
-  const [pctCenaState, setPctCenaState] = useState(0);
-  const [diaFlojo, setDiaFlojo] = useState<any>(null);
+  const [pedidosHoy, setPedidosHoy] = useState<PedidoQR[]>([]);
+  const [cierresHoy, setCierresHoy] = useState<CierreMesa[]>([]);
+  const [metricasMensuales, setMetricasMensuales] = useState<MetricasMensuales>({
+    reservas_mes_actual: 0,
+    reservas_mes_anterior: 0,
+    clientes_nuevos_mes_actual: 0,
+    clientes_nuevos_mes_anterior: 0,
+    resenas_nuevas_mes_actual: 0,
+    resenas_nuevas_mes_anterior: 0,
+    ventas_qr_mes_actual: 0,
+    ventas_qr_mes_anterior: 0,
+    cierres_qr_mes_actual: 0,
+    cierres_qr_mes_anterior: 0,
+  });
 
   useEffect(() => {
     const cargarRestaurante = async () => {
-      setLoadingInicial(true);
+      setLoading(true);
+      setError(null);
 
       try {
         const rid = await withTimeout(getRestauranteUsuario(), 8000);
 
         if (!rid) {
-          setDashboardError("No se ha encontrado restaurante para este usuario.");
-          setLoadingInicial(false);
+          setError("No se ha encontrado restaurante para este usuario.");
+          setLoading(false);
           return;
         }
 
         setRestauranteId(rid);
 
-const result = await withTimeout(
-  supabase
-    .from("restaurantes")
-    .select("*")
-    .eq("id", rid)
-    .single(),
-  20000
-);
+        const result = await withTimeout(
+          supabase.from("restaurantes").select("nombre").eq("id", rid).single(),
+          8000
+        );
 
-if (!result) {
-  setDashboardError("No se pudo cargar el restaurante.");
-  setLoadingInicial(false);
-  return;
-}
-
-const { data, error } = result;
-
-if (error) {
-  console.error("RESTAURANTE ERROR", error);
-  setDashboardError("No se pudo cargar el restaurante.");
-  setLoadingInicial(false);
-  return;
-}
-
-setRestaurante(data);
-      } catch (error) {
-        console.error("ERROR CARGANDO RESTAURANTE", error);
-        setDashboardError("Tiempo de carga agotado cargando el restaurante.");
-        setLoadingInicial(false);
+        if (result?.data?.nombre) {
+          setRestauranteNombre(result.data.nombre);
+        }
+      } catch (err) {
+        console.error("ERROR CARGANDO RESTAURANTE", err);
+        setError("No se pudo cargar el restaurante.");
+        setLoading(false);
       }
     };
 
@@ -154,143 +299,218 @@ setRestaurante(data);
       if (!restauranteId || loadingRef.current) return;
 
       loadingRef.current = true;
+      if (modo === "inicial") setLoading(true);
+      else setRefreshing(true);
 
-      if (modo === "inicial") {
-        setLoadingInicial(true);
-      } else {
-        setRefreshing(true);
-      }
-
-      setDashboardError(null);
+      setError(null);
 
       const hoy = getHoyMadrid();
-      const inicioHoyTxt = `${hoy} 00:00:00`;
-      const finHoyTxt = `${hoy} 23:59:59`;
+      const semana = inicioSemanaMadrid();
+      const inicioHoy = `${hoy} 00:00:00`;
+      const finHoy = `${hoy} 23:59:59`;
+      const inicioSemana = `${semana} 00:00:00`;
+      const { inicioMesActual, inicioMesSiguiente, inicioMesAnterior } = rangosMesMadrid();
 
       try {
         const [
-          reservasHoyResult,
-          clientesNuevosResult,
-          resenasPendientesResult,
-          reservasRiesgoResult,
-          accionesRestauranteResult,
-          ocupacionResult,
-          diaFlojoResult,
+          reservasResult,
+          clientesResult,
+          resenasResult,
+          pedidosResult,
+          cierresResult,
+          reservasMensualesResult,
+          clientesMensualesResult,
+          resenasMensualesResult,
+          cierresMesActualResult,
+          cierresMesAnteriorResult,
         ] = await Promise.allSettled([
-          withTimeout(
-            supabase
-              .from("reservas")
-              .select("id", { count: "exact", head: true })
-              .eq("restaurante_id", restauranteId)
-              .eq("estado", "confirmada")
-              .gte("fecha_hora_reserva", inicioHoyTxt)
-              .lte("fecha_hora_reserva", finHoyTxt),
-            8000
-          ),
+            withTimeout(
+              supabase
+                .from("reservas")
+                .select("id,nombre_cliente,telefono,personas,estado,fecha_hora_reserva")
+                .eq("restaurante_id", restauranteId)
+                .gte("fecha_hora_reserva", inicioHoy)
+                .lte("fecha_hora_reserva", finHoy)
+                .order("fecha_hora_reserva", { ascending: true }),
+              9000
+            ),
 
-          withTimeout(
-            supabase
-              .from("clientes")
-              .select("id", { count: "exact", head: true })
-              .eq("restaurante_id", restauranteId)
-              .gte("created_at", inicioHoyTxt)
-              .lte("created_at", finHoyTxt),
-            8000
-          ),
+            withTimeout(
+              supabase
+                .from("clientes")
+                .select("id", { count: "exact", head: true })
+                .eq("restaurante_id", restauranteId)
+                .gte("created_at", inicioSemana),
+              9000
+            ),
 
-          withTimeout(
-            supabase
-              .from("resenas")
-              .select("id", { count: "exact", head: true })
-              .eq("restaurante_id", restauranteId)
-              .eq("responded", false),
-            8000
-          ),
+            withTimeout(
+              supabase
+                .from("resenas")
+                .select("id", { count: "exact", head: true })
+                .eq("restaurante_id", restauranteId)
+                .eq("responded", false),
+              9000
+            ),
 
-          withTimeout(
-            supabase
-              .from("reservas")
-              .select("id", { count: "exact", head: true })
-              .eq("restaurante_id", restauranteId)
-              .eq("estado", "pendiente")
-              .gte("fecha_hora_reserva", inicioHoyTxt)
-              .lte("fecha_hora_reserva", finHoyTxt),
-            8000
-          ),
+            withTimeout(
+              supabase
+                .from("pedidos_qr")
+                .select("id,mesa,estado,total,created_at,updated_at")
+                .eq("restaurante_id", restauranteId)
+                .gte("created_at", inicioHoy)
+                .lte("created_at", finHoy)
+                .order("created_at", { ascending: false }),
+              9000
+            ),
 
-          withTimeout(
-            supabase
-              .from("acciones_restaurante")
-              .select("*")
-              .eq("restaurante_id", restauranteId)
-              .eq("leida", false)
-              .order("created_at", { ascending: false })
-              .limit(10),
-            8000
-          ),
+            withTimeout(
+              supabase
+                .from("cierres_mesa_qr")
+                .select("id,mesa,total_cobrado,metodo_pago,creado_en")
+                .eq("restaurante_id", restauranteId)
+                .gte("creado_en", inicioHoy)
+                .lte("creado_en", finHoy)
+                .order("creado_en", { ascending: false }),
+              9000
+            ),
 
-          withTimeout(calcularOcupacion(restauranteId), 10000),
+            withTimeout(
+              supabase
+                .from("vw_reservas_comparativa_mensual")
+                .select("reservas_mes_actual,reservas_mes_anterior")
+                .eq("restaurante_id", restauranteId)
+                .maybeSingle(),
+              9000
+            ),
 
-          withTimeout(detectarDiaFlojoSemana(restauranteId), 10000),
-        ]);
+            withTimeout(
+              supabase
+                .from("vw_clientes_nuevos_comparativa_mensual")
+                .select("clientes_nuevos_mes_actual,clientes_nuevos_mes_anterior")
+                .eq("restaurante_id", restauranteId)
+                .maybeSingle(),
+              9000
+            ),
 
-if (reservasHoyResult.status === "fulfilled" && reservasHoyResult.value) {
-  const { count, error } = reservasHoyResult.value;
-  if (error) console.error("RESERVAS HOY ERROR", error);
-  setReservasHoy(count ?? 0);
+            withTimeout(
+              supabase
+                .from("vw_resenas_nuevas_comparativa_mensual")
+                .select("resenas_nuevas_mes_actual,resenas_nuevas_mes_anterior")
+                .eq("restaurante_id", restauranteId)
+                .maybeSingle(),
+              9000
+            ),
 
+            withTimeout(
+              supabase
+                .from("cierres_mesa_qr")
+                .select("id,total_cobrado")
+                .eq("restaurante_id", restauranteId)
+                .gte("creado_en", inicioMesActual)
+                .lt("creado_en", inicioMesSiguiente),
+              9000
+            ),
+
+            withTimeout(
+              supabase
+                .from("cierres_mesa_qr")
+                .select("id,total_cobrado")
+                .eq("restaurante_id", restauranteId)
+                .gte("creado_en", inicioMesAnterior)
+                .lt("creado_en", inicioMesActual),
+              9000
+            ),
+          ]);
+
+        if (reservasResult.status === "fulfilled") {
+          const { data, error } = reservasResult.value || {};
+          if (error) console.error("RESERVAS DASHBOARD ERROR", error);
+          setReservasHoy((data ?? []) as Reserva[]);
         }
 
-if (clientesNuevosResult.status === "fulfilled" && clientesNuevosResult.value) {
-  const { count, error } = clientesNuevosResult.value;
-  if (error) console.error("CLIENTES NUEVOS ERROR", error);
-  setClientesNuevosHoy(count ?? 0);
-}
-
-if (
-  resenasPendientesResult.status === "fulfilled" &&
-  resenasPendientesResult.value
-) {
-  const { count, error } = resenasPendientesResult.value;
-  if (error) console.error("RESEÑAS PENDIENTES ERROR", error);
-  setResenasPendientes(count ?? 0);
-}
-
-if (reservasRiesgoResult.status === "fulfilled" && reservasRiesgoResult.value) {
-  const { count, error } = reservasRiesgoResult.value;
-  if (error) console.error("RESERVAS RIESGO ERROR", error);
-  setReservasEnRiesgo(count ?? 0);
-  setHuecosDetectados(count ?? 0);
-}
-
-if (
-  accionesRestauranteResult.status === "fulfilled" &&
-  accionesRestauranteResult.value
-) {
-  const { data, error } = accionesRestauranteResult.value;
-  if (error) console.error("ACCIONES RESTAURANTE ERROR", error);
-  setAccionesRestaurante(data ?? []);
-
+        if (clientesResult.status === "fulfilled") {
+          const { count, error } = clientesResult.value || {};
+          if (error) console.error("CLIENTES DASHBOARD ERROR", error);
+          setClientesSemana(count ?? 0);
         }
 
-        if (ocupacionResult.status === "fulfilled" && ocupacionResult.value) {
-          setPctComidaState(ocupacionResult.value.ocupacionComidaPct ?? 0);
-          setPctCenaState(ocupacionResult.value.ocupacionCenaPct ?? 0);
-          setOcupacionValor(`${ocupacionResult.value.totalDiaPct ?? 0}%`);
-          setOcupacionContexto("Ocupación total del día");
+        if (resenasResult.status === "fulfilled") {
+          const { count, error } = resenasResult.value || {};
+          if (error) console.error("RESENAS DASHBOARD ERROR", error);
+          setResenasPendientes(count ?? 0);
         }
 
-        if (diaFlojoResult.status === "fulfilled") {
-          setDiaFlojo(diaFlojoResult.value ?? null);
+        if (pedidosResult.status === "fulfilled") {
+          const { data, error } = pedidosResult.value || {};
+          if (error) console.error("PEDIDOS QR DASHBOARD ERROR", error);
+          setPedidosHoy((data ?? []) as PedidoQR[]);
         }
 
+        if (cierresResult.status === "fulfilled") {
+          const { data, error } = cierresResult.value || {};
+          if (error) console.error("CIERRES QR DASHBOARD ERROR", error);
+          setCierresHoy((data ?? []) as CierreMesa[]);
+        }
+
+        const siguientesMetricas: MetricasMensuales = {
+          reservas_mes_actual: 0,
+          reservas_mes_anterior: 0,
+          clientes_nuevos_mes_actual: 0,
+          clientes_nuevos_mes_anterior: 0,
+          resenas_nuevas_mes_actual: 0,
+          resenas_nuevas_mes_anterior: 0,
+          ventas_qr_mes_actual: 0,
+          ventas_qr_mes_anterior: 0,
+          cierres_qr_mes_actual: 0,
+          cierres_qr_mes_anterior: 0,
+        };
+
+        if (reservasMensualesResult.status === "fulfilled") {
+          const { data, error } = reservasMensualesResult.value || {};
+          if (error) console.error("RESERVAS MENSUALES DASHBOARD ERROR", error);
+          siguientesMetricas.reservas_mes_actual = numero(data?.reservas_mes_actual);
+          siguientesMetricas.reservas_mes_anterior = numero(data?.reservas_mes_anterior);
+        }
+
+        if (clientesMensualesResult.status === "fulfilled") {
+          const { data, error } = clientesMensualesResult.value || {};
+          if (error) console.error("CLIENTES MENSUALES DASHBOARD ERROR", error);
+          siguientesMetricas.clientes_nuevos_mes_actual = numero(data?.clientes_nuevos_mes_actual);
+          siguientesMetricas.clientes_nuevos_mes_anterior = numero(data?.clientes_nuevos_mes_anterior);
+        }
+
+        if (resenasMensualesResult.status === "fulfilled") {
+          const { data, error } = resenasMensualesResult.value || {};
+          if (error) console.error("RESEÑAS MENSUALES DASHBOARD ERROR", error);
+          siguientesMetricas.resenas_nuevas_mes_actual = numero(data?.resenas_nuevas_mes_actual);
+          siguientesMetricas.resenas_nuevas_mes_anterior = numero(data?.resenas_nuevas_mes_anterior);
+        }
+
+        if (cierresMesActualResult.status === "fulfilled") {
+          const { data, error } = cierresMesActualResult.value || {};
+          if (error) console.error("CIERRES MES ACTUAL DASHBOARD ERROR", error);
+          const cierres = (data ?? []) as CierreMesa[];
+          siguientesMetricas.cierres_qr_mes_actual = cierres.length;
+          siguientesMetricas.ventas_qr_mes_actual = cierres.reduce((acc, cierre) => acc + numero(cierre.total_cobrado), 0);
+        }
+
+        if (cierresMesAnteriorResult.status === "fulfilled") {
+          const { data, error } = cierresMesAnteriorResult.value || {};
+          if (error) console.error("CIERRES MES ANTERIOR DASHBOARD ERROR", error);
+          const cierres = (data ?? []) as CierreMesa[];
+          siguientesMetricas.cierres_qr_mes_anterior = cierres.length;
+          siguientesMetricas.ventas_qr_mes_anterior = cierres.reduce((acc, cierre) => acc + numero(cierre.total_cobrado), 0);
+        }
+
+        setMetricasMensuales(siguientesMetricas);
         setLastUpdated(`Actualizado ${getHoraMadrid()}`);
-      } catch (error) {
-        console.error("ERROR GENERAL DASHBOARD", error);
-        setDashboardError("Alguna carga del dashboard ha tardado demasiado.");
+      } catch (err) {
+        console.error("ERROR CARGANDO DASHBOARD", err);
+        setError("Alguna parte del dashboard ha tardado demasiado en cargar.");
       } finally {
         loadingRef.current = false;
-        setLoadingInicial(false);
+        setLoading(false);
         setRefreshing(false);
       }
     },
@@ -302,597 +522,643 @@ if (
     cargarDashboard("inicial");
   }, [restauranteId, cargarDashboard]);
 
-  useAutoRefresh(
-    async () => {
-      await cargarDashboard("refresh");
-    },
-    {
-      enabled: !!restauranteId,
-      intervalMs: 30000,
-    }
-  );
-
-  const programarRefreshRealtime = useCallback(() => {
-    if (realtimeTimerRef.current) {
-      clearTimeout(realtimeTimerRef.current);
-    }
-
-    realtimeTimerRef.current = setTimeout(() => {
-      cargarDashboard("refresh");
-    }, 800);
+  const programarRefresh = useCallback(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => cargarDashboard("refresh"), 700);
   }, [cargarDashboard]);
 
   useEffect(() => {
     if (!restauranteId) return;
 
-    const channelReservas = supabase
-      .channel(`dashboard-reservas-${restauranteId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "reservas",
-          filter: `restaurante_id=eq.${restauranteId}`,
-        },
-        () => {
-          programarRefreshRealtime();
-        }
-      )
-      .subscribe();
+    const interval = setInterval(() => cargarDashboard("refresh"), 30000);
 
-    const channelAcciones = supabase
-      .channel(`dashboard-acciones-${restauranteId}`)
+    const channel = supabase
+      .channel(`dashboard-inteligente-${restauranteId}`)
       .on(
         "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "acciones_restaurante",
-          filter: `restaurante_id=eq.${restauranteId}`,
-        },
-        () => {
-          programarRefreshRealtime();
-        }
+        { event: "*", schema: "public", table: "reservas", filter: `restaurante_id=eq.${restauranteId}` },
+        programarRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "pedidos_qr", filter: `restaurante_id=eq.${restauranteId}` },
+        programarRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "cierres_mesa_qr", filter: `restaurante_id=eq.${restauranteId}` },
+        programarRefresh
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "resenas", filter: `restaurante_id=eq.${restauranteId}` },
+        programarRefresh
       )
       .subscribe();
 
     return () => {
-      if (realtimeTimerRef.current) {
-        clearTimeout(realtimeTimerRef.current);
-      }
-
-      supabase.removeChannel(channelReservas);
-      supabase.removeChannel(channelAcciones);
+      clearInterval(interval);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      supabase.removeChannel(channel);
     };
-  }, [restauranteId, programarRefreshRealtime]);
+  }, [restauranteId, cargarDashboard, programarRefresh]);
 
-  useEffect(() => {
-    const nuevasAcciones: any[] = [];
-    const nuevasAlertas: any[] = [];
+  const pedidosAbiertos = useMemo(
+    () => pedidosHoy.filter((p) => !esPedidoCerrado(p.estado)),
+    [pedidosHoy]
+  );
 
-    const accionesRecientes = accionesRestaurante.map((a: any) => {
-      const fecha = new Date(a.created_at);
-      const tiempo = Number.isNaN(fecha.getTime())
-        ? "Ahora"
-        : fecha.toLocaleTimeString("es-ES", {
-            timeZone: "Europe/Madrid",
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+  const pedidosLentos = useMemo(
+    () => pedidosAbiertos.filter((p) => minutosDesde(p.created_at) >= 12),
+    [pedidosAbiertos]
+  );
 
-      let texto = a.mensaje || "Movimiento reciente en reservas";
+  const pedidosUrgentes = useMemo(
+    () => pedidosAbiertos.filter((p) => minutosDesde(p.created_at) >= 20),
+    [pedidosAbiertos]
+  );
 
-      if (a.tipo === "reprogramacion") {
-        const anterior = formatearFechaReserva(a.fecha_anterior);
-        const nueva = formatearFechaReserva(a.fecha_nueva);
-        texto = `${a.cliente_nombre || "Un cliente"} ha reprogramado su reserva de ${anterior} a ${nueva}`;
-      }
+  const mesasAbiertas = useMemo(() => {
+    const mapa = new Map<string, { mesa: string; pedidos: PedidoQR[]; total: number; maxMinutos: number }>();
 
-      if (a.tipo === "cancelacion") {
-        const anterior = formatearFechaReserva(a.fecha_anterior);
-        texto = `${a.cliente_nombre || "Un cliente"} ha cancelado su reserva del ${anterior}`;
-      }
-
-      return {
-        id: a.id,
-        texto,
-        tiempo,
-        persistente: true,
-      };
+    pedidosAbiertos.forEach((pedido) => {
+      const mesa = pedido.mesa || "Sin mesa";
+      const actual = mapa.get(mesa) || { mesa, pedidos: [], total: 0, maxMinutos: 0 };
+      actual.pedidos.push(pedido);
+      actual.total += numero(pedido.total);
+      actual.maxMinutos = Math.max(actual.maxMinutos, minutosDesde(pedido.created_at));
+      mapa.set(mesa, actual);
     });
 
-    nuevasAcciones.push(...accionesRecientes);
+    return Array.from(mapa.values()).sort((a, b) => b.maxMinutos - a.maxMinutos);
+  }, [pedidosAbiertos]);
 
-    if (reservasEnRiesgo > 0) {
-      nuevasAcciones.push({
-        texto: `Confirmar ${reservasEnRiesgo} reservas pendientes`,
-        tiempo: "Hoy",
-        persistente: false,
+  const reservasPendientes = useMemo(
+    () => reservasHoy.filter((r) => estadoLimpio(r.estado) === "pendiente"),
+    [reservasHoy]
+  );
+
+  const reservasConfirmadas = useMemo(
+    () => reservasHoy.filter((r) => estadoLimpio(r.estado) === "confirmada"),
+    [reservasHoy]
+  );
+
+  const ventasQR = useMemo(
+    () => cierresHoy.reduce((acc, cierre) => acc + numero(cierre.total_cobrado), 0),
+    [cierresHoy]
+  );
+
+  const ticketMedioQR = useMemo(
+    () => (cierresHoy.length > 0 ? ventasQR / cierresHoy.length : 0),
+    [cierresHoy, ventasQR]
+  );
+
+  const acciones = useMemo<Accion[]>(() => {
+    const lista: Accion[] = [];
+
+    if (pedidosUrgentes.length > 0) {
+      lista.push({
+        id: "pedidos-urgentes",
+        prioridad: "alta",
+        titulo: `${pedidosUrgentes.length} pedido${pedidosUrgentes.length === 1 ? "" : "s"} urgente${pedidosUrgentes.length === 1 ? "" : "s"}`,
+        descripcion: "Hay comandas que llevan más de 20 minutos abiertas.",
+        href: "/panel/pedidos-qr",
+        cta: "Abrir cocina",
+        icono: AlertTriangle,
+      });
+    } else if (pedidosLentos.length > 0) {
+      lista.push({
+        id: "pedidos-lentos",
+        prioridad: "media",
+        titulo: `${pedidosLentos.length} pedido${pedidosLentos.length === 1 ? "" : "s"} para revisar`,
+        descripcion: "Algunas comandas llevan más de 12 minutos abiertas.",
+        href: "/panel/pedidos-qr",
+        cta: "Revisar cocina",
+        icono: Clock3,
       });
     }
 
-    if (huecosDetectados > 0) {
-      nuevasAcciones.push({
-        texto: "Promocionar turnos con huecos",
-        tiempo: "Hoy",
-        persistente: false,
+    if (mesasAbiertas.length > 0) {
+      lista.push({
+        id: "mesas-abiertas",
+        prioridad: "media",
+        titulo: `${mesasAbiertas.length} mesa${mesasAbiertas.length === 1 ? "" : "s"} abierta${mesasAbiertas.length === 1 ? "" : "s"}`,
+        descripcion: "Hay cuentas pendientes de cerrar o cobrar.",
+        href: "/panel/pedidos-qr",
+        cta: "Ver mesas",
+        icono: Utensils,
+      });
+    }
+
+    if (reservasPendientes.length > 0) {
+      lista.push({
+        id: "reservas-pendientes",
+        prioridad: "media",
+        titulo: `${reservasPendientes.length} reserva${reservasPendientes.length === 1 ? "" : "s"} pendiente${reservasPendientes.length === 1 ? "" : "s"}`,
+        descripcion: "Conviene confirmarlas antes del servicio.",
+        href: "/reservas",
+        cta: "Ver reservas",
+        icono: CalendarDays,
       });
     }
 
     if (resenasPendientes > 0) {
-      nuevasAcciones.push({
-        texto: "Responder reseñas pendientes",
-        tiempo: "Hoy",
-        persistente: false,
+      lista.push({
+        id: "resenas-pendientes",
+        prioridad: "baja",
+        titulo: `${resenasPendientes} reseña${resenasPendientes === 1 ? "" : "s"} sin responder`,
+        descripcion: "Responder ayuda a cuidar la imagen en Google.",
+        href: "/resenas",
+        cta: "Responder",
+        icono: MessageSquareWarning,
       });
     }
 
-    if (diaFlojo) {
-      nuevasAcciones.push({
-        texto: `Promocionar ${diaFlojo.dia} (${diaFlojo.ocupacion}%)`,
-        tiempo: "Esta semana",
-        persistente: false,
+    if (lista.length === 0) {
+      lista.push({
+        id: "todo-ok",
+        prioridad: "ok",
+        titulo: "Todo bajo control",
+        descripcion: "No hay urgencias ahora mismo. Revisa métricas y prepara el siguiente servicio.",
+        href: "/panel/pedidos-qr",
+        cta: "Ver cocina",
+        icono: CheckCircle2,
       });
     }
 
-    if (reservasEnRiesgo >= 3) {
-      nuevasAlertas.push({
-        texto: "Varias reservas siguen sin confirmar",
-      });
-    }
+    return lista.slice(0, 5);
+  }, [pedidosUrgentes, pedidosLentos, mesasAbiertas, reservasPendientes, resenasPendientes]);
 
-    const pctFinal = Math.max(pctComidaState, pctCenaState);
+  const actividad = useMemo(() => {
+    const reservas = reservasHoy.slice(0, 4).map((r) => ({
+      id: `reserva-${r.id}`,
+      titulo: r.nombre_cliente || "Reserva",
+      detalle: `${formatReserva(r.fecha_hora_reserva)} · ${r.personas || 0} pers.`,
+      tipo: "Reserva",
+    }));
 
-    if (pctFinal >= 90) {
-      nuevasAlertas.push({
-        texto: "Ocupación muy alta: revisa la capacidad",
-      });
-    }
+    const pedidos = pedidosHoy.slice(0, 4).map((p) => ({
+      id: `pedido-${p.id}`,
+      titulo: `Mesa ${p.mesa || "-"}`,
+      detalle: `${formatHora(p.created_at)} · ${euro(numero(p.total))}`,
+      tipo: "Pedido QR",
+    }));
 
-    setAcciones(nuevasAcciones.slice(0, 8));
-    setAlertas(nuevasAlertas.slice(0, 6));
-  }, [
-    accionesRestaurante,
-    reservasEnRiesgo,
-    huecosDetectados,
-    resenasPendientes,
-    pctComidaState,
-    pctCenaState,
-    diaFlojo,
-  ]);
+    return [...pedidos, ...reservas].slice(0, 6);
+  }, [reservasHoy, pedidosHoy]);
 
-  const marcarAccionLeida = async (id: string) => {
-    const anterior = accionesRestaurante;
+  const panelVacio =
+    !loading &&
+    reservasHoy.length === 0 &&
+    pedidosHoy.length === 0 &&
+    cierresHoy.length === 0 &&
+    clientesSemana === 0;
 
-    setAccionesRestaurante((prev) => prev.filter((a) => a.id !== id));
-
-    const { error } = await supabase
-      .from("acciones_restaurante")
-      .update({ leida: true })
-      .eq("id", id);
-
-    if (error) {
-      console.error("MARCAR ACCION LEIDA ERROR", error);
-      setAccionesRestaurante(anterior);
-    }
-  };
-
-  const stats = [
+  const kpis = [
     {
-      id: "reservas",
-      title: "Reservas hoy",
-      value: reservasHoy,
-      context: "Total del día",
-      icon: CalendarDays,
-      color: "blue",
+      titulo: "Reservas hoy",
+      valor: reservasHoy.length,
+      detalle: `${reservasConfirmadas.length} confirmadas · ${reservasPendientes.length} pendientes`,
+      icono: CalendarDays,
       href: "/reservas",
+      tono: "blue",
     },
     {
-      id: "clientes",
-      title: "Clientes nuevos",
-      value: clientesNuevosHoy,
-      context: "Hoy",
-      icon: Users,
-      color: "green",
+      titulo: "Ventas QR cobradas",
+      valor: euro(ventasQR),
+      detalle: cierresHoy.length > 0 ? `${cierresHoy.length} cierres · ticket ${euro(ticketMedioQR)}` : "Sin cierres todavía",
+      icono: Wallet,
+      href: "/panel/pedidos-qr",
+      tono: "emerald",
+    },
+    {
+      titulo: "Mesas abiertas",
+      valor: mesasAbiertas.length,
+      detalle: `${pedidosAbiertos.length} pedidos activos ahora`,
+      icono: Utensils,
+      href: "/panel/pedidos-qr",
+      tono: "indigo",
+    },
+    {
+      titulo: "Clientes semana",
+      valor: clientesSemana,
+      detalle: "Nuevos clientes registrados",
+      icono: Users,
       href: "/clientes",
-    },
-    {
-      id: "resenas",
-      title: "Reseñas pendientes",
-      value: resenasPendientes,
-      context: "Impacta en Google",
-      icon: MessageSquareWarning,
-      color: "red",
-      href: "/resenas",
-    },
-    {
-      id: "ocupacion",
-      title: "Ocupación",
-      value: ocupacionValor,
-      context: ocupacionContexto,
-      icon: Percent,
-      color: "purple",
-      href: "/ocupacion",
+      tono: "violet",
     },
   ];
 
-  const colorMap: Record<
-    string,
-    { bg: string; icon: string; line: string; badge: string; badgeText: string }
-  > = {
-    blue: {
-      bg: isDark ? "bg-blue-500/15" : "bg-blue-100",
-      icon: isDark ? "text-blue-300" : "text-blue-700",
-      line: "from-blue-500 to-cyan-400",
-      badge: isDark ? "bg-blue-500/15" : "bg-blue-100",
-      badgeText: isDark ? "text-blue-300" : "text-blue-700",
+  const metricasMensualesCards = [
+    {
+      titulo: "Reservas",
+      descripcion: "Reservas creadas este mes",
+      actual: metricasMensuales.reservas_mes_actual,
+      anterior: metricasMensuales.reservas_mes_anterior,
+      icono: CalendarDays,
+      tono: "blue",
+      formato: "numero" as const,
     },
-    green: {
-      bg: isDark ? "bg-emerald-500/15" : "bg-emerald-100",
-      icon: isDark ? "text-emerald-300" : "text-emerald-700",
-      line: "from-emerald-500 to-teal-400",
-      badge: isDark ? "bg-emerald-500/15" : "bg-emerald-100",
-      badgeText: isDark ? "text-emerald-300" : "text-emerald-700",
+    {
+      titulo: "Clientes",
+      descripcion: "Clientes nuevos captados",
+      actual: metricasMensuales.clientes_nuevos_mes_actual,
+      anterior: metricasMensuales.clientes_nuevos_mes_anterior,
+      icono: Users,
+      tono: "emerald",
+      formato: "numero" as const,
     },
-    red: {
-      bg: isDark ? "bg-rose-500/15" : "bg-rose-100",
-      icon: isDark ? "text-rose-300" : "text-rose-700",
-      line: "from-rose-500 to-pink-400",
-      badge: isDark ? "bg-rose-500/15" : "bg-rose-100",
-      badgeText: isDark ? "text-rose-300" : "text-rose-700",
+    {
+      titulo: "Reseñas",
+      descripcion: "Reseñas nuevas registradas",
+      actual: metricasMensuales.resenas_nuevas_mes_actual,
+      anterior: metricasMensuales.resenas_nuevas_mes_anterior,
+      icono: MessageSquareWarning,
+      tono: "violet",
+      formato: "numero" as const,
     },
-    purple: {
-      bg: isDark ? "bg-violet-500/15" : "bg-violet-100",
-      icon: isDark ? "text-violet-300" : "text-violet-700",
-      line: "from-violet-500 to-fuchsia-400",
-      badge: isDark ? "bg-violet-500/15" : "bg-violet-100",
-      badgeText: isDark ? "text-violet-300" : "text-violet-700",
+    {
+      titulo: "Ventas QR",
+      descripcion: `${metricasMensuales.cierres_qr_mes_actual} cierre${metricasMensuales.cierres_qr_mes_actual === 1 ? "" : "s"} este mes`,
+      actual: metricasMensuales.ventas_qr_mes_actual,
+      anterior: metricasMensuales.ventas_qr_mes_anterior,
+      icono: Wallet,
+      tono: "indigo",
+      formato: "euro" as const,
     },
-    amber: {
-      bg: isDark ? "bg-amber-500/15" : "bg-amber-100",
-      icon: isDark ? "text-amber-300" : "text-amber-700",
-      line: "from-amber-500 to-yellow-400",
-      badge: isDark ? "bg-amber-500/15" : "bg-amber-100",
-      badgeText: isDark ? "text-amber-300" : "text-amber-700",
-    },
-  };
+  ].map((m) => ({ ...m, ...deltaMensual(m.actual, m.anterior) }));
 
-  const panelCardClass = isDark
-    ? "rounded-2xl border border-slate-800 bg-slate-950 text-slate-100 shadow-sm"
-    : "rounded-2xl border border-slate-200 bg-white text-slate-900 shadow-sm";
+  const totalActividadMensual =
+    metricasMensuales.reservas_mes_actual +
+    metricasMensuales.clientes_nuevos_mes_actual +
+    metricasMensuales.resenas_nuevas_mes_actual +
+    metricasMensuales.cierres_qr_mes_actual;
 
-  const panelCardHover = isDark
-    ? "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30"
-    : "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-slate-300/40";
+  const totalActividadAnterior =
+    metricasMensuales.reservas_mes_anterior +
+    metricasMensuales.clientes_nuevos_mes_anterior +
+    metricasMensuales.resenas_nuevas_mes_anterior +
+    metricasMensuales.cierres_qr_mes_anterior;
 
-  const panelButtonClass = isDark
-    ? "border border-slate-700 bg-slate-900 text-slate-100"
-    : "border border-slate-300 bg-white text-slate-900";
-
-  const titleTextClass = isDark ? "text-white" : "text-slate-900";
-  const mutedTextClass = isDark ? "text-slate-400" : "text-slate-600";
-  const softTextClass = isDark ? "text-slate-400" : "text-slate-500";
-  const dotTextClass = isDark ? "text-slate-600" : "text-slate-300";
-
-  const iconRingClass = isDark ? "ring-white/10" : "ring-slate-200";
-
-  const headerAccentClass = isDark ? "text-emerald-400" : "text-emerald-600";
-
-  const accionesIconBoxClass = isDark
-    ? "bg-blue-500/15 text-blue-300"
-    : "bg-blue-100 text-blue-700";
-
-  const accionesBadgeClass = isDark
-    ? "bg-blue-500/15 text-blue-300"
-    : "bg-blue-100 text-blue-700";
-
-  const alertasIconBoxClass = isDark
-    ? "bg-rose-500/15 text-rose-300"
-    : "bg-rose-100 text-rose-700";
-
-  const alertasBadgeClass = isDark
-    ? "bg-rose-500/15 text-rose-300"
-    : "bg-rose-100 text-rose-700";
-
-  const accionesHoverClass = isDark ? "hover:bg-white/5" : "hover:bg-slate-50";
-
-  const alertaItemClass = isDark
-    ? "flex items-center gap-2 rounded-lg border border-rose-500/20 bg-rose-500/5 px-2.5 py-2 text-rose-200"
-    : "flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-2 text-rose-700";
-
-  const impactCardClass = isDark
-    ? `group relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-950 p-4 shadow-sm ${panelCardHover}`
-    : `group relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm ${panelCardHover}`;
-
-  const chartInnerClass = isDark
-    ? "rounded-2xl border border-slate-800 bg-slate-950 p-3 shadow-inner shadow-black/30"
-    : "rounded-2xl border border-slate-200 bg-white p-3 shadow-inner shadow-slate-100";
-
-  const tickButtonClass = isDark
-    ? "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-500/30 bg-emerald-500/10 text-emerald-300 transition hover:bg-emerald-500/20"
-    : "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 transition hover:bg-emerald-100";
+  const deltaActividadMensual = deltaMensual(totalActividadMensual, totalActividadAnterior);
+  const ventasMetricas = deltaMensual(metricasMensuales.ventas_qr_mes_actual, metricasMensuales.ventas_qr_mes_anterior);
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between">
-        <div>
-          <h1
-            className={`text-2xl font-extrabold uppercase tracking-wider ${titleTextClass}`}
-          >
-            {restaurante ? restaurante.nombre : "Dashboard"}
-          </h1>
+    <div className="min-h-screen space-y-6 bg-slate-50 text-slate-950">
+      <section className="overflow-hidden rounded-[28px] border border-blue-100 bg-white shadow-sm">
+        <div className="relative p-6 sm:p-8">
+          <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-blue-100 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-cyan-100 blur-3xl" />
 
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
-            <span
-              className={`inline-flex items-center gap-1 font-medium ${headerAccentClass}`}
-            >
-              <Zap size={14} />
-              Panel en tiempo real
-            </span>
-            <span className={dotTextClass}>•</span>
-            <span className={mutedTextClass}>{lastUpdated}</span>
+          <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-extrabold uppercase tracking-widest text-blue-700">
+                <Zap size={14} /> Panel inteligente
+              </div>
 
-            {refreshing && (
-              <>
-                <span className={dotTextClass}>•</span>
-                <span className={`inline-flex items-center gap-1 ${mutedTextClass}`}>
-                  <RefreshCw size={13} className="animate-spin" />
-                  Refrescando
-                </span>
-              </>
-            )}
+              <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+                {restauranteNombre}
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm font-medium text-slate-600">
+                Resumen de hoy, cocina, mesas abiertas, reservas y acciones importantes para el restaurante.
+              </p>
+
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
+                <span className="rounded-full bg-slate-100 px-3 py-1">{lastUpdated}</span>
+                {refreshing && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                    <RefreshCw size={13} className="animate-spin" /> Refrescando
+                  </span>
+                )}
+                {pedidosUrgentes.length > 0 && (
+                  <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">
+                    {pedidosUrgentes.length} urgente{pedidosUrgentes.length === 1 ? "" : "s"}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-end">
+              <button
+                onClick={() => cargarDashboard("refresh")}
+                disabled={loading || refreshing}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
+              >
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} /> Actualizar
+              </button>
+              <Link
+                href="/panel/pedidos-qr"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-800 hover:shadow-md"
+              >
+                <ChefHat size={16} /> Cocina
+              </Link>
+              <Link
+                href="/reservas"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <CalendarDays size={16} /> Reservas
+              </Link>
+              <Link
+                href="/panel/menu-dia"
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+              >
+                <Utensils size={16} /> Menú
+              </Link>
+            </div>
           </div>
         </div>
+      </section>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => cargarDashboard("refresh")}
-            disabled={refreshing || loadingInicial}
-            className={`h-10 w-10 rounded-xl ${panelButtonClass} shadow-sm transition hover:shadow-md disabled:opacity-50`}
-            title="Refrescar"
-          >
-            <RefreshCw size={16} className="mx-auto" />
-          </button>
-
-          <button
-            onClick={toggle}
-            className={`h-10 w-10 rounded-xl ${panelButtonClass} shadow-sm transition hover:shadow-md`}
-            title="Cambiar tema"
-          >
-            <Moon size={16} className="mx-auto" />
-          </button>
-
-          <Link
-            href="/estadisticas"
-            className={`rounded-xl px-4 py-2 ${panelButtonClass} shadow-sm transition hover:shadow-md`}
-          >
-            Estadísticas
-          </Link>
-
-          <Link
-            href="/ajustes"
-            className={`rounded-xl px-4 py-2 ${panelButtonClass} shadow-sm transition hover:shadow-md`}
-          >
-            Ajustes
-          </Link>
-        </div>
-      </div>
-
-      {dashboardError && (
-        <div
-          className={
-            isDark
-              ? "rounded-2xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm text-amber-200"
-              : "rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-700"
-          }
-        >
-          {dashboardError}
+      {error && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+          {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-6">
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
-          {stats.map((stat) => {
-            const Icon = stat.icon;
-            const c = colorMap[stat.color];
+      {panelVacio && (
+        <section className="rounded-[28px] border border-blue-100 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="flex items-start gap-4">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                <Sparkles size={22} />
+              </div>
+              <div>
+                <p className="text-xs font-black uppercase tracking-widest text-blue-700">Restaurante recién instalado</p>
+                <h2 className="mt-1 text-2xl font-black text-slate-950">Siguiente paso: hacer una prueba real</h2>
+                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
+                  Este panel todavía no tiene actividad. Crea o revisa la carta, copia un QR de mesa y haz un pedido de prueba para comprobar cocina, cuenta y cierre de mesa.
+                </p>
+              </div>
+            </div>
 
-            return (
+            <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[520px]">
+              <Link href="/panel/carta-productos" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-black text-slate-900 transition hover:bg-blue-50">
+                Carta
+              </Link>
+              <Link href="/panel/qr-mesas" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white transition hover:bg-blue-800">
+                <QrCode size={16} /> QR mesas
+              </Link>
+              <Link href="/panel/pedidos-qr" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm font-black text-slate-900 transition hover:bg-blue-50">
+                Cocina
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
+
+      <div className="flex justify-end">
+        <Link
+          href="/estadisticas"
+          className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-100"
+        >
+          <BarChart3 size={14} /> Ver métricas avanzadas
+        </Link>
+      </div>
+
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {kpis.map((kpi) => {
+          const Icon = kpi.icono;
+          const tonos: Record<string, string> = {
+            blue: "bg-blue-50 text-blue-700 border-blue-100",
+            emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
+            indigo: "bg-indigo-50 text-indigo-700 border-indigo-100",
+            violet: "bg-violet-50 text-violet-700 border-violet-100",
+          };
+
+          return (
+            <Link
+              href={kpi.href}
+              key={kpi.titulo}
+              className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${tonos[kpi.tono]}`}>
+                  <Icon size={22} />
+                </div>
+                <ArrowRight size={17} className="mt-1 text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-700" />
+              </div>
+              <p className="mt-5 text-xs font-black uppercase tracking-widest text-slate-500">{kpi.titulo}</p>
+              <p className="mt-2 text-3xl font-black text-slate-950">{loading ? "..." : kpi.valor}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-500">{kpi.detalle}</p>
+            </Link>
+          );
+        })}
+      </section>
+
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Qué hacer ahora</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-950">Acciones recomendadas</h2>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
+              {acciones.length} acción{acciones.length === 1 ? "" : "es"}
+            </span>
+          </div>
+
+          <div className="space-y-3">
+            {acciones.map((accion) => {
+              const Icon = accion.icono;
+              const prioridadClass =
+                accion.prioridad === "alta"
+                  ? "border-rose-200 bg-rose-50 text-rose-800"
+                  : accion.prioridad === "media"
+                    ? "border-blue-200 bg-blue-50 text-blue-800"
+                    : accion.prioridad === "ok"
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-slate-200 bg-slate-50 text-slate-800";
+
+              return (
+                <Link
+                  href={accion.href}
+                  key={accion.id}
+                  className={`group flex flex-col gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center sm:justify-between ${prioridadClass}`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/80 shadow-sm">
+                      <Icon size={20} />
+                    </span>
+                    <div>
+                      <p className="font-black">{accion.titulo}</p>
+                      <p className="mt-1 text-sm font-semibold opacity-80">{accion.descripcion}</p>
+                    </div>
+                  </div>
+                  <span className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-black shadow-sm transition group-hover:translate-x-1">
+                    {accion.cta} <ArrowRight size={15} />
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-5 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Cocina</p>
+              <h2 className="mt-1 text-2xl font-black text-slate-950">Estado en vivo</h2>
+            </div>
+            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+              <ChefHat size={22} />
+            </span>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl bg-slate-50 p-3">
+              <p className="text-2xl font-black text-slate-950">{pedidosAbiertos.length}</p>
+              <p className="text-xs font-bold text-slate-500">Activos</p>
+            </div>
+            <div className="rounded-2xl bg-amber-50 p-3">
+              <p className="text-2xl font-black text-amber-700">{pedidosLentos.length}</p>
+              <p className="text-xs font-bold text-amber-700">Revisar</p>
+            </div>
+            <div className="rounded-2xl bg-rose-50 p-3">
+              <p className="text-2xl font-black text-rose-700">{pedidosUrgentes.length}</p>
+              <p className="text-xs font-bold text-rose-700">Urgentes</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {pedidosAbiertos.length === 0 && (
+              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-500">
+                No hay comandas abiertas ahora.
+              </div>
+            )}
+
+            {pedidosAbiertos.slice(0, 4).map((pedido) => {
+              const mins = minutosDesde(pedido.created_at);
+              return (
+                <Link
+                  href="/panel/pedidos-qr"
+                  key={pedido.id}
+                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3 transition hover:bg-blue-50"
+                >
+                  <div>
+                    <p className="font-black text-slate-950">Mesa {pedido.mesa || "-"}</p>
+                    <p className="text-xs font-bold text-slate-500">{estadoLimpio(pedido.estado)} · {euro(numero(pedido.total))}</p>
+                  </div>
+                  <span className={mins >= 20 ? "rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700" : mins >= 12 ? "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-700" : "rounded-full bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-700"}>
+                    {mins} min
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Mesas</p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">Abiertas ahora</h2>
+            </div>
+            <CreditCard size={21} className="text-blue-700" />
+          </div>
+
+          <div className="space-y-3">
+            {mesasAbiertas.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-500">
+                Sin mesas abiertas.
+              </p>
+            )}
+
+            {mesasAbiertas.slice(0, 5).map((mesa) => (
               <Link
-                key={stat.id}
-                href={stat.href}
-                className={`group relative overflow-hidden p-4 ${panelCardClass} ${panelCardHover}`}
+                href="/panel/pedidos-qr"
+                key={mesa.mesa}
+                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3 transition hover:bg-blue-50"
               >
-                <div className={`mb-3 h-1 w-full rounded-full bg-gradient-to-r ${c.line}`} />
-
-                <div className="flex items-start gap-3">
-                  <div
-                    className={`flex h-12 w-12 items-center justify-center rounded-2xl ring-1 ${iconRingClass} ${c.bg}`}
-                  >
-                    <Icon size={22} className={c.icon} />
-                  </div>
-
-                  <div className="min-w-0">
-                    <p
-                      className={`text-xs font-medium uppercase tracking-widest ${softTextClass}`}
-                    >
-                      {stat.title}
-                    </p>
-                    <p
-                      className={`mt-1 text-3xl font-extrabold leading-none ${titleTextClass}`}
-                    >
-                      {loadingInicial ? "..." : stat.value}
-                    </p>
-                    <p className={`mt-2 text-xs ${mutedTextClass}`}>
-                      {stat.context}
-                    </p>
-                  </div>
+                <div>
+                  <p className="font-black text-slate-950">Mesa {mesa.mesa}</p>
+                  <p className="text-xs font-bold text-slate-500">{mesa.pedidos.length} pedido{mesa.pedidos.length === 1 ? "" : "s"} · {mesa.maxMinutos} min</p>
                 </div>
+                <p className="font-black text-slate-950">{euro(mesa.total)}</p>
               </Link>
-            );
-          })}
-        </div>
-
-        <div className="grid grid-cols-1 gap-5 lg:col-span-2">
-          <div className={`${panelCardClass} p-5 ${panelCardHover}`}>
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${accionesIconBoxClass}`}
-                >
-                  <Sparkles size={18} />
-                </span>
-                <p className={`text-sm font-bold uppercase ${titleTextClass}`}>
-                  Acciones
-                </p>
-              </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${accionesBadgeClass}`}
-              >
-                {acciones.length}
-              </span>
-            </div>
-
-            <ul className="space-y-2.5 text-sm">
-              {acciones.length === 0 && (
-                <li className={mutedTextClass}>
-                  {loadingInicial ? "Cargando acciones..." : "Todo al día"}
-                </li>
-              )}
-
-              {acciones.map((a, i) => (
-                <li
-                  key={a.id ?? i}
-                  className={`flex items-start justify-between gap-3 rounded-lg px-2 py-1.5 transition ${accionesHoverClass}`}
-                >
-                  <div className="min-w-0 flex-1">
-                    <span className={`font-medium ${titleTextClass}`}>{a.texto}</span>
-                    <div className={`mt-1 text-xs ${mutedTextClass}`}>{a.tiempo}</div>
-                  </div>
-
-                  {a.persistente ? (
-                    <button
-                      onClick={() => marcarAccionLeida(a.id)}
-                      className={tickButtonClass}
-                      title="Marcar como revisado"
-                    >
-                      <Check size={16} />
-                    </button>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className={`${panelCardClass} p-5 ${panelCardHover}`}>
-            <div className="mb-3 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span
-                  className={`flex h-9 w-9 items-center justify-center rounded-xl ${alertasIconBoxClass}`}
-                >
-                  <Bell size={18} />
-                </span>
-                <p className={`text-sm font-bold uppercase ${titleTextClass}`}>
-                  Alertas
-                </p>
-              </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${alertasBadgeClass}`}
-              >
-                {alertas.length}
-              </span>
-            </div>
-
-            <ul className="space-y-2 text-sm">
-              {alertas.length === 0 && (
-                <li className={mutedTextClass}>
-                  {loadingInicial ? "Cargando alertas..." : "Sin alertas"}
-                </li>
-              )}
-
-              {alertas.map((a, i) => (
-                <li key={i} className={alertaItemClass}>
-                  <span className="h-2 w-2 rounded-full bg-rose-500" />
-                  <span className="font-medium">{a.texto}</span>
-                </li>
-              ))}
-            </ul>
+            ))}
           </div>
         </div>
-      </div>
 
-      <div className={`${panelCardClass} p-5`}>
-        <div className="mb-4 flex items-center justify-between">
-          <p className={`text-sm font-bold uppercase ${titleTextClass}`}>
-            Impacto de hoy
-          </p>
-          <span className={`text-xs ${softTextClass}`}>Acciones rápidas</span>
-        </div>
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Reservas</p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">Servicio de hoy</h2>
+            </div>
+            <CalendarDays size={21} className="text-blue-700" />
+          </div>
 
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-          {[
-            {
-              id: "pendientes-hoy",
-              title: "Reservas pendientes",
-              value: reservasEnRiesgo,
-              description: "Hoy",
-              href: "/reservas?filtro=pendientes",
-              color: "amber",
-            },
-            {
-              id: "dia-flojo",
-              title: diaFlojo ? "Día flojo detectado" : "Ocupación estable",
-              value: diaFlojo ? `${diaFlojo.ocupacion}%` : "OK",
-              description: diaFlojo ? diaFlojo.dia : "Sin días por debajo del 40%",
-              href: "/ocupacion",
-              color: "red",
-            },
-          ].map((item) => {
-            const c = colorMap[item.color];
+          <div className="space-y-3">
+            {reservasHoy.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-500">
+                No hay reservas hoy.
+              </p>
+            )}
 
-            return (
-              <Link key={item.id} href={item.href} className={impactCardClass}>
-                <div className={`absolute left-0 top-0 h-full w-1 bg-gradient-to-b ${c.line}`} />
-
-                <div className="pl-2">
-                  <div className="mb-2 flex items-center gap-2">
-                    <AlertTriangle size={16} className={c.icon} />
-                    <p
-                      className={`text-xs font-medium uppercase tracking-widest ${softTextClass}`}
-                    >
-                      {item.title}
-                    </p>
-                  </div>
-
-                  <p className={`text-3xl font-extrabold leading-none ${titleTextClass}`}>
-                    {loadingInicial ? "..." : item.value}
-                  </p>
-                  <p className={`mt-2 text-xs ${mutedTextClass}`}>{item.description}</p>
+            {reservasHoy.slice(0, 5).map((reserva) => (
+              <Link
+                href="/reservas"
+                key={reserva.id}
+                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3 transition hover:bg-blue-50"
+              >
+                <div>
+                  <p className="font-black text-slate-950">{reserva.nombre_cliente || "Cliente"}</p>
+                  <p className="text-xs font-bold text-slate-500">{reserva.personas || 0} pers. · {estadoLimpio(reserva.estado)}</p>
                 </div>
+                <p className="font-black text-slate-950">{formatReserva(reserva.fecha_hora_reserva)}</p>
               </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      <div className={`${panelCardClass} p-5`}>
-        <div className="mb-1 flex items-center gap-2">
-          <TrendingUp size={16} className={softTextClass} />
-          <p className={`text-sm font-bold uppercase ${titleTextClass}`}>
-            Reservas de la semana
-          </p>
-        </div>
-
-        <p className={`mb-4 text-xs ${mutedTextClass}`}>
-          Evolución de reservas por día
-        </p>
-
-        <div className={chartInnerClass}>
-          <div className="h-[260px] min-h-[260px] w-full">
-            {restauranteId && <DashboardChart restauranteId={restauranteId} />}
+            ))}
           </div>
         </div>
-      </div>
+
+        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Actividad</p>
+              <h2 className="mt-1 text-xl font-black text-slate-950">Últimos movimientos</h2>
+            </div>
+            <Bell size={21} className="text-blue-700" />
+          </div>
+
+          <div className="space-y-3">
+            {actividad.length === 0 && (
+              <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-500">
+                Sin actividad reciente hoy.
+              </p>
+            )}
+
+            {actividad.map((item) => (
+              <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-black text-slate-950">{item.titulo}</p>
+                  <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-slate-500">
+                    {item.tipo}
+                  </span>
+                </div>
+                <p className="mt-1 text-xs font-bold text-slate-500">{item.detalle}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-black uppercase tracking-widest text-slate-500">Tendencia</p>
+            <h2 className="mt-1 text-2xl font-black text-slate-950">Reservas de la semana</h2>
+          </div>
+          <Link href="/estadisticas" className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-900 transition hover:bg-slate-50">
+            Ver estadísticas <ArrowRight size={15} />
+          </Link>
+        </div>
+
+        <div className="h-[280px] min-h-[280px] rounded-2xl border border-slate-100 bg-slate-50 p-3">
+          {restauranteId && <DashboardChart restauranteId={restauranteId} />}
+        </div>
+      </section>
     </div>
   );
 }
