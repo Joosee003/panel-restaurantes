@@ -225,3 +225,50 @@ html.dark .badge-inactive {
   background: rgba(255, 255, 255, 0.1);
   color: #d1d5db;
 }
+
+/* ========================= PANTALLAS PÚBLICAS AISLADAS ========================= */
+/*
+ * Login y demo tienen una dirección visual propia. Estas reglas evitan que el
+ * tema claro global cambie sus fondos oscuros, títulos, tarjetas o laterales.
+ */
+html:not(.dark) main.theme-dark {
+  background: #030814;
+  color: #ffffff;
+}
+
+html:not(.dark) main.theme-dark h1,
+html:not(.dark) main.theme-dark h2,
+html:not(.dark) main.theme-dark h3,
+html:not(.dark) main.theme-dark h4 {
+  color: inherit;
+}
+
+html:not(.dark) main.theme-dark aside,
+html.dark main.theme-dark aside {
+  background: transparent;
+  color: inherit;
+  border-color: inherit;
+}
+
+main.theme-dark input,
+main.theme-dark select,
+main.theme-dark textarea {
+  background: inherit;
+  color: inherit;
+}
+
+main.theme-dark :focus-visible {
+  outline: 3px solid rgba(96, 165, 250, 0.9);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
