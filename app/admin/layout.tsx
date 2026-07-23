@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Loader2, ShieldCheck } from "lucide-react";
+import { Loader2, LogOut, ShieldCheck } from "lucide-react";
 import { supabase } from "../(app)/lib/supabaseClient";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
@@ -93,5 +93,17 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => router.push("/logout")}
+        className="fixed right-4 top-4 z-[100] inline-flex items-center gap-2 rounded-xl border border-white/15 bg-slate-950/90 px-4 py-2.5 text-xs font-black text-white shadow-xl backdrop-blur transition hover:bg-slate-800"
+      >
+        <LogOut className="h-4 w-4" />
+        Cerrar sesión
+      </button>
+      {children}
+    </>
+  );
 }
