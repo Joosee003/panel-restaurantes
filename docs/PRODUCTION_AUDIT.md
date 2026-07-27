@@ -6,6 +6,8 @@ El panel está publicado, conectado al repositorio correcto y responde correctam
 
 No se detectaron errores de ejecución en los registros de producción consultados durante las últimas 24 horas.
 
+La auditoría automática de lint ha descubierto deuda técnica previa: 171 incidencias, divididas en 130 errores y 41 avisos. El build de previsualización de Vercel sí termina correctamente. El lint se registra temporalmente como auditoría no bloqueante hasta corregir las incidencias por grupos.
+
 ## Inventario confirmado
 
 ### GitHub
@@ -68,6 +70,7 @@ GitHub, Vercel y el despliegue activo están alineados en la misma versión.
 - Vercel conserva despliegues anteriores utilizables para rollback.
 - El dominio funciona con HTTPS.
 - No aparecieron errores de runtime en la consulta realizada.
+- La previsualización de esta rama terminó con estado `READY`.
 
 ## Riesgos pendientes
 
@@ -111,18 +114,38 @@ Estado en esta rama:
 - se añade `X-Frame-Options`;
 - se desactiva `X-Powered-By`.
 
-### 5. Validación automática
+### 5. Deuda de lint
 
-El repositorio tenía scripts de lint y build, pero no un workflow propio de control de calidad.
+Resultado inicial:
 
-Estado en esta rama:
+- 171 incidencias;
+- 130 errores;
+- 41 avisos.
 
-- se añade GitHub Actions para instalar dependencias y ejecutar lint;
-- Vercel seguirá validando el build mediante el despliegue de previsualización del pull request.
+Grupos principales detectados:
+
+- uso extendido de `any`;
+- funciones utilizadas antes de declararse;
+- llamadas que actualizan estado desde efectos;
+- dependencias ausentes en hooks;
+- imágenes sin optimización de Next.js;
+- una carpeta antigua denominada `app copy` que también entra en el análisis.
+
+El informe completo se guarda como artefacto de GitHub Actions en cada ejecución. El control es no bloqueante de manera temporal para no impedir cambios seguros que sí construyen correctamente. Debe pasar a bloqueante cuando la deuda llegue a cero.
+
+Orden de corrección recomendado:
+
+1. revisar y retirar `app copy` si es una copia obsoleta;
+2. corregir errores de orden de declaración;
+3. tipar utilidades compartidas y `safeQuery`;
+4. corregir los efectos y hooks de clientes, alertas y rentabilidad;
+5. tipar carta, productos, ocupación y ventas;
+6. corregir avisos de imágenes y dependencias;
+7. activar lint bloqueante.
 
 ## Pruebas requeridas antes de fusionar esta rama
 
-1. GitHub Actions debe terminar correctamente.
+1. GitHub Actions debe generar el informe de lint.
 2. Vercel debe crear una previsualización `READY`.
 3. `/login` debe seguir cargando.
 4. `/demo` debe seguir cargando.
