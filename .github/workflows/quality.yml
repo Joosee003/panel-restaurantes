@@ -1,0 +1,48 @@
+name: Panel quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  lint-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint audit
+        id: lint
+        continue-on-error: true
+        run: npm run lint > lint-report.txt 2>&1
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lint-report
+          path: lint-report.txt
+          if-no-files-found: error
+
+      - name: Publish lint status
+        if: always()
+        run: |
+          if [ "${{ steps.lint.outcome }}" = "failure" ]; then
+            echo "::warning::El repositorio tiene deuda de lint registrada. Consulta el artefacto lint-report."
+          else
+            echo "Lint completado sin errores."
+          fi
