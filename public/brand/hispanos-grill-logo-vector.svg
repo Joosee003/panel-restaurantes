@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 314" role="img" aria-labelledby="title desc">
+  <title id="title">Hispanos Grill</title>
+  <desc id="desc">Logo de Hispanos Grill con toro, fachada y cubiertos</desc>
+  <rect width="320" height="314" rx="24" fill="#fbfaf7"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M121 52C89 49 63 34 49 15c2 31 25 54 65 62" stroke="#9b8c84" stroke-width="10"/>
+    <path d="M199 52c32-3 58-18 72-37-2 31-25 54-65 62" stroke="#9b8c84" stroke-width="10"/>
+    <path d="M111 60c-18 2-31 10-40 24 18-4 32-1 43 9" fill="#9b8c84" stroke="#9b8c84" stroke-width="6"/>
+    <path d="M209 60c18 2 31 10 40 24-18-4-32-1-43 9" fill="#9b8c84" stroke="#9b8c84" stroke-width="6"/>
+    <path d="M111 55c15-22 31-33 49-33s34 11 49 33l-8 80c-3 32-18 50-41 50s-38-18-41-50z" fill="#9b8c84" stroke="#9b8c84" stroke-width="7"/>
+    <path d="M134 60c8 15 17 25 26 29 9-4 18-14 26-29" stroke="#fbfaf7" stroke-width="10"/>
+    <path d="M129 101c10-8 20-9 30-1M161 100c10-8 20-7 30 1" stroke="#3b241f" stroke-width="5"/>
+    <circle cx="143" cy="103" r="4" fill="#3b241f" stroke="none"/>
+    <circle cx="177" cy="103" r="4" fill="#3b241f" stroke="none"/>
+    <path d="M137 148c7 9 14 13 23 13s16-4 23-13c-6-12-13-18-23-18s-17 6-23 18z" fill="#fbfaf7" stroke="#fbfaf7" stroke-width="4"/>
+    <path d="M148 147h24" stroke="#9b8c84" stroke-width="4"/>
+  </g>
+  <g stroke="#3b241f" stroke-width="5" stroke-linecap="round">
+    <path d="M43 119v62M34 119v21M43 119v21M52 119v21M277 119v62M269 119v20M285 119v20"/>
+  </g>
+  <g fill="#fbfaf7" stroke="#1f5fbf" stroke-width="4" stroke-linejoin="round">
+    <path d="M65 197h190v64H65z"/>
+    <path d="M65 197l28-25 25 25 31-31 31 31 31-25 44 25"/>
+    <path d="M82 218h32v43H82zM134 211h52v50h-52zM206 218h32v43h-32z"/>
+    <path d="M142 222h36M142 233h36M142 244h36"/>
+    <path d="M91 184h15v13H91zM153 178h15v19h-15zM218 184h15v13h-15z"/>
+  </g>
+  <text x="160" y="294" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" fill="#3b241f">hispano’s grill</text>
+</svg>
