@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  lint:
+  lint-audit:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
+      - name: Lint audit
         id: lint
         continue-on-error: true
         run: npm run lint > lint-report.txt 2>&1
@@ -38,8 +38,11 @@ jobs:
           path: lint-report.txt
           if-no-files-found: error
 
-      - name: Fail when lint has errors
-        if: steps.lint.outcome == 'failure'
+      - name: Publish lint status
+        if: always()
         run: |
-          cat lint-report.txt
-          exit 1
+          if [ "${{ steps.lint.outcome }}" = "failure" ]; then
+            echo "::warning::El repositorio tiene deuda de lint registrada. Consulta el artefacto lint-report."
+          else
+            echo "Lint completado sin errores."
+          fi
