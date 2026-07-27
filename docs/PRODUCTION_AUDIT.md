@@ -2,11 +2,13 @@
 
 ## Resumen
 
-El panel está publicado, conectado al repositorio correcto y responde correctamente en el dominio principal. La demo pública también responde, declara datos ficticios, utiliza `noindex, nofollow` y presenta el acceso como solo lectura.
+El panel está publicado, conectado al repositorio oficial y responde correctamente en el dominio principal. La demo pública también responde, declara datos ficticios, utiliza `noindex, nofollow` y presenta el acceso como solo lectura.
 
-No se detectaron errores de ejecución en los registros de producción consultados durante las últimas 24 horas.
+La auditoría se implantó mediante el pull request número 1. La versión resultante se desplegó en producción y fue comprobada después de la publicación.
 
-La auditoría automática de lint ha descubierto deuda técnica previa: 171 incidencias, divididas en 130 errores y 41 avisos. El build de previsualización de Vercel sí termina correctamente. El lint se registra temporalmente como auditoría no bloqueante hasta corregir las incidencias por grupos.
+No se detectaron errores de ejecución en los registros de producción consultados tras el despliegue.
+
+La auditoría automática de lint ha descubierto deuda técnica previa: 171 incidencias, divididas en 130 errores y 41 avisos. El proyecto construye correctamente; el lint se registra temporalmente como auditoría no bloqueante hasta corregir las incidencias por grupos.
 
 ## Inventario confirmado
 
@@ -15,20 +17,22 @@ La auditoría automática de lint ha descubierto deuda técnica previa: 171 inci
 - Repositorio: `Joosee003/panel-restaurantes`
 - Visibilidad: pública
 - Rama principal: `main`
-- Commit desplegado durante la auditoría: `3b59ef43c7a646f9ba8c5f10208ec66d5ab4ef01`
-- Mensaje: `Añadir CTAs de contacto y corregir colores del modo demo`
+- Pull request técnico: `#1`
+- Estado del pull request: fusionado
+- Commit actual auditado: `9e806092b0c4e8d809e5ddb3edd0a3ba878a9417`
+- Mensaje: `Auditar producción y reforzar la seguridad del panel`
 
 ### Vercel
 
 - Proyecto: `panel-restaurantes`
 - ID: `prj_Rqlfs38eGVHBGlfqFWT9xUrVAGvA`
-- Despliegue: `dpl_8jrD4gC6EJsiGmt2vbQvtXX9QHHZ`
+- Despliegue de producción: `dpl_AsyNkcvSU3G672nBhCSvFJpaCJpA`
 - Estado: `READY`
 - Rama: `main`
-- Commit: `3b59ef43c7a646f9ba8c5f10208ec66d5ab4ef01`
+- Commit: `9e806092b0c4e8d809e5ddb3edd0a3ba878a9417`
 - Dominio principal: `panel.gastrohelp.es`
 
-GitHub, Vercel y el despliegue activo están alineados en la misma versión.
+GitHub, Vercel y el despliegue activo quedaron alineados en la misma versión.
 
 ## Rutas comprobadas
 
@@ -38,6 +42,7 @@ GitHub, Vercel y el despliegue activo están alineados en la misma versión.
 - Resuelve hacia `/login`.
 - Muestra el estado de comprobación de sesión.
 - Incluye contacto por WhatsApp y correo.
+- Incluye las nuevas cabeceras de seguridad.
 
 ### `/demo`
 
@@ -49,6 +54,7 @@ GitHub, Vercel y el despliegue activo están alineados en la misma versión.
 - Declara que la sesión está aislada.
 - Declara modo de solo lectura.
 - Incluye reservas, clientes, reseñas, fidelización, rentabilidad, carta, QR y cocina como áreas demostradas.
+- Incluye las nuevas cabeceras de seguridad.
 
 ## Tecnología confirmada
 
@@ -62,15 +68,21 @@ GitHub, Vercel y el despliegue activo están alineados en la misma versión.
 - Recharts.
 - Generación de QR.
 
-## Controles correctos
+## Controles implantados
 
 - `.env*` está excluido mediante `.gitignore`.
 - El despliegue automático desde GitHub está activo.
 - La demo está fuera del índice de buscadores.
 - Vercel conserva despliegues anteriores utilizables para rollback.
 - El dominio funciona con HTTPS.
-- No aparecieron errores de runtime en la consulta realizada.
-- La previsualización de esta rama terminó con estado `READY`.
+- `X-Content-Type-Options: nosniff`.
+- `Referrer-Policy: strict-origin-when-cross-origin`.
+- `Permissions-Policy` restringe cámara, micrófono y geolocalización.
+- `X-Frame-Options: SAMEORIGIN`.
+- `X-Powered-By` está desactivada.
+- GitHub Actions ejecuta una auditoría de lint y guarda el informe como artefacto.
+- La previsualización y el despliegue de producción terminaron con estado `READY`.
+- No aparecieron errores de runtime en la comprobación posterior.
 
 ## Riesgos pendientes
 
@@ -102,19 +114,7 @@ Acciones:
 
 No se ha verificado todavía qué proyecto es producción, qué variables usa Vercel, qué políticas RLS están activas ni cómo se realizan las copias de seguridad.
 
-### 4. Cabeceras de seguridad
-
-Durante la auditoría, la respuesta incluía HSTS, pero no todas las cabeceras básicas utilizadas en la web corporativa.
-
-Estado en esta rama:
-
-- se añade `X-Content-Type-Options`;
-- se añade `Referrer-Policy`;
-- se añade `Permissions-Policy`;
-- se añade `X-Frame-Options`;
-- se desactiva `X-Powered-By`.
-
-### 5. Deuda de lint
+### 4. Deuda de lint
 
 Resultado inicial:
 
@@ -143,15 +143,17 @@ Orden de corrección recomendado:
 6. corregir avisos de imágenes y dependencias;
 7. activar lint bloqueante.
 
-## Pruebas requeridas antes de fusionar esta rama
+## Resultado de la validación
 
-1. GitHub Actions debe generar el informe de lint.
-2. Vercel debe crear una previsualización `READY`.
-3. `/login` debe seguir cargando.
-4. `/demo` debe seguir cargando.
-5. Deben aparecer las nuevas cabeceras.
-6. La demo debe seguir con `noindex, nofollow`.
-7. No deben aparecer errores de runtime.
+- Pull request técnico fusionado correctamente.
+- GitHub Actions genera el informe de lint.
+- Previsualización de Vercel: `READY`.
+- Producción de Vercel: `READY`.
+- `/login`: operativo.
+- `/demo`: operativo.
+- Cabeceras de seguridad: activas.
+- `noindex, nofollow` de la demo: conservado.
+- Errores de runtime posteriores: ninguno detectado.
 
 ## Siguiente auditoría
 
