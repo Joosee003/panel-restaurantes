@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 520" role="img" aria-labelledby="title desc">
+  <title id="title">Hispanos Grill</title>
+  <desc id="desc">Marca provisional de Hispanos Grill con toro y fachada</desc>
+  <rect width="520" height="520" rx="56" fill="#fbfaf7"/>
+  <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M188 113C130 105 88 75 68 35c-3 62 42 106 111 117" stroke="#9b8c84" stroke-width="16"/>
+    <path d="M332 113c58-8 100-38 120-78 3 62-42 106-111 117" stroke="#9b8c84" stroke-width="16"/>
+    <path d="M180 121c24-35 54-52 80-52s56 17 80 52l-13 126c-4 48-30 81-67 81s-63-33-67-81z" fill="#9b8c84" stroke="#9b8c84" stroke-width="10"/>
+    <path d="M215 128c12 24 27 39 45 45 18-6 33-21 45-45" stroke="#fbfaf7" stroke-width="15"/>
+    <path d="M203 189c17-14 34-15 51-2M266 187c17-13 34-12 51 2" stroke="#3b241f" stroke-width="8"/>
+    <circle cx="225" cy="193" r="6" fill="#3b241f" stroke="none"/>
+    <circle cx="295" cy="193" r="6" fill="#3b241f" stroke="none"/>
+    <path d="M220 264c11 13 24 19 40 19s29-6 40-19c-9-18-22-27-40-27s-31 9-40 27z" fill="#fbfaf7" stroke="#fbfaf7" stroke-width="6"/>
+    <path d="M238 262h44" stroke="#9b8c84" stroke-width="7"/>
+  </g>
+  <g stroke="#1f5fbf" stroke-width="7" fill="#fbfaf7" stroke-linejoin="round">
+    <path d="M105 350h310v105H105z"/>
+    <path d="M105 350l45-42 43 42 52-54 51 54 52-43 67 43"/>
+    <path d="M135 382h52v73h-52zM217 371h86v84h-86zM333 382h52v73h-52z"/>
+    <path d="M230 389h60M230 408h60M230 427h60"/>
+    <path d="M148 331h22v19h-22zM255 317h22v33h-22zM354 331h22v19h-22z"/>
+  </g>
+  <text x="260" y="500" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="43" font-weight="700" fill="#3b241f">hispano’s grill</text>
+</svg>
