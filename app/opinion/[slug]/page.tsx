@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import OpinionExperience from "./OpinionExperience";
+import OpinionExperienceV2 from "./OpinionExperienceV2";
 
 export const metadata: Metadata = {
-  title: "Comparte tu experiencia | GastroHelp",
-  description: "Ayuda al restaurante a seguir mejorando con tu opinión.",
+  title: "Tu opinión | Hispanos Grill",
+  description: "Comparte tu experiencia con Hispanos Grill en unos segundos.",
   robots: {
     index: false,
     follow: false,
@@ -20,7 +20,7 @@ export default async function OpinionPage({
 
   return (
     <Suspense fallback={<OpinionLoading />}>
-      <OpinionExperience slug={slug} />
+      <OpinionExperienceV2 slug={slug} />
     </Suspense>
   );
 }
