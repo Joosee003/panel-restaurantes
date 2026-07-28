@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import ReputationElite from "./ReputationElite";
+import HispanosReputationSuite from "./HispanosReputationSuite";
 
 export const metadata: Metadata = {
-  title: "Reputation Suite | GastroHelp",
+  title: "Reputation Suite | Hispanos Grill",
   description:
-    "Centro de control privado para opiniones, recuperación de clientes, insights y materiales QR.",
+    "Centro privado de reputación, seguimiento, insights y materiales QR de Hispanos Grill.",
   robots: { index: false, follow: false },
 };
 
 export default function OpinionesAdminPage() {
-  return <ReputationElite />;
+  return <HispanosReputationSuite />;
 }
