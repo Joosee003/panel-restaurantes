@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import OpinionesDashboardV2 from "./OpinionesDashboardV2";
+import ReputationElite from "./ReputationElite";
 
 export const metadata: Metadata = {
   title: "Reputation Suite | GastroHelp",
   description:
-    "Panel privado para gestionar opiniones, insights, seguimientos y materiales QR.",
+    "Centro de control privado para opiniones, recuperación de clientes, insights y materiales QR.",
   robots: { index: false, follow: false },
 };
 
 export default function OpinionesAdminPage() {
-  return <OpinionesDashboardV2 />;
+  return <ReputationElite />;
 }
