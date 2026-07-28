@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import OpinionExperienceV2 from "./OpinionExperienceV2";
+import HispanosOpinionExperience from "./HispanosOpinionExperience";
 
 export const metadata: Metadata = {
   title: "Tu opinión | Hispanos Grill",
@@ -20,17 +20,17 @@ export default async function OpinionPage({
 
   return (
     <Suspense fallback={<OpinionLoading />}>
-      <OpinionExperienceV2 slug={slug} />
+      <HispanosOpinionExperience slug={slug} />
     </Suspense>
   );
 }
 
 function OpinionLoading() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#fbfaf7] px-6">
+    <main className="flex min-h-screen items-center justify-center bg-[#062b5c] px-6 text-white">
       <div className="text-center">
-        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-[#1f5fbf]/20 border-t-[#1f5fbf]" />
-        <p className="mt-4 text-sm font-medium text-[#3b241f]/70">
+        <div className="mx-auto h-10 w-10 animate-spin rounded-full border-4 border-white/20 border-t-white" />
+        <p className="mt-4 text-sm font-bold text-blue-100">
           Preparando tu experiencia…
         </p>
       </div>
