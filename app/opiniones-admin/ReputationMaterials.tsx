@@ -54,7 +54,6 @@ type CollectionDefinition = {
   paper: string;
   ink: string;
   accent: string;
-  photoOpacity: number;
   texture: "classic" | "dark" | "editorial" | "glass";
 };
 
@@ -69,49 +68,45 @@ const collections: CollectionDefinition[] = [
   {
     id: "signature",
     label: "Signature Blue",
-    description: "Blanco cálido, azul profundo y un detalle dorado muy fino. La colección principal para mesa, caja y puerta.",
+    description: "Blanco cálido, azul profundo y un detalle dorado muy fino. La opción más elegante y legible.",
     primary: "#062b5c",
     secondary: "#1559b6",
     paper: "#fffdf8",
     ink: "#08264d",
     accent: "#c89b45",
-    photoOpacity: 0.94,
     texture: "classic",
   },
   {
     id: "brasa",
     label: "Brasa Azul",
-    description: "Más contraste, fotografía protagonista y presencia de marca. Pensada para llamar la atención a distancia.",
+    description: "Fotografía protagonista, azul noche y máximo contraste para puerta, caja y escaparate.",
     primary: "#031b3b",
     secondary: "#1559b6",
     paper: "#061f43",
     ink: "#ffffff",
     accent: "#d2a654",
-    photoOpacity: 0.78,
     texture: "dark",
   },
   {
     id: "editorial",
     label: "Editorial",
-    description: "Mucho aire, tipografía grande y una composición de revista. Premium, limpia y muy fácil de leer.",
+    description: "Mucho aire, jerarquía clara y composición de revista. Limpia, sobria y profesional.",
     primary: "#10233d",
     secondary: "#1559b6",
     paper: "#ffffff",
     ink: "#10233d",
     accent: "#b9d9ff",
-    photoOpacity: 0.82,
     texture: "editorial",
   },
   {
     id: "cristal",
     label: "Cristal Azul",
-    description: "Acabado moderno y luminoso con capas translúcidas. Ideal para metacrilato, pantallas y redes sociales.",
+    description: "Capas luminosas y acabado moderno para metacrilato, pantallas y redes sociales.",
     primary: "#0b4ca1",
     secondary: "#3f9cf5",
     paper: "#eff7ff",
     ink: "#062b5c",
     accent: "#8bc8ff",
-    photoOpacity: 0.9,
     texture: "glass",
   },
 ];
@@ -123,7 +118,7 @@ const materials: MaterialDefinition[] = [
     label: "Sobremesa A6 premium",
     shortLabel: "Sobremesa",
     title: "Tu opinión cuenta",
-    subtitle: "Escanea, valora y ayúdanos a seguir cuidando cada detalle.",
+    subtitle: "Escanea y cuéntanos cómo ha sido tu experiencia.",
     widthMm: 105,
     heightMm: 148,
     useCase: "Metacrilato A6, soporte de mesa o display junto a la carta.",
@@ -138,7 +133,7 @@ const materials: MaterialDefinition[] = [
     label: "Tarjeta portacuentas",
     shortLabel: "Portacuentas",
     title: "Gracias por elegirnos",
-    subtitle: "Antes de irte, ¿nos dejas tu opinión? Solo tardarás unos segundos.",
+    subtitle: "Antes de irte, ¿nos dejas tu opinión?",
     widthMm: 90,
     heightMm: 55,
     useCase: "Tarjeta horizontal para introducir con la cuenta o entregar al cliente.",
@@ -186,7 +181,7 @@ const materials: MaterialDefinition[] = [
     subtitle: "Escanea y comparte tu experiencia.",
     widthMm: 120,
     heightMm: 120,
-    useCase: "Puerta, cristal, caja, mostrador, take away o zona de recogida.",
+    useCase: "Puerta, cristal, caja, mostrador o zona de recogida.",
     photo: "exterior",
     kind: "sticker",
     category: "puerta",
@@ -198,7 +193,7 @@ const materials: MaterialDefinition[] = [
     label: "Mini QR para ticket",
     shortLabel: "Ticket",
     title: "¿Nos valoras?",
-    subtitle: "Escanea el código y cuéntanos cómo ha ido todo.",
+    subtitle: "Escanea y cuéntanos cómo ha ido todo.",
     widthMm: 80,
     heightMm: 45,
     useCase: "Pie de ticket, pequeño expositor de caja o tarjeta de entrega.",
@@ -271,11 +266,7 @@ export default function ReputationMaterials({
   });
 
   useEffect(() => {
-    setOptions((current) => ({
-      ...current,
-      title: selected.title,
-      subtitle: selected.subtitle,
-    }));
+    setOptions((current) => ({ ...current, title: selected.title, subtitle: selected.subtitle }));
   }, [selected]);
 
   const visibleMaterials = useMemo(
@@ -310,7 +301,7 @@ export default function ReputationMaterials({
 
       if (mode === "qr") {
         downloadDataUrl(qr, `qr-${config.slug}-${material.origin}-logo.png`);
-        setMessage("QR de alta corrección con el logo oficial descargado.");
+        setMessage("QR con el logo oficial descargado.");
         return;
       }
 
@@ -326,34 +317,28 @@ export default function ReputationMaterials({
       const filename = `${config.slug}-${material.id}-${collection.id}`;
 
       if (mode === "svg") {
-        downloadBlob(
-          new Blob([svg], { type: "image/svg+xml;charset=utf-8" }),
-          `${filename}-imprenta.svg`,
-        );
-        setMessage("Archivo vectorial descargado. Es la mejor opción para imprenta.");
+        downloadBlob(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }), `${filename}-imprenta.svg`);
+        setMessage("Archivo vectorial descargado para imprenta.");
         return;
       }
 
       if (mode === "print") {
         const printWindow = window.open("", "_blank", "noopener,noreferrer");
         if (!printWindow) throw new Error("popup-blocked");
-        printWindow.document.write(`<!doctype html><html lang="es"><head>
-          <title>${escapeHtml(material.label)}</title>
-          <style>@page{size:${material.widthMm}mm ${material.heightMm}mm;margin:0}html,body{margin:0;width:${material.widthMm}mm;height:${material.heightMm}mm;overflow:hidden;background:#fff}svg{display:block;width:100%;height:100%}</style>
-          </head><body>${svg}<script>window.onload=()=>setTimeout(()=>window.print(),450);<\/script></body></html>`);
+        printWindow.document.write(`<!doctype html><html lang="es"><head><title>${escapeHtml(material.label)}</title><style>@page{size:${material.widthMm}mm ${material.heightMm}mm;margin:0}html,body{margin:0;width:${material.widthMm}mm;height:${material.heightMm}mm;overflow:hidden;background:#fff}svg{display:block;width:100%;height:100%}</style></head><body>${svg}<script>window.onload=()=>setTimeout(()=>window.print(),450);<\/script></body></html>`);
         printWindow.document.close();
-        setMessage("Impresión preparada. Selecciona «Guardar como PDF» para enviarlo a imprenta.");
+        setMessage("Impresión preparada. También puedes guardarla como PDF.");
         return;
       }
 
-      const dataUrl = await svgToPng(svg, material);
-      downloadDataUrl(dataUrl, `${filename}-300ppp.png`);
-      setMessage("PNG en alta resolución descargado y listo para imprimir o compartir.");
+      const png = await svgToPng(svg, material);
+      downloadDataUrl(png, `${filename}-300ppp.png`);
+      setMessage("PNG de alta resolución descargado.");
     } catch (error) {
       setMessage(
         error instanceof Error && error.message === "popup-blocked"
           ? "El navegador bloqueó la ventana de impresión. Permite ventanas emergentes y repite."
-          : "No se pudo generar el diseño. Inténtalo de nuevo en unos segundos.",
+          : "No se pudo generar el diseño. Inténtalo de nuevo.",
       );
     } finally {
       setWorking(null);
@@ -373,23 +358,22 @@ export default function ReputationMaterials({
     <div className="space-y-6 pb-8">
       <section className="relative overflow-hidden rounded-[2.5rem] border border-white/20 bg-[#031b3b] p-6 text-white shadow-[0_34px_100px_rgba(6,43,92,.28)] sm:p-8 lg:p-10">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={assetUrl("hero")} alt="Interior de Hispanos Grill" className="absolute inset-0 h-full w-full object-cover opacity-55" />
-        <div className="absolute inset-0 bg-[linear-gradient(92deg,rgba(3,27,59,.99)_0%,rgba(6,43,92,.92)_42%,rgba(6,43,92,.54)_75%,rgba(6,43,92,.34)_100%)]" />
-        <div className="absolute -right-20 -top-24 h-72 w-72 rounded-full bg-blue-400/20 blur-3xl" />
+        <img src={assetUrl("hero")} alt="Interior de Hispanos Grill" className="absolute inset-0 h-full w-full object-cover opacity-50" />
+        <div className="absolute inset-0 bg-[linear-gradient(92deg,rgba(3,27,59,.99)_0%,rgba(6,43,92,.94)_46%,rgba(6,43,92,.48)_100%)]" />
         <div className="relative grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="max-w-3xl">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.19em] text-blue-100 backdrop-blur-xl">
               <Sparkles className="h-3.5 w-3.5" /> Centro de materiales · GastroHelp
             </div>
-            <h2 className="mt-5 text-balance text-3xl font-black tracking-[-.035em] sm:text-5xl lg:text-[3.6rem] lg:leading-[1.02]">
-              Diseños que merecen estar encima de cada mesa.
+            <h2 className="mt-5 text-balance text-3xl font-black tracking-[-.035em] sm:text-5xl lg:text-[3.5rem] lg:leading-[1.02]">
+              Diseños limpios, legibles y listos para colocar.
             </h2>
             <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-blue-100/90 sm:text-base">
-              Cada pieza utiliza el logo oficial, fotografías reales, los tonos azules y blancos de Hispanos Grill y un QR preparado para impresión profesional.
+              Sin palabras amontonadas, sin textos perdidos sobre las fotos y con el QR como protagonista.
             </p>
             <div className="mt-6 flex flex-wrap gap-2">
               <HeroPill icon={<BadgeCheck />} text="Logo oficial" />
-              <HeroPill icon={<ShieldCheck />} text="QR protegido" />
+              <HeroPill icon={<ShieldCheck />} text="Contraste revisado" />
               <HeroPill icon={<Printer />} text="300 ppp" />
               <HeroPill icon={<Sparkles />} text="Firma GastroHelp" />
             </div>
@@ -398,7 +382,7 @@ export default function ReputationMaterials({
             href={`/opinion/${config.slug}?origen=redes`}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-[#062b5c] shadow-2xl transition hover:-translate-y-0.5"
+            className="inline-flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-white px-5 text-sm font-black text-[#062b5c] shadow-2xl transition hover:-translate-y-0.5"
           >
             Ver experiencia pública <ExternalLink className="h-4 w-4" />
           </a>
@@ -415,8 +399,8 @@ export default function ReputationMaterials({
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[.18em] text-[#1559b6]">Colecciones visuales</p>
-            <h3 className="mt-1 text-2xl font-black tracking-tight text-[#10233d]">Elige el carácter del diseño</h3>
-            <p className="mt-1 text-sm font-semibold text-slate-500">Un clic cambia el acabado de toda la pieza, sin tocar el logo ni el QR.</p>
+            <h3 className="mt-1 text-2xl font-black tracking-tight text-[#10233d]">Elige el acabado</h3>
+            <p className="mt-1 text-sm font-semibold text-slate-500">Todos mantienen una jerarquía clara y zonas de lectura protegidas.</p>
           </div>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {collections.map((item) => (
@@ -424,11 +408,7 @@ export default function ReputationMaterials({
                 key={item.id}
                 type="button"
                 onClick={() => setCollectionId(item.id)}
-                className={`group rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 ${
-                  item.id === collection.id
-                    ? "border-[#1559b6] bg-[#eaf4ff] shadow-lg shadow-blue-950/10"
-                    : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-md"
-                }`}
+                className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 ${item.id === collection.id ? "border-[#1559b6] bg-[#eaf4ff] shadow-lg shadow-blue-950/10" : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-md"}`}
               >
                 <span className="flex items-center gap-2 text-xs font-black text-[#10233d]">
                   <span className="h-3.5 w-3.5 rounded-full border-2 border-white shadow" style={{ background: item.primary }} />
@@ -445,7 +425,7 @@ export default function ReputationMaterials({
         <section className="overflow-hidden rounded-[2.2rem] border border-blue-100 bg-white shadow-[0_26px_80px_rgba(6,43,92,.10)]">
           <div className="flex flex-col gap-4 border-b border-blue-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[.17em] text-[#1559b6]">Vista previa en tiempo real</p>
+              <p className="text-[10px] font-black uppercase tracking-[.17em] text-[#1559b6]">Vista previa real</p>
               <h3 className="mt-1 text-xl font-black text-[#10233d]">{selected.label}</h3>
             </div>
             <div className="flex items-center gap-2 rounded-xl bg-slate-100 p-1">
@@ -455,14 +435,7 @@ export default function ReputationMaterials({
           </div>
 
           <div className="min-h-[700px] bg-[radial-gradient(circle_at_top,#f4f9ff_0%,#eaf4ff_45%,#dcecff_100%)] p-4 sm:p-8 lg:p-10">
-            <MaterialPreview
-              material={selected}
-              collection={collection}
-              url={links[selected.id]}
-              restaurantName={restaurant.nombre}
-              options={options}
-              mode={previewMode}
-            />
+            <MaterialPreview material={selected} collection={collection} url={links[selected.id]} restaurantName={restaurant.nombre} options={options} mode={previewMode} />
           </div>
 
           <div className="border-t border-blue-50 bg-white p-5 sm:p-6">
@@ -472,7 +445,7 @@ export default function ReputationMaterials({
                 <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{selected.useCase}</p>
               </div>
               <span className="inline-flex w-fit items-center gap-2 rounded-full bg-[#eaf4ff] px-3 py-1.5 text-[10px] font-black uppercase tracking-wide text-[#1559b6]">
-                <ShieldCheck className="h-3.5 w-3.5" /> Preparado para imprimir
+                <ShieldCheck className="h-3.5 w-3.5" /> Listo para imprimir
               </span>
             </div>
             <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
@@ -498,7 +471,7 @@ export default function ReputationMaterials({
               <span className="text-xs font-black text-[#10233d]">Titular principal</span>
               <input
                 value={options.title}
-                onChange={(event) => setOptions((current) => ({ ...current, title: event.target.value.slice(0, 70) }))}
+                onChange={(event) => setOptions((current) => ({ ...current, title: event.target.value.slice(0, 58) }))}
                 className="mt-2 w-full rounded-xl border border-slate-200 bg-[#f9fbfe] px-3 py-3 text-sm font-bold text-[#10233d] outline-none transition focus:border-[#1559b6] focus:ring-4 focus:ring-blue-100"
               />
             </label>
@@ -506,7 +479,7 @@ export default function ReputationMaterials({
               <span className="text-xs font-black text-[#10233d]">Texto de apoyo</span>
               <textarea
                 value={options.subtitle}
-                onChange={(event) => setOptions((current) => ({ ...current, subtitle: event.target.value.slice(0, 135) }))}
+                onChange={(event) => setOptions((current) => ({ ...current, subtitle: event.target.value.slice(0, 105) }))}
                 rows={3}
                 className="mt-2 w-full resize-none rounded-xl border border-slate-200 bg-[#f9fbfe] px-3 py-3 text-sm font-semibold leading-5 text-[#10233d] outline-none transition focus:border-[#1559b6] focus:ring-4 focus:ring-blue-100"
               />
@@ -544,11 +517,7 @@ export default function ReputationMaterials({
                   key={material.id}
                   type="button"
                   onClick={() => setSelectedId(material.id)}
-                  className={`group flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 ${
-                    selected.id === material.id
-                      ? "border-[#1559b6] bg-[#eaf4ff] shadow-md shadow-blue-950/10"
-                      : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-sm"
-                  }`}
+                  className={`group flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 ${selected.id === material.id ? "border-[#1559b6] bg-[#eaf4ff] shadow-md shadow-blue-950/10" : "border-slate-200 bg-white hover:border-blue-200 hover:shadow-sm"}`}
                 >
                   <div className="relative h-16 w-20 shrink-0 overflow-hidden rounded-xl bg-[#062b5c]">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -618,18 +587,15 @@ function MaterialPreview({
 
   const horizontal = material.widthMm > material.heightMm;
   const square = material.widthMm === material.heightMm;
-  const artworkClass = horizontal
-    ? "aspect-[90/55] w-full max-w-[720px]"
-    : square
-      ? "aspect-square w-full max-w-[500px]"
-      : material.id === "instagram-story"
-        ? "aspect-[9/16] w-full max-w-[350px]"
-        : "aspect-[105/148] w-full max-w-[440px]";
+  const maxWidth = horizontal ? 760 : square ? 500 : material.id === "instagram-story" ? 350 : 445;
 
   if (mode === "artwork") {
     return (
       <div className="grid min-h-[620px] place-items-center">
-        <div className={`relative overflow-hidden rounded-[1.8rem] bg-white shadow-[0_38px_100px_rgba(6,43,92,.27)] ${artworkClass}`}>
+        <div
+          className="relative w-full overflow-hidden rounded-[1.8rem] bg-white shadow-[0_38px_100px_rgba(6,43,92,.27)]"
+          style={{ maxWidth, aspectRatio: `${material.widthMm}/${material.heightMm}` }}
+        >
           {previewUrl ? <img src={previewUrl} alt={`Diseño ${material.label}`} className="h-full w-full object-contain" /> : <PreviewLoader />}
         </div>
       </div>
@@ -640,10 +606,16 @@ function MaterialPreview({
     <div className="relative min-h-[620px] overflow-hidden rounded-[2rem] border border-white/70 bg-[#062b5c] shadow-inner">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={assetUrl(material.category === "puerta" ? "exterior" : "hero")} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />
-      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,27,59,.08),rgba(3,27,59,.38))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(3,27,59,.08),rgba(3,27,59,.42))]" />
       <div className="absolute inset-x-[7%] bottom-[5%] h-[24%] rounded-[50%] bg-black/25 blur-2xl" />
-      <div className={`absolute left-1/2 top-1/2 ${horizontal ? "w-[76%]" : square ? "w-[58%]" : material.id === "instagram-story" ? "w-[35%]" : "w-[44%]"} -translate-x-1/2 -translate-y-1/2 ${material.category === "mesa" ? "rotate-[-2deg]" : material.category === "puerta" ? "rotate-[1deg]" : "rotate-[-1deg]"}`}>
-        <div className={`relative overflow-hidden bg-white shadow-[0_40px_90px_rgba(0,0,0,.45)] ${horizontal ? "rounded-2xl" : square ? "rounded-[2rem]" : "rounded-[1.6rem]"} ${artworkClass}`}>
+      <div
+        className={`absolute left-1/2 top-1/2 w-full -translate-x-1/2 -translate-y-1/2 ${material.category === "mesa" ? "rotate-[-2deg]" : material.category === "puerta" ? "rotate-[1deg]" : "rotate-[-1deg]"}`}
+        style={{ maxWidth: horizontal ? "78%" : square ? "58%" : material.id === "instagram-story" ? "34%" : "44%" }}
+      >
+        <div
+          className="relative w-full overflow-hidden rounded-[1.6rem] bg-white shadow-[0_40px_90px_rgba(0,0,0,.45)]"
+          style={{ aspectRatio: `${material.widthMm}/${material.heightMm}` }}
+        >
           {previewUrl ? <img src={previewUrl} alt={`Mockup ${material.label}`} className="h-full w-full object-contain" /> : <PreviewLoader />}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/25 via-transparent to-black/[.06]" />
         </div>
@@ -704,16 +676,13 @@ async function buildBrandedQr(url: string, logo: string, dark: string) {
   context.fillStyle = "#ffffff";
   context.fillRect(0, 0, 1600, 1600);
   context.drawImage(qrImage, 0, 0, 1600, 1600);
-  const plate = 276;
+  const plate = 260;
   const x = (1600 - plate) / 2;
   const y = x;
-  context.shadowColor = "rgba(6,43,92,.16)";
-  context.shadowBlur = 22;
   context.fillStyle = "#ffffff";
-  roundRect(context, x, y, plate, plate, 52);
+  roundRect(context, x, y, plate, plate, 48);
   context.fill();
-  context.shadowBlur = 0;
-  context.strokeStyle = "rgba(6,43,92,.16)";
+  context.strokeStyle = "rgba(6,43,92,.15)";
   context.lineWidth = 8;
   context.stroke();
   const pad = 30;
@@ -740,82 +709,207 @@ function buildMaterialSvg({
 }) {
   const width = Math.round(material.widthMm * 10);
   const height = Math.round(material.heightMm * 10);
-  const horizontal = width > height;
-  const square = width === height;
-  const dark = collection.texture === "dark";
-  const margin = Math.round(Math.min(width, height) * 0.052);
-  const footerHeight = Math.max(48, Math.round(height * 0.065));
-  const photoHeight = horizontal ? height : Math.round(height * (material.id === "instagram-story" ? 0.42 : 0.31));
-  const baseQrSize = Math.min(width, height) * (horizontal ? 0.43 : square ? 0.47 : material.id === "instagram-story" ? 0.37 : 0.42);
-  const qrSize = Math.round(baseQrSize);
-  const qrX = horizontal ? width - qrSize - margin : (width - qrSize) / 2;
-  const qrY = horizontal ? (height - qrSize) / 2 : height - footerHeight - qrSize - margin * 0.78;
-  const logoSize = Math.round(Math.min(width, height) * (horizontal ? 0.215 : 0.17));
-  const logoX = horizontal ? margin : (width - logoSize) / 2;
-  const logoY = horizontal ? margin : Math.max(margin * 0.75, photoHeight - logoSize * 0.48);
-  const titleSize = Math.max(34, Math.round(Math.min(width, height) * (horizontal ? 0.075 : material.id === "instagram-story" ? 0.065 : 0.064)));
-  const subtitleSize = Math.max(18, Math.round(titleSize * 0.34));
-  const titleLines = wrapText(options.title || material.title, horizontal ? 20 : 19);
-  const subtitleLines = wrapText(options.subtitle || material.subtitle, horizontal ? 34 : 34);
-  const textX = horizontal ? margin : width / 2;
-  const textAnchor = horizontal ? "start" : "middle";
-  const titleY = horizontal ? height * 0.52 : photoHeight + logoSize * 0.72;
-  const paper = dark ? collection.paper : collection.paper;
-  const ink = dark ? "#ffffff" : collection.ink;
-  const subInk = dark ? "#dcecff" : "#35516f";
-  const edgeRadius = material.kind === "sticker" ? width / 2 : Math.max(22, Math.min(width, height) * 0.025);
-  const ctaHeight = Math.max(46, Math.round(titleSize * 0.92));
-  const ctaY = qrY + qrSize + Math.round(margin * 0.27);
-  const stars = "★  ★  ★  ★  ★";
-  const photoMarkup = options.showPhoto
-    ? `<image href="${photo}" x="0" y="0" width="${width}" height="${horizontal ? height : photoHeight}" preserveAspectRatio="xMidYMid slice" opacity="${collection.photoOpacity}"/><rect x="0" y="0" width="${width}" height="${horizontal ? height : photoHeight}" fill="url(#photoShade)"/>`
-    : `<rect x="0" y="0" width="${width}" height="${horizontal ? height : photoHeight}" fill="url(#brandFill)"/>`;
+  const horizontal = width > height * 1.15;
+  const square = Math.abs(width - height) < Math.min(width, height) * 0.08;
+  const title = options.title.trim() || material.title;
+  const subtitle = options.subtitle.trim() || material.subtitle;
+
+  if (horizontal) {
+    return buildHorizontalSvg({ width, height, material, collection, restaurantName, qr, logo, photo, options, title, subtitle });
+  }
+  if (square) {
+    return buildSquareSvg({ width, height, material, collection, restaurantName, qr, logo, photo, options, title, subtitle });
+  }
+  return buildVerticalSvg({ width, height, material, collection, restaurantName, qr, logo, photo, options, title, subtitle });
+}
+
+type SvgArgs = {
+  width: number;
+  height: number;
+  material: MaterialDefinition;
+  collection: CollectionDefinition;
+  restaurantName: string;
+  qr: string;
+  logo: string;
+  photo: string;
+  options: DesignOptions;
+  title: string;
+  subtitle: string;
+};
+
+function buildVerticalSvg(args: SvgArgs) {
+  const { width, height, material, collection, restaurantName, qr, logo, photo, options, title, subtitle } = args;
+  const margin = Math.round(width * 0.055);
+  const photoHeight = Math.round(height * (material.id === "instagram-story" ? 0.34 : 0.25));
+  const logoSize = Math.round(width * 0.17);
+  const logoY = photoHeight - logoSize * 0.48;
+  const footerHeight = Math.max(46, Math.round(height * 0.045));
+  const titleSize = Math.round(width * (material.id === "instagram-story" ? 0.06 : 0.062));
+  const subtitleSize = Math.round(titleSize * 0.34);
+  const titleLines = wrapText(title, material.id === "instagram-story" ? 19 : 18, 2);
+  const subtitleLines = wrapText(subtitle, 36, 2);
+  const contentTop = logoY + logoSize + Math.round(margin * 0.72);
+  const titleStart = contentTop + titleSize;
+  const titleBottom = titleStart + (titleLines.length - 1) * titleSize * 1.05;
+  const subtitleStart = titleBottom + titleSize * 0.62;
+  const subtitleBottom = subtitleStart + (subtitleLines.length - 1) * subtitleSize * 1.35;
+  const qrSize = Math.round(width * (material.id === "instagram-story" ? 0.39 : 0.41));
+  const ctaHeight = Math.max(48, Math.round(width * 0.065));
+  const ctaY = height - footerHeight - ctaHeight - margin * 0.52;
+  const qrY = Math.min(
+    ctaY - qrSize - margin * 0.62,
+    Math.max(subtitleBottom + margin * 0.78, photoHeight + logoSize * 1.35),
+  );
+  const qrX = (width - qrSize) / 2;
+  const paper = collection.texture === "dark" ? "#061f43" : collection.paper;
+  const ink = collection.texture === "dark" ? "#ffffff" : collection.ink;
+  const subInk = collection.texture === "dark" ? "#dcecff" : "#35516f";
+  const borderRadius = material.kind === "sticker" ? width / 2 : Math.max(24, width * 0.03);
 
   return `<?xml version="1.0" encoding="UTF-8"?>
   <svg xmlns="http://www.w3.org/2000/svg" width="${material.widthMm}mm" height="${material.heightMm}mm" viewBox="0 0 ${width} ${height}">
-    <defs>
-      <linearGradient id="photoShade" x1="0" y1="0" x2="${horizontal ? 1 : 0}" y2="1"><stop offset="0" stop-color="${collection.primary}" stop-opacity="${horizontal ? .35 : .05}"/><stop offset="1" stop-color="${collection.primary}" stop-opacity="${horizontal ? .88 : .76}"/></linearGradient>
-      <linearGradient id="brandFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${collection.primary}"/><stop offset="1" stop-color="${collection.secondary}"/></linearGradient>
-      <linearGradient id="footer" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="${collection.primary}"/><stop offset=".55" stop-color="${collection.secondary}"/><stop offset="1" stop-color="${collection.primary}"/></linearGradient>
-      <radialGradient id="glow"><stop offset="0" stop-color="#ffffff" stop-opacity=".32"/><stop offset="1" stop-color="#ffffff" stop-opacity="0"/></radialGradient>
-      <filter id="shadow"><feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#001d45" flood-opacity=".24"/></filter>
-      <filter id="soft"><feGaussianBlur stdDeviation="24"/></filter>
-      <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.4" fill="${collection.secondary}" opacity=".08"/></pattern>
-      <clipPath id="canvas"><rect width="${width}" height="${height}" rx="${edgeRadius}"/></clipPath>
-    </defs>
+    ${commonDefs(collection, width, height, borderRadius)}
     <g clip-path="url(#canvas)">
       <rect width="${width}" height="${height}" fill="${paper}"/>
-      ${photoMarkup}
-      <rect width="${width}" height="${height}" fill="url(#dots)"/>
-      ${collection.texture === "glass" ? `<circle cx="${width * .82}" cy="${height * .18}" r="${width * .22}" fill="url(#glow)" filter="url(#soft)"/>` : ""}
-      ${collection.texture === "editorial" ? `<rect x="0" y="${Math.max(0, photoHeight - 14)}" width="${width}" height="14" fill="${collection.secondary}"/>` : ""}
-      <rect x="0" y="${height - footerHeight}" width="${width}" height="${footerHeight}" fill="url(#footer)"/>
+      ${options.showPhoto ? `<image href="${photo}" x="0" y="0" width="${width}" height="${photoHeight}" preserveAspectRatio="xMidYMid slice"/><rect x="0" y="0" width="${width}" height="${photoHeight}" fill="url(#photoShade)"/>` : `<rect x="0" y="0" width="${width}" height="${photoHeight}" fill="url(#brandFill)"/>`}
+      <rect x="0" y="${photoHeight}" width="${width}" height="${height - photoHeight}" fill="url(#dots)"/>
+      <rect x="0" y="${height - footerHeight}" width="${width}" height="${footerHeight}" fill="${collection.primary}"/>
     </g>
+    <rect x="${margin * 0.4}" y="${margin * 0.4}" width="${width - margin * 0.8}" height="${height - margin * 0.8}" rx="${borderRadius * 0.72}" fill="none" stroke="${collection.accent}" stroke-width="${Math.max(3, width * 0.0022)}"/>
 
-    <rect x="${margin * .42}" y="${margin * .42}" width="${width - margin * .84}" height="${height - margin * .84}" rx="${edgeRadius * .75}" fill="none" stroke="${collection.accent}" stroke-width="${Math.max(3, width * .0021)}" opacity=".95"/>
+    <text x="${width / 2}" y="${Math.max(34, margin * 0.9)}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(15, width * 0.018)}" font-weight="900" letter-spacing="4">${escapeXml(restaurantName.toUpperCase())}</text>
 
     <g filter="url(#shadow)">
-      <rect x="${logoX}" y="${logoY}" width="${logoSize}" height="${logoSize}" rx="${logoSize * .22}" fill="#ffffff" stroke="${collection.accent}" stroke-width="${Math.max(3, logoSize * .018)}"/>
-      <image href="${logo}" x="${logoX + logoSize * .075}" y="${logoY + logoSize * .075}" width="${logoSize * .85}" height="${logoSize * .85}" preserveAspectRatio="xMidYMid meet"/>
+      <rect x="${(width - logoSize) / 2}" y="${logoY}" width="${logoSize}" height="${logoSize}" rx="${logoSize * 0.22}" fill="#ffffff" stroke="${collection.accent}" stroke-width="${Math.max(3, logoSize * 0.018)}"/>
+      <image href="${logo}" x="${(width - logoSize) / 2 + logoSize * 0.08}" y="${logoY + logoSize * 0.08}" width="${logoSize * 0.84}" height="${logoSize * 0.84}" preserveAspectRatio="xMidYMid meet"/>
     </g>
 
-    <text x="${horizontal ? logoX + logoSize + 24 : width / 2}" y="${horizontal ? logoY + logoSize * .52 : logoY + logoSize + titleSize * .38}" text-anchor="${horizontal ? "start" : "middle"}" fill="${horizontal ? "#ffffff" : collection.secondary}" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(16, titleSize * .25)}" font-weight="900" letter-spacing="4">${escapeXml(restaurantName.toUpperCase())}</text>
-
-    <text x="${textX}" y="${titleY - titleSize * .56}" text-anchor="${textAnchor}" fill="${collection.accent}" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(16, titleSize * .27)}" font-weight="900" letter-spacing="5">${stars}</text>
-    ${titleLines.map((line, index) => `<text x="${textX}" y="${titleY + index * titleSize * 1.02}" text-anchor="${textAnchor}" fill="${ink}" font-family="Georgia, 'Times New Roman', serif" font-size="${titleSize}" font-weight="700">${escapeXml(line)}</text>`).join("")}
-    ${subtitleLines.map((line, index) => `<text x="${textX}" y="${titleY + titleLines.length * titleSize * 1.04 + 32 + index * subtitleSize * 1.38}" text-anchor="${textAnchor}" fill="${subInk}" font-family="Arial, Helvetica, sans-serif" font-size="${subtitleSize}" font-weight="650">${escapeXml(line)}</text>`).join("")}
+    ${titleLines.map((line, index) => `<text x="${width / 2}" y="${titleStart + index * titleSize * 1.05}" text-anchor="middle" fill="${ink}" font-family="Georgia, 'Times New Roman', serif" font-size="${titleSize}" font-weight="700">${escapeXml(line)}</text>`).join("")}
+    ${subtitleLines.map((line, index) => `<text x="${width / 2}" y="${subtitleStart + index * subtitleSize * 1.35}" text-anchor="middle" fill="${subInk}" font-family="Arial, Helvetica, sans-serif" font-size="${subtitleSize}" font-weight="650">${escapeXml(line)}</text>`).join("")}
 
     <g filter="url(#shadow)">
-      <rect x="${qrX - 18}" y="${qrY - 18}" width="${qrSize + 36}" height="${qrSize + 36}" rx="${Math.max(24, qrSize * .08)}" fill="#ffffff" stroke="${collection.secondary}" stroke-width="${Math.max(5, qrSize * .012)}"/>
+      <rect x="${qrX - 18}" y="${qrY - 18}" width="${qrSize + 36}" height="${qrSize + 36}" rx="${Math.max(24, qrSize * 0.08)}" fill="#ffffff" stroke="${collection.secondary}" stroke-width="${Math.max(5, qrSize * 0.012)}"/>
       <image href="${qr}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}"/>
     </g>
 
-    ${!horizontal ? `<g><rect x="${width * .17}" y="${ctaY}" width="${width * .66}" height="${ctaHeight}" rx="${ctaHeight * .42}" fill="${collection.primary}" stroke="${collection.accent}" stroke-width="${Math.max(2, width * .0018)}"/><text x="${width / 2}" y="${ctaY + ctaHeight * .64}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(17, titleSize * .28)}" font-weight="900" letter-spacing="2">ESCANEA Y VALÓRANOS</text></g>` : ""}
-
-    ${horizontal ? `<g><rect x="${margin}" y="${height - footerHeight - ctaHeight - margin * .35}" width="${Math.max(210, width * .36)}" height="${ctaHeight}" rx="${ctaHeight * .42}" fill="${collection.primary}" stroke="${collection.accent}" stroke-width="${Math.max(2, width * .0018)}"/><text x="${margin + Math.max(210, width * .36) / 2}" y="${height - footerHeight - ctaHeight - margin * .35 + ctaHeight * .64}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(16, titleSize * .25)}" font-weight="900" letter-spacing="2">ESCANEA AHORA</text></g>` : ""}
-
-    ${options.showGastroHelp ? `<text x="${width / 2}" y="${height - footerHeight * .54}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(13, Math.min(width, height) * .020)}" font-weight="700" letter-spacing="2">REPUTATION SYSTEM BY</text><text x="${width / 2}" y="${height - footerHeight * .17}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(18, Math.min(width, height) * .03)}" font-weight="900">GastroHelp</text>` : `<text x="${width / 2}" y="${height - footerHeight * .3}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(15, Math.min(width, height) * .024)}" font-weight="800">GRACIAS POR AYUDARNOS A MEJORAR</text>`}
+    <rect x="${width * 0.17}" y="${ctaY}" width="${width * 0.66}" height="${ctaHeight}" rx="${ctaHeight * 0.45}" fill="${collection.primary}" stroke="${collection.accent}" stroke-width="${Math.max(2, width * 0.002)}"/>
+    <text x="${width / 2}" y="${ctaY + ctaHeight * 0.64}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(16, width * 0.021)}" font-weight="900" letter-spacing="2">ESCANEA Y VALÓRANOS</text>
+    ${footerText(width, height, footerHeight, options.showGastroHelp)}
   </svg>`;
+}
+
+function buildHorizontalSvg(args: SvgArgs) {
+  const { width, height, material, collection, restaurantName, qr, logo, photo, options, title, subtitle } = args;
+  const margin = Math.round(height * 0.08);
+  const footerHeight = Math.max(28, Math.round(height * 0.08));
+  const contentWidth = Math.round(width * 0.56);
+  const panelX = margin * 0.55;
+  const panelY = margin * 0.55;
+  const panelHeight = height - footerHeight - margin * 1.1;
+  const panelWidth = contentWidth - margin * 0.45;
+  const logoSize = Math.round(height * 0.21);
+  const titleSize = Math.round(height * 0.105);
+  const subtitleSize = Math.round(titleSize * 0.35);
+  const titleLines = wrapText(title, 20, 2);
+  const subtitleLines = wrapText(subtitle, 34, 2);
+  const titleStart = panelY + logoSize + margin * 1.15 + titleSize;
+  const subtitleStart = titleStart + titleLines.length * titleSize * 1.03 + titleSize * 0.42;
+  const ctaHeight = Math.max(34, Math.round(height * 0.10));
+  const ctaY = panelY + panelHeight - ctaHeight - margin * 0.55;
+  const qrSize = Math.round(height * 0.62);
+  const qrX = width - qrSize - margin * 0.72;
+  const qrY = (height - footerHeight - qrSize) / 2;
+  const borderRadius = Math.max(20, height * 0.055);
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+  <svg xmlns="http://www.w3.org/2000/svg" width="${material.widthMm}mm" height="${material.heightMm}mm" viewBox="0 0 ${width} ${height}">
+    ${commonDefs(collection, width, height, borderRadius)}
+    <g clip-path="url(#canvas)">
+      ${options.showPhoto ? `<image href="${photo}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>` : `<rect width="${width}" height="${height}" fill="url(#brandFill)"/>`}
+      <rect width="${width}" height="${height}" fill="url(#horizontalShade)"/>
+      <rect x="0" y="${height - footerHeight}" width="${width}" height="${footerHeight}" fill="${collection.primary}"/>
+    </g>
+    <rect x="${margin * 0.35}" y="${margin * 0.35}" width="${width - margin * 0.7}" height="${height - margin * 0.7}" rx="${borderRadius * 0.75}" fill="none" stroke="${collection.accent}" stroke-width="${Math.max(3, height * 0.008)}"/>
+
+    <rect x="${panelX}" y="${panelY}" width="${panelWidth}" height="${panelHeight}" rx="${borderRadius}" fill="#031b3b" opacity=".86"/>
+    <rect x="${panelX}" y="${panelY}" width="${panelWidth}" height="${panelHeight}" rx="${borderRadius}" fill="none" stroke="#ffffff" stroke-opacity=".16"/>
+
+    <rect x="${panelX + margin * 0.55}" y="${panelY + margin * 0.48}" width="${logoSize}" height="${logoSize}" rx="${logoSize * 0.22}" fill="#ffffff" stroke="${collection.accent}" stroke-width="${Math.max(3, logoSize * 0.02)}"/>
+    <image href="${logo}" x="${panelX + margin * 0.55 + logoSize * 0.08}" y="${panelY + margin * 0.48 + logoSize * 0.08}" width="${logoSize * 0.84}" height="${logoSize * 0.84}" preserveAspectRatio="xMidYMid meet"/>
+    <text x="${panelX + margin * 0.55 + logoSize + margin * 0.45}" y="${panelY + margin * 0.48 + logoSize * 0.58}" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(13, height * 0.035)}" font-weight="900" letter-spacing="4">${escapeXml(restaurantName.toUpperCase())}</text>
+
+    ${titleLines.map((line, index) => `<text x="${panelX + margin * 0.55}" y="${titleStart + index * titleSize * 1.03}" fill="#ffffff" font-family="Georgia, 'Times New Roman', serif" font-size="${titleSize}" font-weight="700">${escapeXml(line)}</text>`).join("")}
+    ${subtitleLines.map((line, index) => `<text x="${panelX + margin * 0.55}" y="${subtitleStart + index * subtitleSize * 1.35}" fill="#dcecff" font-family="Arial, Helvetica, sans-serif" font-size="${subtitleSize}" font-weight="650">${escapeXml(line)}</text>`).join("")}
+
+    <rect x="${panelX + margin * 0.55}" y="${ctaY}" width="${Math.min(panelWidth - margin * 1.1, width * 0.35)}" height="${ctaHeight}" rx="${ctaHeight * 0.45}" fill="${collection.secondary}" stroke="${collection.accent}" stroke-width="${Math.max(2, height * 0.005)}"/>
+    <text x="${panelX + margin * 0.55 + Math.min(panelWidth - margin * 1.1, width * 0.35) / 2}" y="${ctaY + ctaHeight * 0.64}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(12, height * 0.032)}" font-weight="900" letter-spacing="2">ESCANEA AHORA</text>
+
+    <g filter="url(#shadow)">
+      <rect x="${qrX - 18}" y="${qrY - 18}" width="${qrSize + 36}" height="${qrSize + 36}" rx="${Math.max(22, qrSize * 0.08)}" fill="#ffffff" stroke="${collection.secondary}" stroke-width="${Math.max(5, qrSize * 0.012)}"/>
+      <image href="${qr}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}"/>
+    </g>
+    ${footerText(width, height, footerHeight, options.showGastroHelp)}
+  </svg>`;
+}
+
+function buildSquareSvg(args: SvgArgs) {
+  const { width, height, material, collection, restaurantName, qr, logo, photo, options, title, subtitle } = args;
+  const margin = Math.round(width * 0.06);
+  const footerHeight = Math.round(height * 0.07);
+  const logoSize = Math.round(width * 0.16);
+  const titleSize = Math.round(width * 0.07);
+  const subtitleSize = Math.round(titleSize * 0.34);
+  const titleLines = wrapText(title, 17, 2);
+  const subtitleLines = wrapText(subtitle, 30, 2);
+  const qrSize = Math.round(width * 0.36);
+  const qrX = (width - qrSize) / 2;
+  const qrY = height * 0.49;
+  const ctaHeight = Math.round(height * 0.075);
+  const ctaY = height - footerHeight - ctaHeight - margin * 0.35;
+  const borderRadius = material.kind === "sticker" ? width / 2 : width * 0.04;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+  <svg xmlns="http://www.w3.org/2000/svg" width="${material.widthMm}mm" height="${material.heightMm}mm" viewBox="0 0 ${width} ${height}">
+    ${commonDefs(collection, width, height, borderRadius)}
+    <g clip-path="url(#canvas)">
+      ${options.showPhoto ? `<image href="${photo}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice"/>` : `<rect width="${width}" height="${height}" fill="url(#brandFill)"/>`}
+      <rect width="${width}" height="${height}" fill="#031b3b" opacity=".72"/>
+      <rect x="${margin}" y="${margin}" width="${width - margin * 2}" height="${height - footerHeight - margin * 1.25}" rx="${width * 0.04}" fill="#ffffff" opacity=".94"/>
+      <rect x="0" y="${height - footerHeight}" width="${width}" height="${footerHeight}" fill="${collection.primary}"/>
+    </g>
+
+    <rect x="${(width - logoSize) / 2}" y="${margin * 1.35}" width="${logoSize}" height="${logoSize}" rx="${logoSize * 0.22}" fill="#ffffff" stroke="${collection.accent}" stroke-width="${Math.max(3, logoSize * 0.018)}"/>
+    <image href="${logo}" x="${(width - logoSize) / 2 + logoSize * 0.08}" y="${margin * 1.35 + logoSize * 0.08}" width="${logoSize * 0.84}" height="${logoSize * 0.84}" preserveAspectRatio="xMidYMid meet"/>
+    <text x="${width / 2}" y="${margin * 1.35 + logoSize + titleSize * 0.48}" text-anchor="middle" fill="${collection.secondary}" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(15, width * 0.018)}" font-weight="900" letter-spacing="4">${escapeXml(restaurantName.toUpperCase())}</text>
+
+    ${titleLines.map((line, index) => `<text x="${width / 2}" y="${height * 0.30 + index * titleSize * 1.03}" text-anchor="middle" fill="${collection.ink}" font-family="Georgia, 'Times New Roman', serif" font-size="${titleSize}" font-weight="700">${escapeXml(line)}</text>`).join("")}
+    ${subtitleLines.map((line, index) => `<text x="${width / 2}" y="${height * 0.42 + index * subtitleSize * 1.35}" text-anchor="middle" fill="#35516f" font-family="Arial, Helvetica, sans-serif" font-size="${subtitleSize}" font-weight="650">${escapeXml(line)}</text>`).join("")}
+
+    <g filter="url(#shadow)">
+      <rect x="${qrX - 16}" y="${qrY - 16}" width="${qrSize + 32}" height="${qrSize + 32}" rx="${qrSize * 0.08}" fill="#ffffff" stroke="${collection.secondary}" stroke-width="${Math.max(5, qrSize * 0.012)}"/>
+      <image href="${qr}" x="${qrX}" y="${qrY}" width="${qrSize}" height="${qrSize}"/>
+    </g>
+
+    <rect x="${width * 0.20}" y="${ctaY}" width="${width * 0.60}" height="${ctaHeight}" rx="${ctaHeight * 0.45}" fill="${collection.primary}" stroke="${collection.accent}" stroke-width="${Math.max(2, width * 0.002)}"/>
+    <text x="${width / 2}" y="${ctaY + ctaHeight * 0.64}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(15, width * 0.021)}" font-weight="900" letter-spacing="2">ESCANEA Y VALÓRANOS</text>
+    ${footerText(width, height, footerHeight, options.showGastroHelp)}
+  </svg>`;
+}
+
+function commonDefs(collection: CollectionDefinition, width: number, height: number, radius: number) {
+  return `<defs>
+    <linearGradient id="photoShade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${collection.primary}" stop-opacity=".08"/><stop offset="1" stop-color="${collection.primary}" stop-opacity=".86"/></linearGradient>
+    <linearGradient id="horizontalShade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#031b3b" stop-opacity=".96"/><stop offset=".58" stop-color="#031b3b" stop-opacity=".72"/><stop offset="1" stop-color="#031b3b" stop-opacity=".30"/></linearGradient>
+    <linearGradient id="brandFill" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${collection.primary}"/><stop offset="1" stop-color="${collection.secondary}"/></linearGradient>
+    <pattern id="dots" width="34" height="34" patternUnits="userSpaceOnUse"><circle cx="2" cy="2" r="1.4" fill="${collection.secondary}" opacity=".06"/></pattern>
+    <filter id="shadow"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#001d45" flood-opacity=".22"/></filter>
+    <clipPath id="canvas"><rect width="${width}" height="${height}" rx="${radius}"/></clipPath>
+  </defs>`;
+}
+
+function footerText(width: number, height: number, footerHeight: number, showGastroHelp: boolean) {
+  const label = showGastroHelp ? "POWERED BY GASTROHELP" : "GRACIAS POR AYUDARNOS A MEJORAR";
+  return `<text x="${width / 2}" y="${height - footerHeight * 0.34}" text-anchor="middle" fill="#ffffff" font-family="Arial, Helvetica, sans-serif" font-size="${Math.max(12, Math.min(width, height) * 0.019)}" font-weight="800" letter-spacing="2">${label}</text>`;
 }
 
 function roundRect(context: CanvasRenderingContext2D, x: number, y: number, width: number, height: number, radius: number) {
@@ -869,7 +963,7 @@ async function svgToPng(svg: string, material: MaterialDefinition) {
   }
 }
 
-function wrapText(text: string, max: number) {
+function wrapText(text: string, max: number, maxLines = 2) {
   const words = text.trim().split(/\s+/).filter(Boolean);
   const lines: string[] = [];
   let current = "";
@@ -878,12 +972,13 @@ function wrapText(text: string, max: number) {
     if (next.length > max && current) {
       lines.push(current);
       current = word;
+      if (lines.length === maxLines - 1) break;
     } else {
       current = next;
     }
   }
-  if (current) lines.push(current);
-  return lines.slice(0, 3);
+  if (current && lines.length < maxLines) lines.push(current);
+  return lines.slice(0, maxLines);
 }
 
 function escapeXml(value: string) {
