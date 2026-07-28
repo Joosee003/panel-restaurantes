@@ -34,6 +34,8 @@ export default function ReviewHandoff({
 }) {
   const hasComment = Boolean(comment.trim());
   const needsCopy = hasComment && copyState !== "copied";
+  const threshold = Math.max(1, Math.min(5, config.low_rating_threshold ?? 3));
+  const canOfferGoogle = rating > threshold;
 
   return (
     <div className="animate-[fadeIn_.35s_ease-out] text-center">
@@ -96,33 +98,35 @@ export default function ReviewHandoff({
         </div>
       )}
 
-      <div className="mt-6 rounded-[1.5rem] border border-blue-100 bg-[#f7fbff] p-4 text-left">
-        <p className="text-sm font-extrabold text-[#3b241f]">¿También quieres compartirla en Google?</p>
-        <p className="mt-1 text-xs leading-5 text-[#3b241f]/55">
-          Es completamente opcional. Tu opinión para el restaurante ya se ha enviado correctamente.
-        </p>
+      {canOfferGoogle && (
+        <div className="mt-6 rounded-[1.5rem] border border-blue-100 bg-[#f7fbff] p-4 text-left">
+          <p className="text-sm font-extrabold text-[#3b241f]">¿También quieres compartirla en Google?</p>
+          <p className="mt-1 text-xs leading-5 text-[#3b241f]/55">
+            Es completamente opcional. Tu opinión para el restaurante ya se ha enviado correctamente.
+          </p>
 
-        <button
-          type="button"
-          onClick={onOpenGoogle}
-          className="mt-4 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl border-2 bg-white px-5 text-sm font-extrabold transition hover:-translate-y-0.5 hover:shadow-md"
-          style={{ color: config.color_primary, borderColor: `${config.color_primary}35` }}
-        >
-          {hasOpenedGoogle ? "Volver a abrir Google" : needsCopy ? "Copiar comentario y abrir Google" : "Compartir también en Google"}
-          <ExternalLink className="h-4.5 w-4.5" />
-        </button>
-
-        {hasComment && (
           <button
             type="button"
-            onClick={onCopy}
-            className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-xs font-extrabold text-[#3b241f]/60 transition hover:bg-white"
+            onClick={onOpenGoogle}
+            className="mt-4 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl border-2 bg-white px-5 text-sm font-extrabold transition hover:-translate-y-0.5 hover:shadow-md"
+            style={{ color: config.color_primary, borderColor: `${config.color_primary}35` }}
           >
-            {copyState === "copied" ? <ClipboardCheck className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-            {copyState === "copied" ? "Comentario copiado" : "Copiar comentario"}
+            {hasOpenedGoogle ? "Volver a abrir Google" : needsCopy ? "Copiar comentario y abrir Google" : "Compartir también en Google"}
+            <ExternalLink className="h-4.5 w-4.5" />
           </button>
-        )}
-      </div>
+
+          {hasComment && (
+            <button
+              type="button"
+              onClick={onCopy}
+              className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-xs font-extrabold text-[#3b241f]/60 transition hover:bg-white"
+            >
+              {copyState === "copied" ? <ClipboardCheck className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
+              {copyState === "copied" ? "Comentario copiado" : "Copiar comentario"}
+            </button>
+          )}
+        </div>
+      )}
 
       <button
         type="button"
