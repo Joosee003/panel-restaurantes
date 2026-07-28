@@ -9,7 +9,7 @@ import {
   QrCode,
 } from "lucide-react";
 import QRCode from "qrcode";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { OpinionConfig, OriginKey, Restaurant } from "./reputation";
 
 const PX_PER_MM_300_DPI = 300 / 25.4;
@@ -109,7 +109,10 @@ export default function ReputationMaterials({
     }
   }
 
-  async function createMaterial(material: MaterialDefinition, mode: "download" | "print") {
+  async function createMaterial(
+    material: MaterialDefinition,
+    mode: "download" | "print",
+  ) {
     setWorking(`${mode}-${material.id}`);
     setMessage(null);
     try {
@@ -135,7 +138,9 @@ export default function ReputationMaterials({
           </style></head><body><img src="${dataUrl}" alt="${escapeHtml(material.label)}" />
           <script>window.onload=()=>{window.print();};<\/script></body></html>`);
         printWindow.document.close();
-        setMessage("Ventana de impresión preparada. Puedes guardarla como PDF.");
+        setMessage(
+          "Ventana de impresión preparada. Puedes guardarla como PDF.",
+        );
       }
     } catch (error) {
       setMessage(
@@ -160,7 +165,8 @@ export default function ReputationMaterials({
               Un QR distinto para cada punto del restaurante
             </h2>
             <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
-              Cada ubicación tiene su propio enlace. Así podrás saber si convierten mejor las mesas, la caja, la entrada o el portacuentas.
+              Cada ubicación tiene su propio enlace. Así podrás saber si
+              convierten mejor las mesas, la caja, la entrada o el portacuentas.
             </p>
           </div>
           <a
@@ -234,7 +240,7 @@ function MaterialCard({
   onDownload: () => void;
   onPrint: () => void;
 }) {
-  const busy = working?.endsWith(material.id);
+  const busy = Boolean(working?.endsWith(material.id));
 
   return (
     <article className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
@@ -254,8 +260,18 @@ function MaterialCard({
             className="absolute inset-x-0 top-0 h-2"
             style={{ background: config.color_primary }}
           />
-          <div className={material.id === "portacuentas" ? "flex w-full items-center gap-4" : "flex h-full flex-col items-center text-center"}>
-            <div className={material.id === "portacuentas" ? "min-w-0 flex-1" : "mt-3"}>
+          <div
+            className={
+              material.id === "portacuentas"
+                ? "flex w-full items-center gap-4"
+                : "flex h-full flex-col items-center text-center"
+            }
+          >
+            <div
+              className={
+                material.id === "portacuentas" ? "min-w-0 flex-1" : "mt-3"
+              }
+            >
               <p
                 className="text-[9px] font-black uppercase tracking-[0.16em]"
                 style={{ color: config.color_primary }}
@@ -263,7 +279,11 @@ function MaterialCard({
                 {restaurant.nombre}
               </p>
               <h3
-                className={`${material.id === "portacuentas" ? "mt-2 text-base" : "mt-4 text-xl"} font-black leading-tight`}
+                className={`${
+                  material.id === "portacuentas"
+                    ? "mt-2 text-base"
+                    : "mt-4 text-xl"
+                } font-black leading-tight`}
                 style={{ color: config.color_secondary }}
               >
                 {material.title}
@@ -272,7 +292,10 @@ function MaterialCard({
                 {material.subtitle}
               </p>
             </div>
-            <QrPreview url={link} compact={material.id === "portacuentas"} />
+            <QrPreview
+              url={link}
+              compact={material.id === "portacuentas"}
+            />
             {material.id !== "portacuentas" && (
               <p className="mt-auto pt-3 text-[8px] font-black uppercase tracking-[0.14em] text-slate-400">
                 Escanea · Valora · Ayúdanos a mejorar
@@ -285,7 +308,9 @@ function MaterialCard({
       <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <h3 className="text-lg font-black text-slate-950">{material.label}</h3>
+            <h3 className="text-lg font-black text-slate-950">
+              {material.label}
+            </h3>
             <p className="mt-1 text-sm font-semibold leading-5 text-slate-500">
               {material.useCase}
             </p>
@@ -326,13 +351,19 @@ function MaterialCard({
 function QrPreview({ url, compact }: { url: string; compact?: boolean }) {
   const [src, setSrc] = useState("");
 
-  useMemo(() => {
+  useEffect(() => {
     let active = true;
-    QRCode.toDataURL(url, { width: 500, margin: 2, errorCorrectionLevel: "H" })
+    setSrc("");
+    QRCode.toDataURL(url, {
+      width: 500,
+      margin: 2,
+      errorCorrectionLevel: "H",
+    })
       .then((value) => {
         if (active) setSrc(value);
       })
       .catch(() => undefined);
+
     return () => {
       active = false;
     };
@@ -340,12 +371,22 @@ function QrPreview({ url, compact }: { url: string; compact?: boolean }) {
 
   if (!src) {
     return (
-      <div className={`${compact ? "h-24 w-24" : "mt-5 h-32 w-32"} animate-pulse rounded-xl bg-slate-100`} />
+      <div
+        className={`${
+          compact ? "h-24 w-24" : "mt-5 h-32 w-32"
+        } animate-pulse rounded-xl bg-slate-100`}
+      />
     );
   }
 
   // eslint-disable-next-line @next/next/no-img-element
-  return <img src={src} alt="Código QR" className={`${compact ? "h-24 w-24" : "mt-5 h-32 w-32"} rounded-xl`} />;
+  return (
+    <img
+      src={src}
+      alt="Código QR"
+      className={`${compact ? "h-24 w-24" : "mt-5 h-32 w-32"} rounded-xl`}
+    />
+  );
 }
 
 function ActionButton({
@@ -379,7 +420,9 @@ function InfoCard({ title, text }: { title: string; text: string }) {
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <FileDown className="h-5 w-5 text-blue-700" />
       <h3 className="mt-3 text-sm font-black text-slate-950">{title}</h3>
-      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">{text}</p>
+      <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+        {text}
+      </p>
     </div>
   );
 }
@@ -431,7 +474,10 @@ async function renderMaterial({
   context.fillText(restaurant.nombre.toUpperCase(), brandX, padding);
 
   context.fillStyle = config.color_secondary;
-  context.font = `800 ${Math.max(28, Math.round(width * (horizontal ? 0.07 : 0.085)))}px Arial`;
+  context.font = `800 ${Math.max(
+    28,
+    Math.round(width * (horizontal ? 0.07 : 0.085)),
+  )}px Arial`;
   const textWidth = horizontal ? Math.round(width * 0.53) : width - padding * 2;
   const titleY = padding + Math.round(width * 0.085);
   const titleBottom = drawWrappedText(
@@ -456,10 +502,21 @@ async function renderMaterial({
     horizontal ? "left" : "center",
   );
 
-  const qrX = horizontal ? width - padding - qrSize : Math.round((width - qrSize) / 2);
-  const qrY = horizontal ? Math.round((height - qrSize) / 2) : Math.round(height * 0.47);
+  const qrX = horizontal
+    ? width - padding - qrSize
+    : Math.round((width - qrSize) / 2);
+  const qrY = horizontal
+    ? Math.round((height - qrSize) / 2)
+    : Math.round(height * 0.47);
   const qrPadding = Math.round(qrSize * 0.08);
-  roundedRect(context, qrX - qrPadding, qrY - qrPadding, qrSize + qrPadding * 2, qrSize + qrPadding * 2, qrPadding);
+  roundedRect(
+    context,
+    qrX - qrPadding,
+    qrY - qrPadding,
+    qrSize + qrPadding * 2,
+    qrSize + qrPadding * 2,
+    qrPadding,
+  );
   context.fillStyle = "#ffffff";
   context.fill();
   context.drawImage(qrImage, qrX, qrY, qrSize, qrSize);
@@ -468,7 +525,11 @@ async function renderMaterial({
     context.fillStyle = config.color_secondary;
     context.font = `800 ${Math.max(20, Math.round(width * 0.038))}px Arial`;
     context.textAlign = "center";
-    context.fillText("ESCANEA AQUÍ", width / 2, qrY + qrSize + Math.round(height * 0.045));
+    context.fillText(
+      "ESCANEA AQUÍ",
+      width / 2,
+      qrY + qrSize + Math.round(height * 0.045),
+    );
     context.fillStyle = "#94a3b8";
     context.font = `700 ${Math.max(14, Math.round(width * 0.025))}px Arial`;
     context.fillText(
@@ -504,7 +565,9 @@ function drawWrappedText(
     }
   }
   if (line) lines.push(line);
-  lines.forEach((value, index) => context.fillText(value, x, y + index * lineHeight));
+  lines.forEach((value, index) =>
+    context.fillText(value, x, y + index * lineHeight),
+  );
   return y + lines.length * lineHeight;
 }
 
