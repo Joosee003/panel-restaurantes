@@ -44,3 +44,5 @@ jobs:
           git add app/opiniones-admin/ReputationElite.tsx
           git commit -m "Ocultar reseñas respondidas después de 15 días"
           git push
+
+# Triggered after workflow creation.
