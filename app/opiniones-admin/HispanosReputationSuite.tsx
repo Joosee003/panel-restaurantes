@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { HISPANOS_BRAND } from "@/lib/opiniones/hispanos-brand";
+import AspectLabelsEditor from "./AspectLabelsEditor";
 import ReputationElite from "./ReputationElite";
 
 export default function HispanosReputationSuite() {
@@ -35,6 +36,7 @@ export default function HispanosReputationSuite() {
             <span className="hidden items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-emerald-700 lg:flex">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" /> Sistema activo
             </span>
+            <AspectLabelsEditor />
             <a href={HISPANOS_BRAND.instagram} target="_blank" rel="noreferrer" className="hidden h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-black text-[#1559b6] transition hover:-translate-y-0.5 hover:shadow-md md:flex">
               <Instagram className="h-4 w-4" /> Instagram
             </a>
@@ -70,12 +72,8 @@ export default function HispanosReputationSuite() {
                 </div>
               </div>
 
-              <h2 className="mt-8 max-w-2xl text-balance text-2xl font-black leading-tight text-white sm:text-4xl">
-                Todo lo que tus clientes sienten, convertido en decisiones claras.
-              </h2>
-              <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-blue-100/90 sm:text-base">
-                Opiniones, clientes que necesitan respuesta, evolución, insights y materiales listos para imprimir. Sin menús complicados y sin perder tiempo.
-              </p>
+              <h2 className="mt-8 max-w-2xl text-balance text-2xl font-black leading-tight text-white sm:text-4xl">Todo lo que tus clientes sienten, convertido en decisiones claras.</h2>
+              <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-blue-100/90 sm:text-base">Opiniones, evolución, insights y materiales listos para imprimir. Sin menús complicados y sin perder tiempo.</p>
 
               <div className="mt-7 flex flex-wrap gap-3">
                 <a href={HISPANOS_BRAND.googleMaps} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#062b5c] shadow-xl transition hover:-translate-y-0.5">
@@ -98,18 +96,10 @@ export default function HispanosReputationSuite() {
                 <PhotoCard src={HISPANOS_BRAND.food[0]} label="Cocina" className="aspect-square" />
                 <div className="flex aspect-square flex-col justify-between rounded-[1.8rem] border border-white/18 bg-[#041f44]/76 p-5 shadow-2xl backdrop-blur-2xl">
                   <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-blue-100"><Sparkles className="h-5 w-5" /></div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-200">Centro de control</p>
-                    <p className="mt-2 text-2xl font-black">Visible en segundos.</p>
-                    <p className="mt-2 text-xs font-semibold leading-5 text-blue-100/72">Lo importante aparece primero. El resto está a un clic.</p>
-                  </div>
+                  <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-200">Centro de control</p><p className="mt-2 text-2xl font-black">Visible en segundos.</p><p className="mt-2 text-xs font-semibold leading-5 text-blue-100/72">Lo importante aparece primero. El resto está a un clic.</p></div>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-3">
-                <Signal icon={<Star />} label="Opiniones" />
-                <Signal icon={<UtensilsCrossed />} label="Insights" />
-                <Signal icon={<Sparkles />} label="Materiales" />
-              </div>
+              <div className="mt-3 grid grid-cols-3 gap-3"><Signal icon={<Star />} label="Opiniones" /><Signal icon={<UtensilsCrossed />} label="Insights" /><Signal icon={<Sparkles />} label="Materiales" /></div>
             </div>
           </div>
         </div>
@@ -118,72 +108,27 @@ export default function HispanosReputationSuite() {
       <ReputationElite />
 
       <style jsx global>{`
-        .hispanos-suite > main > header {
-          display: none !important;
-        }
-        .hispanos-suite > main {
-          min-height: auto !important;
-          background: #edf4fb !important;
-          color: #10233d !important;
-        }
-        .hispanos-suite > main > div {
-          padding-top: 1.25rem !important;
-          padding-bottom: 2.5rem !important;
-        }
-        .hispanos-suite > main > div > section:first-child {
-          display: none !important;
-        }
-        .hispanos-suite > main nav {
-          position: sticky;
-          top: 73px;
-          z-index: 35;
-          border: 1px solid rgba(21, 89, 182, 0.13) !important;
-          border-radius: 1.25rem !important;
-          box-shadow: 0 16px 46px rgba(6, 43, 92, 0.09) !important;
-          backdrop-filter: blur(20px);
-        }
-        .hispanos-suite > main nav button {
-          transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease;
-        }
-        .hispanos-suite > main nav button:hover {
-          transform: translateY(-1px);
-        }
-        .hispanos-suite > main article,
-        .hispanos-suite > main section {
-          border-color: rgba(21, 89, 182, 0.12) !important;
-        }
-        .hispanos-suite > main article {
-          box-shadow: 0 16px 50px rgba(6, 43, 92, 0.055);
-        }
-        .hispanos-suite > main article:hover {
-          box-shadow: 0 22px 58px rgba(6, 43, 92, 0.095);
-        }
-        @media (max-width: 640px) {
-          .hispanos-suite > main nav {
-            top: 73px;
-          }
-        }
+        .hispanos-suite > main > header { display: none !important; }
+        .hispanos-suite > main { min-height: auto !important; background: #edf4fb !important; color: #10233d !important; }
+        .hispanos-suite > main > div { padding-top: 1.25rem !important; padding-bottom: 2.5rem !important; }
+        .hispanos-suite > main > div > section:first-child { display: none !important; }
+        .hispanos-suite > main nav { position: sticky; top: 73px; z-index: 35; border: 1px solid rgba(21,89,182,.13) !important; border-radius: 1.25rem !important; box-shadow: 0 16px 46px rgba(6,43,92,.09) !important; backdrop-filter: blur(20px); }
+        .hispanos-suite > main nav button { transition: transform 180ms ease, box-shadow 180ms ease, background 180ms ease; }
+        .hispanos-suite > main nav button:hover { transform: translateY(-1px); }
+        .hispanos-suite > main article, .hispanos-suite > main section { border-color: rgba(21,89,182,.12) !important; }
+        .hispanos-suite > main article { box-shadow: 0 16px 50px rgba(6,43,92,.055); }
+        .hispanos-suite > main article:hover { box-shadow: 0 22px 58px rgba(6,43,92,.095); }
+        .hispanos-suite > main button.mb-3.flex.w-full.justify-between:first-of-type { display: none !important; }
+        @media (max-width: 640px) { .hispanos-suite > main nav { top: 73px; } }
       `}</style>
     </div>
   );
 }
 
 function PhotoCard({ src, label, className }: { src: string; label: string; className?: string }) {
-  return (
-    <div className={`group relative overflow-hidden rounded-[1.8rem] border border-white/18 bg-white/10 shadow-2xl ${className ?? ""}`}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" />
-      <div className="absolute inset-0 bg-gradient-to-t from-[#031b3b]/78 via-transparent to-transparent" />
-      <span className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-[#031b3b]/55 px-3 py-1.5 text-[9px] font-black uppercase tracking-[.16em] text-white backdrop-blur-xl">{label}</span>
-    </div>
-  );
+  return <div className={`group relative overflow-hidden rounded-[1.8rem] border border-white/18 bg-white/10 shadow-2xl ${className ?? ""}`}><img src={src} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-[#031b3b]/78 via-transparent to-transparent" /><span className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-[#031b3b]/55 px-3 py-1.5 text-[9px] font-black uppercase tracking-[.16em] text-white backdrop-blur-xl">{label}</span></div>;
 }
 
 function Signal({ icon, label }: { icon: ReactNode; label: string }) {
-  return (
-    <div className="flex items-center gap-2 rounded-2xl border border-white/14 bg-white/[.07] px-3 py-3 text-blue-100 backdrop-blur-xl">
-      <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/[.08] [&_svg]:h-4 [&_svg]:w-4">{icon}</span>
-      <p className="text-[9px] font-black uppercase tracking-wide">{label}</p>
-    </div>
-  );
+  return <div className="flex items-center gap-2 rounded-2xl border border-white/14 bg-white/[.07] px-3 py-3 text-blue-100 backdrop-blur-xl"><span className="grid h-8 w-8 place-items-center rounded-xl bg-white/[.08] [&_svg]:h-4 [&_svg]:w-4">{icon}</span><p className="text-[9px] font-black uppercase tracking-wide">{label}</p></div>;
 }
