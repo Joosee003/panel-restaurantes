@@ -7,7 +7,6 @@ import { HISPANOS_BRAND } from "@/lib/opiniones/hispanos-brand";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 
 const REPUTATION_EMAIL = "grill@hispanosgrill.com";
-const REPUTATION_SLUG = "hispanos-grill";
 
 export default function ReputationAccessPage() {
   const router = useRouter();
@@ -20,10 +19,9 @@ export default function ReputationAccessPage() {
 
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(async ({ data }) => {
+    supabase.auth.getSession().then(({ data }) => {
       if (!active) return;
       if (data.session) {
-        await activateAccess();
         router.replace("/opiniones-admin");
         return;
       }
@@ -33,13 +31,6 @@ export default function ReputationAccessPage() {
       active = false;
     };
   }, [router, supabase]);
-
-  async function activateAccess() {
-    const { error } = await supabase.rpc("activate_reputation_access", {
-      p_slug: REPUTATION_SLUG,
-    });
-    if (error) throw error;
-  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,48 +50,12 @@ export default function ReputationAccessPage() {
     });
 
     if (!signIn.error && signIn.data.session) {
-      try {
-        await activateAccess();
-        router.replace("/opiniones-admin");
-      } catch {
-        await supabase.auth.signOut();
-        setMessage("La cuenta existe, pero no tiene acceso asignado a este restaurante.");
-        setLoading(false);
-      }
-      return;
-    }
-
-    const signUp = await supabase.auth.signUp({
-      email: normalizedEmail,
-      password,
-      options: {
-        data: {
-          nombre: "Hispanos Grill",
-          acceso: "reputacion",
-        },
-      },
-    });
-
-    if (signUp.error) {
-      setMessage("No se pudo iniciar sesión. Revisa la contraseña.");
-      setLoading(false);
-      return;
-    }
-
-    if (!signUp.data.session) {
-      setMessage("La cuenta se ha creado, pero Supabase exige confirmar el correo antes del primer acceso.");
-      setLoading(false);
-      return;
-    }
-
-    try {
-      await activateAccess();
       router.replace("/opiniones-admin");
-    } catch {
-      await supabase.auth.signOut();
-      setMessage("No se pudo terminar de preparar el acceso independiente.");
-      setLoading(false);
+      return;
     }
+
+    setMessage("No se pudo iniciar sesión. Revisa el correo y la contraseña.");
+    setLoading(false);
   }
 
   if (checking) {
