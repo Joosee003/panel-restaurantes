@@ -89,21 +89,15 @@ export default function AspectLabelsEditor() {
     <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">Formulario de opinión</p>
       <h2 className="mt-1 text-xl font-black text-slate-950">Opciones que verá el cliente</h2>
-      <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">Edita las seis palabras de “¿Qué te gustó más?”. Así cada restaurante puede adaptarlas a lo que realmente quiere destacar.</p>
-
+      <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">Edita las seis opciones de “¿Qué te gustó más?”. Los clientes verán exactamente estas palabras al preparar su reseña.</p>
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         {(Object.keys(defaults) as Array<keyof Labels>).map((key) => (
           <label key={key} className="block">
             <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">{defaults[key]}</span>
-            <input
-              value={labels[key]}
-              onChange={(event) => setLabels((current) => ({ ...current, [key]: event.target.value.slice(0, 40) }))}
-              className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
-            />
+            <input value={labels[key]} onChange={(event) => setLabels((current) => ({ ...current, [key]: event.target.value.slice(0, 40) }))} className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
           </label>
         ))}
       </div>
-
       {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
       <button type="button" disabled={saving} onClick={() => void save()} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white disabled:opacity-60">
         {saved && <Check className="h-4 w-4" />}
@@ -120,9 +114,13 @@ export default function AspectLabelsEditor() {
             text = text.replace('import ReputationMaterials from "./ReputationMaterials";\n', 'import ReputationMaterials from "./ReputationMaterials";\nimport AspectLabelsEditor from "./AspectLabelsEditor";\n')
           old = 'function SettingsPanel({ config, saving, save }: { config: OpinionConfig; saving: boolean; save: (config: OpinionConfig) => void; }) { const [draft, setDraft] = useState(config); return <div className="grid gap-5 xl:grid-cols-2">'
           new = 'function SettingsPanel({ config, saving, save }: { config: OpinionConfig; saving: boolean; save: (config: OpinionConfig) => void; }) { const [draft, setDraft] = useState(config); return <div className="space-y-5"><div className="grid gap-5 xl:grid-cols-2">'
-          if old in text:
-            text = text.replace(old, new, 1)
-            text = text.replace('</button></div></div>; }', '</button></div></div><AspectLabelsEditor /></div>; }', 1)
+          if old not in text:
+            raise SystemExit('SettingsPanel start not found')
+          text = text.replace(old, new, 1)
+          ending = '</button></div></div>; }'
+          if ending not in text:
+            raise SystemExit('SettingsPanel ending not found')
+          text = text.replace(ending, '</button></div></div><AspectLabelsEditor /></div>; }', 1)
           reputation.write_text(text)
 
           route = Path('app/api/opiniones/[slug]/route.ts')
