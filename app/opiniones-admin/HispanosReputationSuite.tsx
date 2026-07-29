@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { HISPANOS_BRAND } from "@/lib/opiniones/hispanos-brand";
-import AspectLabelsEditor from "./AspectLabelsEditor";
 import ReputationElite from "./ReputationElite";
 
 export default function HispanosReputationSuite() {
@@ -36,7 +35,6 @@ export default function HispanosReputationSuite() {
             <span className="hidden items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-emerald-700 lg:flex">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" /> Sistema activo
             </span>
-            <AspectLabelsEditor />
             <a href={HISPANOS_BRAND.instagram} target="_blank" rel="noreferrer" className="hidden h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-black text-[#1559b6] transition hover:-translate-y-0.5 hover:shadow-md md:flex">
               <Instagram className="h-4 w-4" /> Instagram
             </a>
