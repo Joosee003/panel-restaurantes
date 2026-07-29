@@ -16,7 +16,31 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       - name: Apply final fixes
-        run: python scripts/finalize_reputation.py
+        run: |
+          python scripts/finalize_reputation.py
+          python - <<'PY'
+          from pathlib import Path
+
+          reputation = Path('app/opiniones-admin/reputation.ts')
+          text = reputation.read_text()
+          if 'aspect_labels?: Partial<Record<AspectKey, string>>;' not in text:
+            text = text.replace(
+              '  contact_prompt_enabled: boolean;\n  active: boolean;',
+              '  contact_prompt_enabled: boolean;\n  aspect_labels?: Partial<Record<AspectKey, string>>;\n  seo_keywords?: string[];\n  active: boolean;',
+              1,
+            )
+          reputation.write_text(text)
+
+          experience = Path('app/opinion/[slug]/OpinionExperienceV2.tsx')
+          text = experience.read_text()
+          guard = '''      !config.auto_open_google ||\n      (comment.trim() && copyState === "failed")'''
+          replacement = '''      !config.auto_open_google ||\n      rating <= Math.max(1, Math.min(5, config.low_rating_threshold ?? 3)) ||\n      (comment.trim() && copyState === "failed")'''
+          if guard in text:
+            text = text.replace(guard, replacement, 1)
+          elif 'rating <= Math.max(1, Math.min(5, config.low_rating_threshold ?? 3))' not in text:
+            raise SystemExit('Could not add low-rating Google guard')
+          experience.write_text(text)
+          PY
       - name: Validate production build
         run: |
           npm ci
@@ -25,6 +49,6 @@ jobs:
         run: |
           git config user.name "GastroHelp Automation"
           git config user.email "actions@users.noreply.github.com"
-          git add app/api/opiniones/[slug]/route.ts app/opiniones-admin/ReputationElite.tsx app/opiniones-admin/AspectLabelsEditor.tsx app/opiniones-admin/HispanosReputationSuite.tsx lib/opiniones/public-review.ts app/opinion/[slug]/ReviewForm.tsx
+          git add app/api/opiniones/[slug]/route.ts app/opiniones-admin/ReputationElite.tsx app/opiniones-admin/AspectLabelsEditor.tsx app/opiniones-admin/HispanosReputationSuite.tsx app/opiniones-admin/reputation.ts lib/opiniones/public-review.ts app/opinion/[slug]/ReviewForm.tsx app/opinion/[slug]/OpinionExperienceV2.tsx
           git commit -m "Cerrar funcionamiento del sistema de reputación"
           git push
