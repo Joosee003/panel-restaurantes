@@ -66,13 +66,29 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    const config = Array.isArray(data) ? data[0] : null;
-    if (!config) {
+    const baseConfig = Array.isArray(data) ? data[0] : null;
+    if (!baseConfig) {
       return NextResponse.json(
         { error: "Este sistema de opiniones no está disponible." },
         { status: 404 },
       );
     }
+
+    const { data: keywordConfig } = await supabase
+      .from("opinion_config")
+      .select("seo_keywords")
+      .eq("slug", normalizedSlug)
+      .maybeSingle();
+
+    const seoKeywords = Array.isArray(keywordConfig?.seo_keywords)
+      ? keywordConfig.seo_keywords
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean)
+          .slice(0, 12)
+      : [];
+
+    const config = { ...baseConfig, seo_keywords: seoKeywords };
 
     return NextResponse.json(
       { config },
@@ -103,7 +119,6 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     const body = (await request.json()) as Record<string, unknown>;
 
-    // Campo trampa para bots. Debe permanecer vacío en la interfaz real.
     if (typeof body.website === "string" && body.website.trim()) {
       return NextResponse.json({ ok: true }, { status: 200 });
     }
