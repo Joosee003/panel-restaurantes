@@ -25,6 +25,29 @@ type CustomConfig = PublicConfig & {
   seo_keywords?: string[];
 };
 
+const positiveOpeners = [
+  "La experiencia fue muy buena.",
+  "Salimos muy contentos.",
+  "Disfrutamos mucho de la visita.",
+  "La experiencia nos dejó muy buenas sensaciones.",
+  "Fue una visita que merece la pena.",
+  "Nos llevamos una impresión muy positiva.",
+];
+
+const neutralOpeners = [
+  "En general la experiencia estuvo bien.",
+  "La visita fue correcta, aunque hay algunos detalles mejorables.",
+  "La experiencia fue buena en líneas generales.",
+  "En conjunto estuvimos a gusto, con algún punto por pulir.",
+];
+
+const negativeOpeners = [
+  "La experiencia podría haber sido bastante mejor.",
+  "Esperábamos una visita diferente.",
+  "Hay varios detalles importantes que deberían revisarse.",
+  "La experiencia no terminó de convencernos.",
+];
+
 export default function ReviewForm({
   config,
   rating,
@@ -76,8 +99,22 @@ export default function ReviewForm({
   const canGenerate = aspects.length > 0;
 
   function prepareComment(closing?: string) {
-    const suggestion = buildSuggestedComment(rating, aspects, closing);
-    if (suggestion) onCommentChange(suggestion);
+    const body = buildSuggestedComment(rating, aspects, closing);
+    if (!body) return;
+
+    const openers = rating >= 4 ? positiveOpeners : rating === 3 ? neutralOpeners : negativeOpeners;
+    const seed = Math.abs(
+      aspects.reduce(
+        (total, aspect, index) =>
+          total +
+          [...aspect].reduce((sum, character) => sum + character.charCodeAt(0), 0) *
+            (index + 1),
+        rating * 97 + Math.floor(Date.now() / 1000),
+      ),
+    );
+    const opener = openers[seed % openers.length];
+    const suggestion = `${opener} ${body}`.replace(/\s{2,}/g, " ").trim();
+    onCommentChange(suggestion.slice(0, 2000));
   }
 
   function toggleKeyword(keyword: string) {
