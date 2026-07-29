@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "re
 import { HISPANOS_BRAND } from "@/lib/opiniones/hispanos-brand";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 
-const REPUTATION_EMAIL = "reputacion@gastrohelp.es";
+const REPUTATION_EMAIL = "grill@hispanosgrill.com";
 const REPUTATION_SLUG = "hispanos-grill";
 
 export default function ReputationAccessPage() {
