@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   Star,
 } from "lucide-react";
+import { useEffect } from "react";
 import type { CopyState, PublicConfig } from "@/lib/opiniones/public-review";
 
 export default function ReviewHandoff({
@@ -37,6 +38,14 @@ export default function ReviewHandoff({
   const threshold = Math.max(1, Math.min(5, config.low_rating_threshold ?? 3));
   const canOfferGoogle = rating > threshold;
 
+  useEffect(() => {
+    if (!canOfferGoogle || hasOpenedGoogle) return;
+    const timeout = window.setTimeout(() => {
+      void onOpenGoogle();
+    }, 1500);
+    return () => window.clearTimeout(timeout);
+  }, [canOfferGoogle, hasOpenedGoogle, onOpenGoogle]);
+
   return (
     <div className="animate-[fadeIn_.35s_ease-out] text-center">
       <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full" style={{ background: `${config.color_primary}12` }}>
@@ -52,7 +61,7 @@ export default function ReviewHandoff({
         Gracias por ayudarnos a mejorar
       </h1>
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#3b241f]/60 sm:text-base">
-        Tu opinión ya ha llegado al equipo de {config.restaurante_nombre}. No necesitas hacer nada más.
+        Tu opinión ya ha llegado al equipo de {config.restaurante_nombre}. {canOfferGoogle ? "Ahora te llevamos a su ficha de Google Maps." : "No necesitas hacer nada más."}
       </p>
 
       <div className="mt-5 flex justify-center gap-1" aria-label={`${rating} estrellas`}>
@@ -82,7 +91,7 @@ export default function ReviewHandoff({
             <ShieldCheck className="h-5 w-5" />
           </div>
           <p className="mt-3 text-sm font-extrabold text-[#3b241f]">Proceso completado</p>
-          <p className="mt-1 text-[11px] leading-5 text-[#3b241f]/52">Puedes cerrar esta página cuando quieras.</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#3b241f]/52">{canOfferGoogle ? "Abriendo la ficha de Google Maps…" : "Puedes cerrar esta página cuando quieras."}</p>
         </div>
       </div>
 
@@ -100,9 +109,9 @@ export default function ReviewHandoff({
 
       {canOfferGoogle && (
         <div className="mt-6 rounded-[1.5rem] border border-blue-100 bg-[#f7fbff] p-4 text-left">
-          <p className="text-sm font-extrabold text-[#3b241f]">¿También quieres compartirla en Google?</p>
+          <p className="text-sm font-extrabold text-[#3b241f]">Abriendo Google Maps…</p>
           <p className="mt-1 text-xs leading-5 text-[#3b241f]/55">
-            Es completamente opcional. Tu opinión para el restaurante ya se ha enviado correctamente.
+            Te llevamos directamente a la ficha del restaurante.
           </p>
 
           <button
@@ -111,7 +120,7 @@ export default function ReviewHandoff({
             className="mt-4 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl border-2 bg-white px-5 text-sm font-extrabold transition hover:-translate-y-0.5 hover:shadow-md"
             style={{ color: config.color_primary, borderColor: `${config.color_primary}35` }}
           >
-            {hasOpenedGoogle ? "Volver a abrir Google" : needsCopy ? "Copiar comentario y abrir Google" : "Compartir también en Google"}
+            {hasOpenedGoogle ? "Volver a abrir Google Maps" : needsCopy ? "Copiar comentario y abrir Maps" : "Abrir Google Maps ahora"}
             <ExternalLink className="h-4.5 w-4.5" />
           </button>
 
