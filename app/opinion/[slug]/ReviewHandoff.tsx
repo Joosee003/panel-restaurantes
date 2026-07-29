@@ -6,12 +6,15 @@ import {
   ClipboardCheck,
   ClipboardCopy,
   ExternalLink,
+  Loader2,
   RotateCcw,
   ShieldCheck,
   Star,
 } from "lucide-react";
 import { useEffect } from "react";
 import type { CopyState, PublicConfig } from "@/lib/opiniones/public-review";
+
+const GOOGLE_REDIRECT_DELAY_MS = 4000;
 
 export default function ReviewHandoff({
   config,
@@ -42,26 +45,40 @@ export default function ReviewHandoff({
     if (!canOfferGoogle || hasOpenedGoogle) return;
     const timeout = window.setTimeout(() => {
       void onOpenGoogle();
-    }, 1500);
+    }, GOOGLE_REDIRECT_DELAY_MS);
     return () => window.clearTimeout(timeout);
   }, [canOfferGoogle, hasOpenedGoogle, onOpenGoogle]);
 
   return (
     <div className="animate-[fadeIn_.35s_ease-out] text-center">
-      <div className="mx-auto flex h-24 w-24 items-center justify-center rounded-full" style={{ background: `${config.color_primary}12` }}>
-        <div className="flex h-16 w-16 items-center justify-center rounded-full text-white shadow-[0_18px_42px_rgba(21,89,182,.28)]" style={{ background: config.color_primary }}>
+      <div
+        className="mx-auto flex h-24 w-24 items-center justify-center rounded-full"
+        style={{ background: `${config.color_primary}12` }}
+      >
+        <div
+          className="flex h-16 w-16 items-center justify-center rounded-full text-white shadow-[0_18px_42px_rgba(21,89,182,.28)]"
+          style={{ background: config.color_primary }}
+        >
           <Check className="h-8 w-8" strokeWidth={2.7} />
         </div>
       </div>
 
-      <p className="mt-5 text-[10px] font-extrabold uppercase tracking-[.18em]" style={{ color: config.color_primary }}>
+      <p
+        className="mt-5 text-[10px] font-extrabold uppercase tracking-[.18em]"
+        style={{ color: config.color_primary }}
+      >
         Enviada correctamente
       </p>
-      <h1 className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-4xl" style={{ color: config.color_secondary }}>
+      <h1
+        className="mt-2 font-serif text-3xl font-semibold leading-tight sm:text-4xl"
+        style={{ color: config.color_secondary }}
+      >
         Gracias por ayudarnos a mejorar
       </h1>
       <p className="mx-auto mt-3 max-w-md text-sm leading-6 text-[#3b241f]/60 sm:text-base">
-        Tu opinión ya ha llegado al equipo de {config.restaurante_nombre}. {canOfferGoogle ? "Ahora te llevamos a su ficha de Google Maps." : "No necesitas hacer nada más."}
+        Tu opinión ya ha llegado al equipo de {config.restaurante_nombre}. {canOfferGoogle
+          ? "En unos segundos abriremos Google Maps para que puedas compartirla también allí."
+          : "No necesitas hacer nada más."}
       </p>
 
       <div className="mt-5 flex justify-center gap-1" aria-label={`${rating} estrellas`}>
@@ -80,47 +97,98 @@ export default function ReviewHandoff({
 
       <div className="mt-7 grid gap-3 text-left sm:grid-cols-2">
         <div className="rounded-2xl border border-black/[0.06] bg-[#fbfaf7] p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full" style={{ background: `${config.color_primary}14`, color: config.color_primary }}>
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-full"
+            style={{ background: `${config.color_primary}14`, color: config.color_primary }}
+          >
             <CheckCircle2 className="h-5 w-5" />
           </div>
           <p className="mt-3 text-sm font-extrabold text-[#3b241f]">Opinión recibida</p>
-          <p className="mt-1 text-[11px] leading-5 text-[#3b241f]/52">El restaurante ya puede revisarla desde su panel privado.</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#3b241f]/52">
+            El restaurante ya puede revisarla desde su panel privado.
+          </p>
         </div>
         <div className="rounded-2xl border border-black/[0.06] bg-[#fbfaf7] p-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full" style={{ background: `${config.color_primary}14`, color: config.color_primary }}>
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-full"
+            style={{ background: `${config.color_primary}14`, color: config.color_primary }}
+          >
             <ShieldCheck className="h-5 w-5" />
           </div>
           <p className="mt-3 text-sm font-extrabold text-[#3b241f]">Proceso completado</p>
-          <p className="mt-1 text-[11px] leading-5 text-[#3b241f]/52">{canOfferGoogle ? "Abriendo la ficha de Google Maps…" : "Puedes cerrar esta página cuando quieras."}</p>
+          <p className="mt-1 text-[11px] leading-5 text-[#3b241f]/52">
+            {canOfferGoogle ? "Preparando Google Maps…" : "Puedes cerrar esta página cuando quieras."}
+          </p>
         </div>
       </div>
 
       {hasComment && (
         <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-black/[0.06] bg-white text-left shadow-[0_12px_34px_rgba(59,36,31,.06)]">
           <div className="flex items-center justify-between gap-3 border-b border-black/[0.05] px-4 py-3">
-            <p className="text-[10px] font-extrabold uppercase tracking-[.15em] text-[#3b241f]/45">Tu comentario</p>
-            <span className="rounded-full px-2.5 py-1 text-[10px] font-extrabold" style={{ background: `${config.color_primary}10`, color: config.color_primary }}>
+            <p className="text-[10px] font-extrabold uppercase tracking-[.15em] text-[#3b241f]/45">
+              Tu comentario
+            </p>
+            <span
+              className="rounded-full px-2.5 py-1 text-[10px] font-extrabold"
+              style={{ background: `${config.color_primary}10`, color: config.color_primary }}
+            >
               GUARDADO
             </span>
           </div>
-          <p className="max-h-36 overflow-auto whitespace-pre-wrap px-4 py-4 text-sm leading-6 text-[#3b241f]/72">“{comment.trim()}”</p>
+          <p className="max-h-36 overflow-auto whitespace-pre-wrap px-4 py-4 text-sm leading-6 text-[#3b241f]/72">
+            “{comment.trim()}”
+          </p>
         </div>
       )}
 
       {canOfferGoogle && (
-        <div className="mt-6 rounded-[1.5rem] border border-blue-100 bg-[#f7fbff] p-4 text-left">
-          <p className="text-sm font-extrabold text-[#3b241f]">Abriendo Google Maps…</p>
-          <p className="mt-1 text-xs leading-5 text-[#3b241f]/55">
-            Te llevamos directamente a la ficha del restaurante.
-          </p>
+        <div
+          className="mt-6 rounded-[1.6rem] border-2 p-5 text-left shadow-[0_18px_46px_rgba(21,89,182,.10)]"
+          style={{ borderColor: `${config.color_primary}22`, background: `${config.color_primary}08` }}
+        >
+          <div className="flex items-start gap-3">
+            <div
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+              style={{ background: `${config.color_primary}16`, color: config.color_primary }}
+            >
+              {copyState === "copied" ? (
+                <ClipboardCheck className="h-5.5 w-5.5" />
+              ) : (
+                <ClipboardCopy className="h-5.5 w-5.5" />
+              )}
+            </div>
+            <div>
+              <p className="text-base font-extrabold text-[#3b241f]">
+                {hasComment && copyState === "copied"
+                  ? "Tu mensaje está copiado en tu móvil"
+                  : hasComment
+                    ? "Estamos preparando tu mensaje"
+                    : "Ahora déjanos tu reseña en Google Maps"}
+              </p>
+              <p className="mt-1.5 text-sm leading-6 text-[#3b241f]/65">
+                {hasComment
+                  ? "Cuando se abra Google Maps, pega el mensaje y publícalo como reseña. Nos ayuda muchísimo. Gracias de antemano."
+                  : "Cuando se abra Google Maps, déjanos tu valoración. Nos ayuda muchísimo. Gracias de antemano."}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-white/80 px-4 py-3 text-xs font-extrabold" style={{ color: config.color_primary }}>
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Abriendo Google Maps…
+          </div>
 
           <button
             type="button"
             onClick={onOpenGoogle}
-            className="mt-4 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl border-2 bg-white px-5 text-sm font-extrabold transition hover:-translate-y-0.5 hover:shadow-md"
+            className="mt-3 flex min-h-13 w-full items-center justify-center gap-2 rounded-2xl border-2 bg-white px-5 text-sm font-extrabold transition hover:-translate-y-0.5 hover:shadow-md"
             style={{ color: config.color_primary, borderColor: `${config.color_primary}35` }}
           >
-            {hasOpenedGoogle ? "Volver a abrir Google Maps" : needsCopy ? "Copiar comentario y abrir Maps" : "Abrir Google Maps ahora"}
+            {hasOpenedGoogle
+              ? "Volver a abrir Google Maps"
+              : needsCopy
+                ? "Copiar mensaje y abrir Maps ahora"
+                : "Abrir Google Maps ahora"}
             <ExternalLink className="h-4.5 w-4.5" />
           </button>
 
@@ -130,8 +198,12 @@ export default function ReviewHandoff({
               onClick={onCopy}
               className="mt-2 flex min-h-11 w-full items-center justify-center gap-2 rounded-xl px-4 text-xs font-extrabold text-[#3b241f]/60 transition hover:bg-white"
             >
-              {copyState === "copied" ? <ClipboardCheck className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-              {copyState === "copied" ? "Comentario copiado" : "Copiar comentario"}
+              {copyState === "copied" ? (
+                <ClipboardCheck className="h-4 w-4" />
+              ) : (
+                <ClipboardCopy className="h-4 w-4" />
+              )}
+              {copyState === "copied" ? "Mensaje copiado" : "Copiar mensaje"}
             </button>
           )}
         </div>
