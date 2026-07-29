@@ -7,6 +7,7 @@ import {
   ClipboardCopy,
   Loader2,
   MessageCircleMore,
+  Search,
   Sparkles,
   Star,
 } from "lucide-react";
@@ -19,7 +20,10 @@ import {
   ratingCopy,
 } from "@/lib/opiniones/public-review";
 
-type CustomConfig = PublicConfig & { aspect_labels?: Partial<Record<AspectKey, string>> };
+type CustomConfig = PublicConfig & {
+  aspect_labels?: Partial<Record<AspectKey, string>>;
+  seo_keywords?: string[];
+};
 
 export default function ReviewForm({
   config,
@@ -63,12 +67,39 @@ export default function ReviewForm({
   onSubmit: () => void;
 }) {
   const copy = ratingCopy[rating];
-  const labels = (config as CustomConfig).aspect_labels ?? {};
+  const customConfig = config as CustomConfig;
+  const labels = customConfig.aspect_labels ?? {};
+  const seoKeywords = (customConfig.seo_keywords ?? [])
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .slice(0, 12);
   const canGenerate = aspects.length > 0;
 
   function prepareComment(closing?: string) {
     const suggestion = buildSuggestedComment(rating, aspects, closing);
     if (suggestion) onCommentChange(suggestion);
+  }
+
+  function toggleKeyword(keyword: string) {
+    const active = comment.toLowerCase().includes(keyword.toLowerCase());
+    if (active) {
+      const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const cleaned = comment
+        .replace(new RegExp(`\\s*(?:Destacaría|Sobre)?\\s*${escaped}[^.!?]*[.!?]?`, "i"), " ")
+        .replace(/\s{2,}/g, " ")
+        .trim();
+      onCommentChange(cleaned);
+      return;
+    }
+
+    const current = comment.trim();
+    const sentence = rating >= 4
+      ? `Destacaría ${keyword}.`
+      : `Sobre ${keyword}, creo que hay margen de mejora.`;
+    const next = current
+      ? `${current}${/[.!?]$/.test(current) ? "" : "."} ${sentence}`
+      : sentence;
+    onCommentChange(next.slice(0, 2000));
   }
 
   return (
@@ -111,6 +142,25 @@ export default function ReviewForm({
           })}
         </div>
       </section>
+
+      {seoKeywords.length > 0 && (
+        <section className="mt-4 rounded-[1.6rem] border border-emerald-100 bg-emerald-50/55 p-4 sm:p-5">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-extrabold text-[#10233d]"><Search className="h-4 w-4 text-emerald-700" />Palabras que pueden ayudarte</h2>
+            <p className="mt-1 text-xs leading-5 text-[#42526b]">Toca únicamente las que describan de verdad tu visita. Se añadirán al comentario y podrás editarlo libremente.</p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {seoKeywords.map((keyword) => {
+              const active = comment.toLowerCase().includes(keyword.toLowerCase());
+              return (
+                <button key={keyword} type="button" aria-pressed={active} onClick={() => toggleKeyword(keyword)} className={`rounded-full border px-3 py-2 text-left text-[11px] font-bold transition ${active ? "border-emerald-500 bg-emerald-600 text-white" : "border-emerald-200 bg-white text-emerald-800 hover:border-emerald-400"}`}>
+                  {active ? "✓ " : "+ "}{keyword}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
       <section className="mt-4 rounded-[1.6rem] border border-blue-100 bg-white p-4 shadow-[0_14px_40px_rgba(59,36,31,0.06)] sm:p-5">
         <div>
