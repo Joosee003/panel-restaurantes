@@ -1,0 +1,46 @@
+name: Limit answered reviews to 15 days
+
+on:
+  push:
+    paths:
+      - '.github/workflows/patch-answered-retention-15-days.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Keep answered reviews visible for 15 days
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('app/opiniones-admin/ReputationElite.tsx')
+          text = path.read_text()
+
+          old = '  const answered = googleOpinions.filter((item) => item.seguimiento === "resuelto" && !recentlyAnswered[item.id]);'
+          new = '''  const answeredRetentionMs = 15 * 24 * 60 * 60 * 1000;
+  const answered = googleOpinions.filter((item) => {
+    if (item.seguimiento !== "resuelto" || recentlyAnswered[item.id]) return false;
+    const answeredAt = item.resuelto_at ? new Date(item.resuelto_at).getTime() : 0;
+    return answeredAt > 0 && Date.now() - answeredAt < answeredRetentionMs;
+  });'''
+          if old not in text:
+            raise SystemExit('Answered filter not found')
+          text = text.replace(old, new)
+          text = text.replace('title="Respondidas" subtitle="Historial cerrado"', 'title="Respondidas" subtitle="Visibles durante 15 días"')
+          text = text.replace('El historial aparecerá aquí', 'Las respondidas recientes aparecerán aquí durante 15 días')
+          path.write_text(text)
+          PY
+      - name: Commit changes
+        run: |
+          git config user.name "GastroHelp Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add app/opiniones-admin/ReputationElite.tsx
+          git commit -m "Ocultar reseñas respondidas después de 15 días"
+          git push
