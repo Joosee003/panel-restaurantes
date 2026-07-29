@@ -1,144 +1,123 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Check, Plus, Search, Trash2, X } from "lucide-react";
+import { Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 
-const defaults = [
-  "carne a la brasa",
-  "restaurante en Castellón",
-  "comida colombiana",
-  "hamburguesas",
-  "buen servicio",
-  "ambiente familiar",
-];
+const defaults = {
+  comida: "Comida",
+  servicio: "Servicio",
+  ambiente: "Ambiente",
+  espera: "Tiempo de espera",
+  limpieza: "Limpieza",
+  calidad_precio: "Calidad-precio",
+};
 
-function cleanKeywords(values: string[]) {
-  return Array.from(new Set(values.map((value) => value.trim()).filter(Boolean))).slice(0, 12);
-}
+type Labels = typeof defaults;
 
 export default function AspectLabelsEditor() {
   const supabase = useMemo(() => getOpinionesBrowserClient(), []);
-  const [open, setOpen] = useState(false);
+  const [visible, setVisible] = useState(false);
   const [configId, setConfigId] = useState("");
-  const [keywords, setKeywords] = useState<string[]>(defaults);
-  const [draft, setDraft] = useState("");
+  const [labels, setLabels] = useState<Labels>(defaults);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    const syncVisibility = () => {
+      const settingsButton = Array.from(document.querySelectorAll("nav button")).find(
+        (button) => button.textContent?.trim().startsWith("Ajustes"),
+      );
+      setVisible(Boolean(settingsButton?.className.includes("bg-blue-700")));
+    };
+
+    syncVisibility();
+    const observer = new MutationObserver(syncVisibility);
+    observer.observe(document.body, { subtree: true, attributes: true, childList: true });
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (!visible) return;
     setError(null);
     void supabase
       .from("opinion_config")
-      .select("id,seo_keywords")
+      .select("id,aspect_labels")
       .eq("slug", "hispanos-grill")
       .single()
       .then(({ data, error: loadError }) => {
         if (loadError || !data) {
-          setError("No se pudieron cargar las palabras clave.");
+          setError("No se pudieron cargar estas opciones.");
           return;
         }
         setConfigId(data.id as string);
-        const stored = Array.isArray(data.seo_keywords)
-          ? data.seo_keywords.filter((item): item is string => typeof item === "string")
-          : [];
-        setKeywords(cleanKeywords(stored.length ? stored : defaults));
+        setLabels({ ...defaults, ...((data.aspect_labels ?? {}) as Partial<Labels>) });
       });
-  }, [open, supabase]);
-
-  function addKeyword() {
-    const value = draft.trim();
-    if (!value || keywords.some((item) => item.toLowerCase() === value.toLowerCase())) return;
-    setKeywords((current) => [...current, value].slice(0, 12));
-    setDraft("");
-  }
-
-  function move(index: number, direction: -1 | 1) {
-    setKeywords((current) => {
-      const next = [...current];
-      const target = index + direction;
-      if (target < 0 || target >= next.length) return current;
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
-  }
+  }, [supabase, visible]);
 
   async function save() {
     if (!configId) return;
-    const cleaned = cleanKeywords(keywords);
+    const cleaned = Object.fromEntries(
+      Object.entries(labels).map(([key, value]) => [key, value.trim() || defaults[key as keyof Labels]]),
+    ) as Labels;
+
     setSaving(true);
     setSaved(false);
     setError(null);
     const { error: saveError } = await supabase
       .from("opinion_config")
-      .update({ seo_keywords: cleaned })
+      .update({ aspect_labels: cleaned })
       .eq("id", configId);
     setSaving(false);
+
     if (saveError) {
       setError("No se pudieron guardar los cambios.");
       return;
     }
-    setKeywords(cleaned);
+
+    setLabels(cleaned);
     setSaved(true);
     window.setTimeout(() => setSaved(false), 2200);
   }
 
+  if (!visible) return null;
+
   return (
-    <>
-      <button type="button" onClick={() => setOpen(true)} className="hidden h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-black text-[#1559b6] transition hover:-translate-y-0.5 hover:shadow-md sm:flex">
-        <Search className="h-4 w-4" /> Palabras SEO
-      </button>
+    <div className="mx-auto max-w-[1550px] px-3 pb-10 sm:px-7">
+      <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+        <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">Formulario de opinión</p>
+        <h2 className="mt-1 text-xl font-black text-slate-950">Opciones que verá el cliente</h2>
+        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+          Edita las seis opciones de “¿Qué te gustó más?”. Estas son las palabras que verá el cliente al preparar su reseña.
+        </p>
 
-      {open && (
-        <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/55 px-3 py-4 backdrop-blur-sm sm:px-4 sm:py-6">
-          <div className="mx-auto flex min-h-full max-w-2xl items-start justify-center sm:items-center">
-            <section className="flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-[1.5rem] bg-white shadow-2xl sm:max-h-[calc(100dvh-3rem)] sm:rounded-[2rem]">
-              <div className="shrink-0 border-b border-slate-100 bg-white p-5 sm:p-7 sm:pb-5">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">Reseñas de Google</p>
-                    <h2 className="mt-1 text-2xl font-black text-slate-950">Palabras clave del restaurante</h2>
-                    <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">Añade y ordena términos reales que ayuden al cliente a describir su experiencia. Aparecerán como sugerencias, nunca se publicarán automáticamente.</p>
-                  </div>
-                  <button type="button" onClick={() => setOpen(false)} className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600"><X className="h-5 w-5" /></button>
-                </div>
-
-                <div className="mt-5 flex flex-col gap-2 sm:flex-row">
-                  <input value={draft} onChange={(event) => setDraft(event.target.value.slice(0, 60))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addKeyword(); } }} placeholder="Ej.: parrilla colombiana en Castellón" className="min-h-12 flex-1 rounded-xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
-                  <button type="button" onClick={addKeyword} disabled={!draft.trim() || keywords.length >= 12} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white disabled:opacity-40"><Plus className="h-4 w-4" /> Añadir</button>
-                </div>
-                <p className="mt-2 text-[11px] font-semibold text-slate-400">Máximo 12 palabras o frases. Evita repetir la misma palabra de forma artificial.</p>
-              </div>
-
-              <div className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-7 sm:pt-5">
-                <div className="space-y-2">
-                  {keywords.map((keyword, index) => (
-                    <div key={`${keyword}-${index}`} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
-                      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white text-xs font-black text-slate-400">{index + 1}</span>
-                      <input value={keyword} onChange={(event) => setKeywords((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value.slice(0, 60) : item))} className="min-h-10 min-w-0 flex-1 bg-transparent px-2 text-sm font-bold text-slate-800 outline-none" />
-                      <button type="button" onClick={() => move(index, -1)} disabled={index === 0} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-slate-500 disabled:opacity-30" aria-label="Subir"><ArrowUp className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => move(index, 1)} disabled={index === keywords.length - 1} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-slate-500 disabled:opacity-30" aria-label="Bajar"><ArrowDown className="h-4 w-4" /></button>
-                      <button type="button" onClick={() => setKeywords((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-red-50 text-red-600" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button>
-                    </div>
-                  ))}
-                  {!keywords.length && <div className="rounded-2xl border border-dashed border-slate-200 p-7 text-center text-sm font-bold text-slate-400">Añade al menos una sugerencia para los clientes.</div>}
-                </div>
-
-                {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
-              </div>
-
-              <div className="shrink-0 border-t border-slate-100 bg-white p-4 sm:p-5">
-                <div className="flex gap-3">
-                  <button type="button" onClick={() => setOpen(false)} className="min-h-12 flex-1 rounded-xl border border-slate-200 px-4 text-sm font-black text-slate-600">Cancelar</button>
-                  <button type="button" disabled={saving} onClick={() => void save()} className="flex min-h-12 flex-1 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white disabled:opacity-60">{saved && <Check className="h-4 w-4" />}{saving ? "Guardando…" : saved ? "Guardado" : "Guardar cambios"}</button>
-                </div>
-              </div>
-            </section>
-          </div>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {(Object.keys(defaults) as Array<keyof Labels>).map((key) => (
+            <label key={key} className="block">
+              <span className="mb-1.5 block text-[10px] font-black uppercase tracking-wide text-slate-400">{defaults[key]}</span>
+              <input
+                value={labels[key]}
+                onChange={(event) =>
+                  setLabels((current) => ({ ...current, [key]: event.target.value.slice(0, 40) }))
+                }
+                className="min-h-12 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              />
+            </label>
+          ))}
         </div>
-      )}
-    </>
+
+        {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save()}
+          className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white disabled:opacity-60"
+        >
+          {saved && <Check className="h-4 w-4" />}
+          {saving ? "Guardando…" : saved ? "Guardado" : "Guardar opciones"}
+        </button>
+      </section>
+    </div>
   );
 }
