@@ -15,36 +15,26 @@ jobs:
       - uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Move keyword editor into settings
+      - name: Move editor into settings
         run: |
           python - <<'PY'
           from pathlib import Path
 
-          suite = Path('app/opiniones-admin/HispanosReputationSuite.tsx')
-          text = suite.read_text()
-          text = text.replace('import AspectLabelsEditor from "./AspectLabelsEditor";\n', '')
-          text = text.replace('            <AspectLabelsEditor />\n', '')
-          suite.write_text(text)
-
           editor = Path('app/opiniones-admin/AspectLabelsEditor.tsx')
           text = editor.read_text()
-          text = text.replace('import { ArrowDown, ArrowUp, Check, Plus, Search, Trash2, X } from "lucide-react";', 'import { ArrowDown, ArrowUp, Check, Plus, Search, Trash2 } from "lucide-react";')
+          text = text.replace('import { ArrowDown, ArrowUp, Check, Plus, Search, Trash2, X } from "lucide-react";', 'import { ArrowDown, ArrowUp, Check, Plus, Trash2 } from "lucide-react";')
           start = text.index('  return (\n')
           end = text.rindex('\n}')
           replacement = '''  return (
     <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-      <div>
-        <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">Reseñas de Google</p>
-        <h2 className="mt-1 text-xl font-black text-slate-950">Palabras clave del restaurante</h2>
-        <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">Añade y ordena términos reales que ayuden al cliente a describir su experiencia. Aparecerán como sugerencias y nunca se publicarán automáticamente.</p>
-      </div>
-
+      <p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-700">Reseñas de Google</p>
+      <h2 className="mt-1 text-xl font-black text-slate-950">Palabras clave del restaurante</h2>
+      <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">Añade y ordena términos reales que ayuden al cliente a describir su experiencia.</p>
       <div className="mt-5 flex flex-col gap-2 sm:flex-row">
         <input value={draft} onChange={(event) => setDraft(event.target.value.slice(0, 60))} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); addKeyword(); } }} placeholder="Ej.: parrilla colombiana en Castellón" className="min-h-12 flex-1 rounded-xl border border-slate-200 px-4 text-sm font-bold outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100" />
         <button type="button" onClick={addKeyword} disabled={!draft.trim() || keywords.length >= 12} className="flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white disabled:opacity-40"><Plus className="h-4 w-4" /> Añadir</button>
       </div>
-      <p className="mt-2 text-[11px] font-semibold text-slate-400">Máximo 12 palabras o frases. Evita repetir términos de forma artificial.</p>
-
+      <p className="mt-2 text-[11px] font-semibold text-slate-400">Máximo 12 palabras o frases.</p>
       <div className="mt-5 space-y-2">
         {keywords.map((keyword, index) => (
           <div key={`${keyword}-${index}`} className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-slate-50 p-2">
@@ -55,31 +45,33 @@ jobs:
             <button type="button" onClick={() => setKeywords((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-red-50 text-red-600" aria-label="Eliminar"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}
-        {!keywords.length && <div className="rounded-2xl border border-dashed border-slate-200 p-7 text-center text-sm font-bold text-slate-400">Añade al menos una sugerencia para los clientes.</div>}
       </div>
-
       {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-bold text-red-700">{error}</p>}
       <button type="button" disabled={saving} onClick={() => void save()} className="mt-5 flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 text-sm font-black text-white disabled:opacity-60">{saved && <Check className="h-4 w-4" />}{saving ? "Guardando…" : saved ? "Guardado" : "Guardar palabras clave"}</button>
     </section>
   );'''
-          text = text[:start] + replacement + text[end:]
-          editor.write_text(text)
+          editor.write_text(text[:start] + replacement + text[end:])
 
           reputation = Path('app/opiniones-admin/ReputationElite.tsx')
           text = reputation.read_text()
           if 'import AspectLabelsEditor from "./AspectLabelsEditor";' not in text:
             text = text.replace('import ReputationMaterials from "./ReputationMaterials";\n', 'import ReputationMaterials from "./ReputationMaterials";\nimport AspectLabelsEditor from "./AspectLabelsEditor";\n')
-          old = 'function SettingsPanel({ config, saving, save }: { config: OpinionConfig; saving: boolean; save: (config: OpinionConfig) => void; }) { const [draft, setDraft] = useState(config); return <div className="grid gap-5 xl:grid-cols-2"><Card title="Experiencia del cliente" eyebrow="Personalización"><Field label="Titular"><input className={inputClass} value={draft.headline} onChange={(e) => setDraft({ ...draft, headline: e.target.value })} /></Field><Field label="Texto de apoyo"><textarea className={`${inputClass} min-h-24`} value={draft.subheadline} onChange={(e) => setDraft({ ...draft, subheadline: e.target.value })} /></Field><Field label="Umbral de alerta"><select className={inputClass} value={draft.low_rating_threshold} onChange={(e) => setDraft({ ...draft, low_rating_threshold: Number(e.target.value) })}><option value={1}>1 estrella</option><option value={2}>2 estrellas o menos</option><option value={3}>3 estrellas o menos</option></select></Field><Toggle checked={draft.auto_open_google} change={(value) => setDraft({ ...draft, auto_open_google: value })} title="Abrir Google automáticamente" /></Card><div><Card title="Notificaciones" eyebrow="Canales de aviso"><Field label="Email de alertas"><input className={inputClass} value={draft.feedback_email ?? ""} onChange={(e) => setDraft({ ...draft, feedback_email: e.target.value })} /></Field><Field label="WhatsApp de alertas"><input className={inputClass} value={draft.feedback_whatsapp ?? ""} onChange={(e) => setDraft({ ...draft, feedback_whatsapp: e.target.value })} /></Field></Card><button disabled={saving} onClick={() => save(draft)} className="mt-5 w-full rounded-2xl bg-blue-700 p-4 text-sm font-black text-white">{saving ? "Guardando…" : "Guardar todos los cambios"}</button></div></div>; }'
-          new = 'function SettingsPanel({ config, saving, save }: { config: OpinionConfig; saving: boolean; save: (config: OpinionConfig) => void; }) { const [draft, setDraft] = useState(config); return <div className="space-y-5"><div className="grid gap-5 xl:grid-cols-2"><Card title="Experiencia del cliente" eyebrow="Personalización"><Field label="Titular"><input className={inputClass} value={draft.headline} onChange={(e) => setDraft({ ...draft, headline: e.target.value })} /></Field><Field label="Texto de apoyo"><textarea className={`${inputClass} min-h-24`} value={draft.subheadline} onChange={(e) => setDraft({ ...draft, subheadline: e.target.value })} /></Field><Field label="Umbral de alerta"><select className={inputClass} value={draft.low_rating_threshold} onChange={(e) => setDraft({ ...draft, low_rating_threshold: Number(e.target.value })}><option value={1}>1 estrella</option><option value={2}>2 estrellas o menos</option><option value={3}>3 estrellas o menos</option></select></Field><Toggle checked={draft.auto_open_google} change={(value) => setDraft({ ...draft, auto_open_google: value })} title="Abrir Google automáticamente" /></Card><div><Card title="Notificaciones" eyebrow="Canales de aviso"><Field label="Email de alertas"><input className={inputClass} value={draft.feedback_email ?? ""} onChange={(e) => setDraft({ ...draft, feedback_email: e.target.value })} /></Field><Field label="WhatsApp de alertas"><input className={inputClass} value={draft.feedback_whatsapp ?? ""} onChange={(e) => setDraft({ ...draft, feedback_whatsapp: e.target.value })} /></Field></Card><button disabled={saving} onClick={() => save(draft)} className="mt-5 w-full rounded-2xl bg-blue-700 p-4 text-sm font-black text-white">{saving ? "Guardando…" : "Guardar todos los cambios"}</button></div></div><AspectLabelsEditor /></div>; }'
+          old = 'function SettingsPanel({ config, saving, save }: { config: OpinionConfig; saving: boolean; save: (config: OpinionConfig) => void; }) { const [draft, setDraft] = useState(config); return <div className="grid gap-5 xl:grid-cols-2">'
+          new = 'function SettingsPanel({ config, saving, save }: { config: OpinionConfig; saving: boolean; save: (config: OpinionConfig) => void; }) { const [draft, setDraft] = useState(config); return <div className="space-y-5"><div className="grid gap-5 xl:grid-cols-2">'
           if old not in text:
-            raise SystemExit('SettingsPanel block not found')
-          reputation.write_text(text.replace(old, new))
+            raise SystemExit('SettingsPanel start not found')
+          text = text.replace(old, new, 1)
+          old_end = '</button></div></div>; }\n\nfunction OpinionDrawer'
+          new_end = '</button></div></div><AspectLabelsEditor /></div>; }\n\nfunction OpinionDrawer'
+          if old_end not in text:
+            raise SystemExit('SettingsPanel end not found')
+          text = text.replace(old_end, new_end, 1)
+          reputation.write_text(text)
           PY
       - name: Commit changes
         run: |
           git config user.name "GastroHelp Automation"
           git config user.email "actions@users.noreply.github.com"
-          git add app/opiniones-admin/HispanosReputationSuite.tsx app/opiniones-admin/AspectLabelsEditor.tsx app/opiniones-admin/ReputationElite.tsx
-          git commit -m "Mover palabras SEO al apartado de ajustes"
+          git add app/opiniones-admin/AspectLabelsEditor.tsx app/opiniones-admin/ReputationElite.tsx
+          git commit -m "Mover palabras SEO dentro de ajustes"
           git push
-# trigger 2
