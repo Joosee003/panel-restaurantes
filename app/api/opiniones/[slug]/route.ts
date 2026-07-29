@@ -75,7 +75,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
     }
 
     const seoKeywords = Array.isArray(baseConfig.seo_keywords)
-      ? baseConfig.seo_keywords
+      ? (baseConfig.seo_keywords as unknown[])
           .filter((item): item is string => typeof item === "string")
           .map((item) => item.trim())
           .filter(Boolean)
