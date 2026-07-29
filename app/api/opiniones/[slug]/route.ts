@@ -76,7 +76,7 @@ export async function GET(_request: NextRequest, context: RouteContext) {
 
     const { data: keywordConfig } = await supabase
       .from("opinion_config")
-      .select("seo_keywords")
+      .select("seo_keywords,aspect_labels")
       .eq("slug", normalizedSlug)
       .maybeSingle();
 
@@ -88,7 +88,14 @@ export async function GET(_request: NextRequest, context: RouteContext) {
           .slice(0, 12)
       : [];
 
-    const config = { ...baseConfig, seo_keywords: seoKeywords };
+    const config = {
+      ...baseConfig,
+      seo_keywords: seoKeywords,
+      aspect_labels:
+        keywordConfig?.aspect_labels && typeof keywordConfig.aspect_labels === "object"
+          ? keywordConfig.aspect_labels
+          : {},
+    };
 
     return NextResponse.json(
       { config },
