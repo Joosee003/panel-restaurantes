@@ -13,7 +13,6 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { HISPANOS_BRAND } from "@/lib/opiniones/hispanos-brand";
-import AspectLabelsEditor from "./AspectLabelsEditor";
 import ReputationElite from "./ReputationElite";
 
 export default function HispanosReputationSuite() {
@@ -105,7 +104,6 @@ export default function HispanosReputationSuite() {
       </section>
 
       <ReputationElite />
-      <AspectLabelsEditor />
 
       <style jsx global>{`
         .hispanos-suite > main > header { display: none !important; }
