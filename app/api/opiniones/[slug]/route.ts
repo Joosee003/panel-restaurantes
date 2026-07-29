@@ -74,14 +74,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       );
     }
 
-    const { data: keywordConfig } = await supabase
-      .from("opinion_config")
-      .select("seo_keywords,aspect_labels")
-      .eq("slug", normalizedSlug)
-      .maybeSingle();
-
-    const seoKeywords = Array.isArray(keywordConfig?.seo_keywords)
-      ? keywordConfig.seo_keywords
+    const seoKeywords = Array.isArray(baseConfig.seo_keywords)
+      ? baseConfig.seo_keywords
           .filter((item): item is string => typeof item === "string")
           .map((item) => item.trim())
           .filter(Boolean)
@@ -92,8 +86,8 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       ...baseConfig,
       seo_keywords: seoKeywords,
       aspect_labels:
-        keywordConfig?.aspect_labels && typeof keywordConfig.aspect_labels === "object"
-          ? keywordConfig.aspect_labels
+        baseConfig.aspect_labels && typeof baseConfig.aspect_labels === "object"
+          ? baseConfig.aspect_labels
           : {},
     };
 
