@@ -24,7 +24,7 @@ import { supabase } from "../lib/supabaseClient";
 import AddReservaModal from "../components/AddReservaModal";
 import { useRestaurante } from "../../hooks/useRestaurante";
 
-type EstadoReserva = "pendiente" | "confirmada" | "cancelada";
+type EstadoReserva = "pendiente" | "confirmada" | "cancelada" | "no-show" | "ha venido";
 type VistaReservas = "calendario" | "hoy" | "semana" | "lista" | "bloqueos";
 type FiltroEstado = "todas" | "pendiente" | "confirmada" | "cancelada" | "sin_mesa" | "no_show";
 
@@ -90,7 +90,7 @@ type ConsumoModalState = {
   notas: string;
 };
 
-const ESTADOS_FINALES = new Set(["cancelada"]);
+const ESTADOS_FINALES = new Set<EstadoReserva>(["cancelada", "no-show"]);
 const BLOQUEO_INICIAL = {
   hora_inicio: "12:00",
   hora_fin: "13:00",
@@ -164,8 +164,8 @@ function money(n: number) {
 function estadoLabel(reserva: Reserva) {
   if (reserva.estado === "cancelada") return "Cancelada";
   if (reserva.consumo_registrado_en) return "Consumo registrado";
-  if (reserva.atendida === true) return "Atendida";
-  if (reserva.atendida === false) return "No-show";
+  if (reserva.estado === "no-show" || reserva.atendida === false) return "No-show";
+  if (reserva.estado === "ha venido" || reserva.atendida === true) return "Ha venido";
   if (reserva.estado === "confirmada") return "Confirmada";
   return "Pendiente";
 }
@@ -173,8 +173,8 @@ function estadoLabel(reserva: Reserva) {
 function estadoClass(reserva: Reserva) {
   if (reserva.estado === "cancelada") return "border-rose-200 bg-rose-50 text-rose-700";
   if (reserva.consumo_registrado_en) return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (reserva.atendida === true) return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  if (reserva.atendida === false) return "border-red-200 bg-red-50 text-red-700";
+  if (reserva.estado === "no-show" || reserva.atendida === false) return "border-red-200 bg-red-50 text-red-700";
+  if (reserva.estado === "ha venido" || reserva.atendida === true) return "border-emerald-200 bg-emerald-50 text-emerald-700";
   if (reserva.estado === "confirmada") return "border-blue-200 bg-blue-50 text-blue-700";
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
@@ -313,7 +313,7 @@ function ReservaCard({
             <Check size={16} /> Confirmar
           </button>
         ) : null}
-        {reserva.estado !== "cancelada" ? (
+        {!ESTADOS_FINALES.has(reserva.estado) ? (
           <button onClick={() => onEstado(reserva, "cancelada")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100">
             <X size={16} /> Cancelar
           </button>
@@ -493,7 +493,7 @@ export default function ReservasPage() {
       if (filtro === "confirmada") return r.estado === "confirmada" && r.atendida !== true && r.atendida !== false;
       if (filtro === "cancelada") return r.estado === "cancelada";
       if (filtro === "sin_mesa") return !r.mesa_id && !ESTADOS_FINALES.has(r.estado);
-      if (filtro === "no_show") return r.atendida === false;
+      if (filtro === "no_show") return r.estado === "no-show" || r.atendida === false;
       return true;
     });
   }, [reservas, busqueda, filtro]);
@@ -513,10 +513,10 @@ export default function ReservasPage() {
 
   const stats = useMemo(() => {
     const hoy = fechaISO(new Date());
-    const hoyReservas = reservas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === hoy && r.estado !== "cancelada");
+    const hoyReservas = reservas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === hoy && !ESTADOS_FINALES.has(r.estado));
     const pendientes = reservas.filter((r) => r.estado === "pendiente");
-    const sinMesa = reservas.filter((r) => !r.mesa_id && r.estado !== "cancelada");
-    const noShows = reservas.filter((r) => r.atendida === false);
+    const sinMesa = reservas.filter((r) => !r.mesa_id && !ESTADOS_FINALES.has(r.estado));
+    const noShows = reservas.filter((r) => r.estado === "no-show" || r.atendida === false);
     return {
       hoy: hoyReservas.length,
       personasHoy: hoyReservas.reduce((a, r) => a + Number(r.personas || 0), 0),
@@ -532,7 +532,7 @@ export default function ReservasPage() {
     const sinMesa = reservas.filter((r) => !r.mesa_id && r.estado === "confirmada" && r.atendida === null);
     const hoy = fechaISO(new Date());
     const hoyPendientes = pendientes.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === hoy);
-    const riesgo = reservas.filter((r) => Number(r.cliente?.no_show_total || 0) + Number(r.cliente?.cancelaciones_totales || 0) > 0 && r.estado !== "cancelada");
+    const riesgo = reservas.filter((r) => Number(r.cliente?.no_show_total || 0) + Number(r.cliente?.cancelaciones_totales || 0) > 0 && !ESTADOS_FINALES.has(r.estado));
 
     if (hoyPendientes.length) items.push({ type: "danger", title: "Reservas de hoy sin confirmar", text: `${hoyPendientes.length} reserva${hoyPendientes.length === 1 ? "" : "s"} necesitan confirmación.` });
     if (pendientes.length) items.push({ type: "warn", title: "Pendientes acumuladas", text: `${pendientes.length} reserva${pendientes.length === 1 ? "" : "s"} siguen pendientes.` });
@@ -569,9 +569,12 @@ export default function ReservasPage() {
     if (!restauranteId) return;
     if (reserva.consumo_registrado_en) return;
     setSaving(reserva.id);
-    const { error } = await supabase.from("reservas").update({ atendida: valor }).eq("id", reserva.id).eq("restaurante_id", restauranteId);
+    const payload = valor === false
+      ? { atendida: false, estado: "no-show", mesa_id: null }
+      : { atendida: valor };
+    const { error } = await supabase.from("reservas").update(payload).eq("id", reserva.id).eq("restaurante_id", restauranteId);
     if (!error) {
-      setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, atendida: valor } : r)));
+      setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, ...payload } as Reserva : r)));
       if (reserva.cliente_id) {
         await supabase.from("cliente_notificaciones").insert({
           restaurante_id: restauranteId,
@@ -651,7 +654,15 @@ export default function ReservasPage() {
 
   const crearBloqueo = async () => {
     if (!restauranteId) return;
-    if (!nuevoBloqueo.fecha || !nuevoBloqueo.hora_inicio || !nuevoBloqueo.hora_fin) return;
+    if (!nuevoBloqueo.fecha || !nuevoBloqueo.hora_inicio || !nuevoBloqueo.hora_fin) {
+      setError("Completa la fecha y las dos horas del bloqueo.");
+      return;
+    }
+    if (nuevoBloqueo.hora_fin <= nuevoBloqueo.hora_inicio) {
+      setError("La hora de fin debe ser posterior a la hora de inicio.");
+      return;
+    }
+    setError(null);
     setSaving("bloqueo");
     const { error } = await supabase.from("bloqueos_reservas").insert({
       restaurante_id: restauranteId,
@@ -664,6 +675,8 @@ export default function ReservasPage() {
     if (!error) {
       setNuevoBloqueo({ fecha: fechaISO(new Date()), ...BLOQUEO_INICIAL });
       await cargarTodo({ silent: true });
+    } else {
+      setError("No se pudo guardar el bloqueo. Revisa los datos y vuelve a intentarlo.");
     }
     setSaving(null);
   };
@@ -672,12 +685,14 @@ export default function ReservasPage() {
     if (!restauranteId) return;
     const { error } = await supabase.from("bloqueos_reservas").update({ activo: !b.activo }).eq("id", b.id).eq("restaurante_id", restauranteId);
     if (!error) setBloqueos((prev) => prev.map((x) => (x.id === b.id ? { ...x, activo: !x.activo } : x)));
+    else setError("No se pudo cambiar el estado del bloqueo.");
   };
 
   const borrarBloqueo = async (b: Bloqueo) => {
     if (!restauranteId) return;
     const { error } = await supabase.from("bloqueos_reservas").delete().eq("id", b.id).eq("restaurante_id", restauranteId);
     if (!error) setBloqueos((prev) => prev.filter((x) => x.id !== b.id));
+    else setError("No se pudo borrar el bloqueo.");
   };
 
   const reservasAgrupadasDia = useMemo(() => {
