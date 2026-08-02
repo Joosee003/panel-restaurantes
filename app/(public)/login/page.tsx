@@ -84,10 +84,10 @@ export default function LoginPage() {
     }
 
     if (desiredPath?.startsWith("/admin")) return isAdmin ? desiredPath : "/dashboard";
+    if (isAdmin) return "/admin/seleccionar-restaurante";
     if (desiredPath && hasRestaurant) return desiredPath;
-    if (isAdmin) return "/admin/restaurantes";
     if (hasRestaurant) return "/dashboard";
-    return "/admin/restaurantes";
+    return "/login";
   };
 
   useEffect(() => {
