@@ -255,7 +255,7 @@ export default function BookingWidget({
       <div className="space-y-6 p-6 sm:p-8">
         {demo ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-900">
-            Vista piloto: puedes probar el formulario. Ninguna reserva real se enviará hasta activar la base de datos.
+            Entorno de prueba GastroHelp: las reservas se guardan únicamente en el restaurante DEMOOOO.
           </div>
         ) : null}
 

@@ -392,6 +392,18 @@ export default function WebReservasSettings({
       return;
     }
 
+    const overlappingServices = schedule.some(
+      (day) =>
+        day.lunchEnabled &&
+        day.dinnerEnabled &&
+        day.lunchStart < day.dinnerEnd &&
+        day.dinnerStart < day.lunchEnd,
+    );
+    if (overlappingServices) {
+      setError("Los horarios de comida y cena no pueden solaparse.");
+      return;
+    }
+
     const rows = schedule.flatMap((day) => {
       const values: ScheduleRow[] = [];
       if (day.lunchEnabled) {
@@ -437,6 +449,8 @@ export default function WebReservasSettings({
       console.error("Error guardando web y reservas", saveError);
       const errorText = /ACTIVE_BOOKING_REQUIRES_SCHEDULE/.test(saveError.message)
         ? "Añade al menos un horario antes de activar reservas."
+        : /OVERLAPPING_BOOKING_SCHEDULE/.test(saveError.message)
+          ? "Los horarios de comida y cena no pueden solaparse."
         : /duplicate key|unique/i.test(saveError.message)
           ? "Esa dirección web ya está ocupada."
           : "No se ha podido guardar. Revisa los campos y vuelve a intentarlo.";
