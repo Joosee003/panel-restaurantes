@@ -3,7 +3,7 @@
 import { ArrowRight, CheckCircle2, Loader2, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 
 export default function ReputationAccessPage() {
@@ -15,20 +15,35 @@ export default function ReputationAccessPage() {
   const [checking, setChecking] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
 
+  const destinationForUser = useCallback(async (userId: string) => {
+    const { data, error } = await supabase
+      .from("app_admins")
+      .select("user_id")
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (error) throw error;
+    return data?.user_id ? "/reputacion/seleccionar" : "/opiniones-admin";
+  }, [supabase]);
+
   useEffect(() => {
     let active = true;
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       if (!active) return;
-      if (data.session) {
-        router.replace("/opiniones-admin");
-        return;
+      if (data.session?.user) {
+        try {
+          router.replace(await destinationForUser(data.session.user.id));
+          return;
+        } catch {
+          setMessage("No se ha podido comprobar tu acceso.");
+        }
       }
       setChecking(false);
     });
     return () => {
       active = false;
     };
-  }, [router, supabase]);
+  }, [destinationForUser, router, supabase]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -42,9 +57,15 @@ export default function ReputationAccessPage() {
       password,
     });
 
-    if (!signIn.error && signIn.data.session) {
-      router.replace("/opiniones-admin");
-      return;
+    if (!signIn.error && signIn.data.session?.user) {
+      try {
+        router.replace(await destinationForUser(signIn.data.session.user.id));
+        return;
+      } catch {
+        setMessage("No se ha podido comprobar tu acceso.");
+        setLoading(false);
+        return;
+      }
     }
 
     setMessage("No se pudo iniciar sesión. Revisa el correo y la contraseña.");

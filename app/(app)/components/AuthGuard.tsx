@@ -75,7 +75,7 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
     const hasRestaurant = Boolean(restaurantResult.data?.length);
 
     if (!hasRestaurant && isAdmin) {
-      router.replace("/admin/restaurantes");
+      router.replace("/admin/seleccionar-restaurante");
       router.refresh();
       return;
     }

@@ -11,6 +11,7 @@ import {
 
 function clearPanelSessionStorage() {
   window.localStorage.removeItem("gastrohelp_restaurante_activo");
+  window.localStorage.removeItem("gastrohelp_opinion_restaurante_activo");
   window.localStorage.removeItem(DEMO_STORAGE_KEY);
   window.sessionStorage.removeItem(DEMO_MODE_KEY);
 
