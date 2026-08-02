@@ -55,13 +55,16 @@ export default function SelectRestaurantPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,#2563eb_0,transparent_28%),linear-gradient(135deg,#020617,#0f285b_58%,#1559b6)] px-4 py-16 text-white sm:px-8">
+    <main
+      className="min-h-screen px-4 py-16 text-white sm:px-8"
+      style={{ background: "radial-gradient(circle at top right, #2563eb 0, transparent 28%), linear-gradient(135deg, #020617, #0f285b 58%, #1559b6)" }}
+    >
       <section className="mx-auto max-w-6xl">
         <div className="max-w-3xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.18em] text-blue-100">
             <Building2 className="h-4 w-4" /> Cuenta de agencia
           </div>
-          <h1 className="mt-5 text-4xl font-black tracking-[-.04em] sm:text-6xl">¿Qué restaurante quieres gestionar?</h1>
+          <h1 className="mt-5 text-4xl font-black tracking-[-.04em] !text-white sm:text-6xl">¿Qué restaurante quieres gestionar?</h1>
           <p className="mt-4 max-w-2xl text-base font-semibold leading-7 text-blue-100">Elige un restaurante antes de entrar al panel general. Los datos y módulos cambiarán a ese restaurante.</p>
         </div>
 
