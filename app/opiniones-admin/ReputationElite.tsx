@@ -49,6 +49,8 @@ type Tab = "inicio" | "opiniones" | "seguimiento" | "insights" | "materiales" | 
 const inputClass =
   "w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-semibold outline-none transition focus:border-blue-500";
 
+const REPUTATION_RESTAURANT_KEY = "gastrohelp_opinion_restaurante_activo";
+
 const tabs: Array<{ id: Tab; label: string; icon: ReactNode }> = [
   { id: "inicio", label: "Vista general", icon: <LayoutDashboard /> },
   { id: "opiniones", label: "Opiniones", icon: <MessageSquareText /> },
@@ -91,8 +93,22 @@ export default function ReputationElite() {
       setLoading(false);
       return;
     }
-    const selectedConfig = configResult.data.find((item) => item.slug === "hispanos-grill") ?? configResult.data[0];
+    const requestedRestaurant = new URLSearchParams(window.location.search).get("restaurante");
+    const storedRestaurant = window.localStorage.getItem(REPUTATION_RESTAURANT_KEY);
+    const selectedRestaurant = requestedRestaurant || storedRestaurant;
+    const selectedConfig = selectedRestaurant
+      ? configResult.data.find((item) => item.restaurante_id === selectedRestaurant)
+      : configResult.data.length === 1
+        ? configResult.data[0]
+        : null;
+
+    if (!selectedConfig) {
+      window.location.replace("/reputacion/seleccionar");
+      return;
+    }
+
     const restaurantId = selectedConfig.restaurante_id as string;
+    window.localStorage.setItem(REPUTATION_RESTAURANT_KEY, restaurantId);
     const [restaurantResult, opinionsResult, eventsResult, alertsResult] = await Promise.all([
       supabase.from("restaurantes").select("id,nombre").eq("id", restaurantId).single(),
       supabase
