@@ -122,7 +122,10 @@ export default function SelectReputationRestaurantPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_right,#3b82f6_0,transparent_30%),linear-gradient(135deg,#031b3b,#062b5c_58%,#1559b6)] px-4 py-12 text-white sm:px-8 sm:py-16">
+    <main
+      className="min-h-screen px-4 py-12 text-white sm:px-8 sm:py-16"
+      style={{ background: "radial-gradient(circle at top right, #3b82f6 0, transparent 30%), linear-gradient(135deg, #031b3b, #062b5c 58%, #1559b6)" }}
+    >
       <section className="mx-auto max-w-6xl">
         <div className="flex flex-col justify-between gap-6 sm:flex-row sm:items-start">
           <div className="max-w-3xl">
@@ -132,7 +135,7 @@ export default function SelectReputationRestaurantPage() {
               </div>
               <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-blue-100">GastroHelp Reputation</p><p className="mt-1 text-xl font-black">Cuenta de agencia</p></div>
             </div>
-            <h1 className="mt-8 text-4xl font-black tracking-[-.04em] sm:text-6xl">¿Qué reputación quieres gestionar?</h1>
+            <h1 className="mt-8 text-4xl font-black tracking-[-.04em] !text-white sm:text-6xl">¿Qué reputación quieres gestionar?</h1>
             <p className="mt-4 max-w-2xl text-base font-semibold leading-7 text-blue-100">Elige el restaurante y entrarás únicamente en sus opiniones, estadísticas, seguimientos y materiales.</p>
           </div>
           <Link href="/logout" className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-2xl border border-white/20 bg-white/10 px-4 text-xs font-black hover:bg-white/15"><LogOut className="h-4 w-4" /> Cerrar sesión</Link>
