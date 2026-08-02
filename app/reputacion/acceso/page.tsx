@@ -85,7 +85,7 @@ export default function ReputationAccessPage() {
               <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.18em] text-blue-100 backdrop-blur-xl">
                 <Sparkles className="h-3.5 w-3.5" /> Acceso independiente
               </div>
-              <h1 className="mt-5 text-5xl font-black leading-[1.02] tracking-[-.045em] text-white xl:text-6xl">Tu reputación, en un espacio hecho para tu restaurante.</h1>
+              <h1 className="mt-5 text-5xl font-black leading-[1.02] tracking-[-.045em] !text-white xl:text-6xl">Tu reputación, en un espacio hecho para tu restaurante.</h1>
               <p className="mt-5 max-w-md text-base font-semibold leading-7 text-blue-100">Opiniones, estadísticas, seguimientos, insights y materiales de impresión, sin acceso al panel general.</p>
             </div>
           </div>
