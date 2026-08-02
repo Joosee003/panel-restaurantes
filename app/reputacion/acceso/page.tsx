@@ -1,6 +1,7 @@
 "use client";
 
 import { ArrowRight, CheckCircle2, Loader2, LockKeyhole, ShieldCheck, Sparkles } from "lucide-react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
@@ -140,8 +141,15 @@ export default function ReputationAccessPage() {
 
 function BrandMark({ className, compact = false }: { className: string; compact?: boolean }) {
   return (
-    <div className={`grid shrink-0 place-items-center border border-white/30 bg-white text-[#1559b6] shadow-2xl ${className}`} aria-label="GastroHelp">
-      <span className={`${compact ? "text-2xl" : "text-4xl"} font-black leading-none tracking-[-.1em]`}>H<span className="text-[#1601ad]">+</span></span>
+    <div className={`grid shrink-0 place-items-center overflow-hidden border border-white/30 bg-white shadow-2xl ${className}`}>
+      <Image
+        src="/brand/gastrohelp-logo.jpg"
+        alt="Logo de GastroHelp"
+        width={150}
+        height={150}
+        priority
+        className={`h-full w-full object-contain mix-blend-multiply ${compact ? "p-1.5" : "p-2"}`}
+      />
     </div>
   );
 }
