@@ -1,9 +1,11 @@
 "use client";
 
 import {
+  ArrowLeftRight,
   ExternalLink,
   Globe2,
   Instagram,
+  Loader2,
   MapPin,
   Phone,
   ShieldCheck,
@@ -11,11 +13,77 @@ import {
   Star,
   UtensilsCrossed,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import Link from "next/link";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { HISPANOS_BRAND } from "@/lib/opiniones/hispanos-brand";
+import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 import ReputationElite from "./ReputationElite";
 
+const REPUTATION_RESTAURANT_KEY = "gastrohelp_opinion_restaurante_activo";
+
+type SuiteBrand = {
+  name: string;
+  logo: string;
+  googleMaps: string;
+  isHispanos: boolean;
+};
+
 export default function HispanosReputationSuite() {
+  const supabase = useMemo(() => getOpinionesBrowserClient(), []);
+  const [brand, setBrand] = useState<SuiteBrand | null>(null);
+  const [canSwitch, setCanSwitch] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadBrand = async () => {
+      const { data: configs } = await supabase
+        .from("opinion_config")
+        .select("restaurante_id,slug,logo_url,google_review_url")
+        .eq("active", true)
+        .order("created_at");
+
+      if (!active || !configs?.length) return;
+
+      const requestedRestaurant = new URLSearchParams(window.location.search).get("restaurante");
+      const storedRestaurant = window.localStorage.getItem(REPUTATION_RESTAURANT_KEY);
+      const selectedRestaurant = requestedRestaurant || storedRestaurant;
+      const selectedConfig = selectedRestaurant
+        ? configs.find((item) => item.restaurante_id === selectedRestaurant)
+        : configs.length === 1
+          ? configs[0]
+          : null;
+
+      if (!selectedConfig) {
+        window.location.replace("/reputacion/seleccionar");
+        return;
+      }
+
+      const { data: restaurant } = await supabase
+        .from("restaurantes")
+        .select("nombre,logo_url")
+        .eq("id", selectedConfig.restaurante_id)
+        .maybeSingle();
+
+      if (!active) return;
+      const isHispanos = selectedConfig.slug === "hispanos-grill";
+      setCanSwitch(configs.length > 1);
+      setBrand({
+        name: restaurant?.nombre || selectedConfig.slug,
+        logo: restaurant?.logo_url || selectedConfig.logo_url || "/brand/gastrohelp-logo.jpg",
+        googleMaps: selectedConfig.google_review_url || (isHispanos ? HISPANOS_BRAND.googleMaps : ""),
+        isHispanos,
+      });
+    };
+
+    void loadBrand();
+    return () => { active = false; };
+  }, [supabase]);
+
+  if (!brand) {
+    return <div className="grid min-h-screen place-items-center bg-[#031b3b] text-blue-100"><div className="flex items-center gap-3 text-sm font-black"><Loader2 className="h-5 w-5 animate-spin" /> Cargando restaurante…</div></div>;
+  }
+
   return (
     <div className="hispanos-suite min-h-screen bg-[#edf4fb] text-[#10233d]">
       <header className="sticky top-0 z-50 border-b border-blue-950/10 bg-white/88 backdrop-blur-2xl">
@@ -23,11 +91,11 @@ export default function HispanosReputationSuite() {
           <div className="flex min-w-0 items-center gap-3">
             <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-2xl border border-blue-100 bg-white p-1 shadow-lg shadow-blue-950/10">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={HISPANOS_BRAND.logo} alt="Logo oficial de Hispanos Grill" className="h-full w-full object-contain" />
+              <img src={brand.logo} alt={`Logo de ${brand.name}`} className="h-full w-full object-contain" />
             </div>
             <div className="min-w-0">
               <p className="truncate text-[10px] font-black uppercase tracking-[.22em] text-[#1559b6]">GastroHelp Reputation</p>
-              <p className="truncate text-base font-black text-[#10233d] sm:text-lg">Hispanos Grill</p>
+              <p className="truncate text-base font-black text-[#10233d] sm:text-lg">{brand.name}</p>
             </div>
           </div>
 
@@ -35,12 +103,13 @@ export default function HispanosReputationSuite() {
             <span className="hidden items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-emerald-700 lg:flex">
               <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.12)]" /> Sistema activo
             </span>
-            <a href={HISPANOS_BRAND.instagram} target="_blank" rel="noreferrer" className="hidden h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-black text-[#1559b6] transition hover:-translate-y-0.5 hover:shadow-md md:flex">
+            {canSwitch && <Link href="/reputacion/seleccionar" className="hidden h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-black text-[#1559b6] transition hover:-translate-y-0.5 hover:shadow-md md:flex"><ArrowLeftRight className="h-4 w-4" /> Cambiar restaurante</Link>}
+            {brand.isHispanos && <a href={HISPANOS_BRAND.instagram} target="_blank" rel="noreferrer" className="hidden h-10 items-center gap-2 rounded-xl border border-blue-100 bg-white px-3 text-xs font-black text-[#1559b6] transition hover:-translate-y-0.5 hover:shadow-md md:flex">
               <Instagram className="h-4 w-4" /> Instagram
-            </a>
-            <a href={HISPANOS_BRAND.googleMaps} target="_blank" rel="noreferrer" className="flex h-10 items-center gap-2 rounded-xl bg-[#1559b6] px-3 text-xs font-black text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-[#0d478f]">
+            </a>}
+            {brand.googleMaps && <a href={brand.googleMaps} target="_blank" rel="noreferrer" className="flex h-10 items-center gap-2 rounded-xl bg-[#1559b6] px-3 text-xs font-black text-white shadow-lg shadow-blue-700/20 transition hover:-translate-y-0.5 hover:bg-[#0d478f]">
               <MapPin className="h-4 w-4" /> <span className="hidden sm:inline">Google Maps</span><ExternalLink className="h-3.5 w-3.5" />
-            </a>
+            </a>}
           </div>
         </div>
       </header>
@@ -49,7 +118,7 @@ export default function HispanosReputationSuite() {
         <div className="relative mx-auto max-w-[1550px] overflow-hidden rounded-[2.6rem] border border-white/20 bg-[#031b3b] text-white shadow-[0_38px_110px_rgba(6,43,92,.28)]">
           <div className="absolute inset-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={HISPANOS_BRAND.hero} alt="Interior real de Hispanos Grill" className="h-full w-full object-cover object-center" />
+            {brand.isHispanos && <img src={HISPANOS_BRAND.hero} alt="Interior real de Hispanos Grill" className="h-full w-full object-cover object-center" />}
             <div className="absolute inset-0 bg-[linear-gradient(96deg,rgba(3,27,59,.99)_0%,rgba(6,43,92,.94)_42%,rgba(6,43,92,.58)_68%,rgba(3,27,59,.26)_100%)]" />
             <div className="absolute inset-0 bg-[linear-gradient(0deg,rgba(1,15,36,.76),transparent_54%)]" />
             <div className="absolute right-[10%] top-[-25%] h-96 w-96 rounded-full bg-blue-300/20 blur-3xl" />
@@ -60,13 +129,13 @@ export default function HispanosReputationSuite() {
               <div className="flex items-center gap-4">
                 <div className="grid h-24 w-24 shrink-0 place-items-center overflow-hidden rounded-[1.8rem] border border-white/30 bg-white p-2 shadow-2xl sm:h-28 sm:w-28">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={HISPANOS_BRAND.logo} alt="Hispanos Grill" className="h-full w-full object-contain" />
+                  <img src={brand.logo} alt={brand.name} className="h-full w-full object-contain" />
                 </div>
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.18em] text-blue-100 backdrop-blur-xl">
                     <ShieldCheck className="h-3.5 w-3.5" /> Centro privado de reputación
                   </div>
-                  <h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-6xl">Hispanos Grill</h1>
+                  <h1 className="mt-3 text-4xl font-black tracking-[-.04em] sm:text-6xl">{brand.name}</h1>
                 </div>
               </div>
 
@@ -74,24 +143,26 @@ export default function HispanosReputationSuite() {
               <p className="mt-4 max-w-2xl text-sm font-semibold leading-6 text-blue-100/90 sm:text-base">Opiniones, evolución, insights y materiales listos para imprimir. Sin menús complicados y sin perder tiempo.</p>
 
               <div className="mt-7 flex flex-wrap gap-3">
-                <a href={HISPANOS_BRAND.googleMaps} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#062b5c] shadow-xl transition hover:-translate-y-0.5">
+                {brand.googleMaps && <a href={brand.googleMaps} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-[#062b5c] shadow-xl transition hover:-translate-y-0.5">
                   <MapPin className="h-4 w-4 text-[#1559b6]" /> Ver ficha de Google <ExternalLink className="h-4 w-4" />
-                </a>
-                <a href={HISPANOS_BRAND.website} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-4 text-sm font-black text-white backdrop-blur-xl transition hover:bg-white/20">
+                </a>}
+                {brand.isHispanos && <a href={HISPANOS_BRAND.website} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center gap-2 rounded-2xl border border-white/30 bg-white/10 px-4 text-sm font-black text-white backdrop-blur-xl transition hover:bg-white/20">
                   <Globe2 className="h-4 w-4" /> Web del restaurante
-                </a>
+                </a>}
               </div>
 
-              <div className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-xs font-bold text-blue-100/85">
+              {brand.isHispanos && <div className="mt-7 flex flex-wrap gap-x-6 gap-y-2 text-xs font-bold text-blue-100/85">
                 <span className="inline-flex items-center gap-2"><MapPin className="h-4 w-4" /> {HISPANOS_BRAND.contact.address}</span>
                 <a href={`tel:${HISPANOS_BRAND.contact.phone.replace(/\s/g, "")}`} className="inline-flex items-center gap-2 hover:text-white"><Phone className="h-4 w-4" /> {HISPANOS_BRAND.contact.phone}</a>
-              </div>
+              </div>}
             </div>
 
             <div className="hidden lg:block">
               <div className="grid grid-cols-2 gap-3">
-                <PhotoCard src={HISPANOS_BRAND.hero} label="Interior" className="col-span-2 aspect-[16/8]" />
-                <PhotoCard src={HISPANOS_BRAND.food[0]} label="Cocina" className="aspect-square" />
+                {brand.isHispanos ? <><PhotoCard src={HISPANOS_BRAND.hero} label="Interior" className="col-span-2 aspect-[16/8]" /><PhotoCard src={HISPANOS_BRAND.food[0]} label="Cocina" className="aspect-square" /></> : <div className="col-span-2 grid aspect-[16/8] place-items-center rounded-[1.8rem] border border-white/18 bg-white/10 p-8">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={brand.logo} alt={brand.name} className="max-h-36 max-w-64 object-contain" />
+                </div>}
                 <div className="flex aspect-square flex-col justify-between rounded-[1.8rem] border border-white/18 bg-[#041f44]/76 p-5 shadow-2xl backdrop-blur-2xl">
                   <div className="grid h-12 w-12 place-items-center rounded-2xl bg-white/10 text-blue-100"><Sparkles className="h-5 w-5" /></div>
                   <div><p className="text-[10px] font-black uppercase tracking-[.18em] text-blue-200">Centro de control</p><p className="mt-2 text-2xl font-black">Visible en segundos.</p><p className="mt-2 text-xs font-semibold leading-5 text-blue-100/72">Lo importante aparece primero. El resto está a un clic.</p></div>
@@ -124,7 +195,9 @@ export default function HispanosReputationSuite() {
 }
 
 function PhotoCard({ src, label, className }: { src: string; label: string; className?: string }) {
-  return <div className={`group relative overflow-hidden rounded-[1.8rem] border border-white/18 bg-white/10 shadow-2xl ${className ?? ""}`}><img src={src} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-[#031b3b]/78 via-transparent to-transparent" /><span className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-[#031b3b]/55 px-3 py-1.5 text-[9px] font-black uppercase tracking-[.16em] text-white backdrop-blur-xl">{label}</span></div>;
+  return <div className={`group relative overflow-hidden rounded-[1.8rem] border border-white/18 bg-white/10 shadow-2xl ${className ?? ""}`}>
+    {/* eslint-disable-next-line @next/next/no-img-element */}
+    <img src={src} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /><div className="absolute inset-0 bg-gradient-to-t from-[#031b3b]/78 via-transparent to-transparent" /><span className="absolute bottom-4 left-4 rounded-full border border-white/20 bg-[#031b3b]/55 px-3 py-1.5 text-[9px] font-black uppercase tracking-[.16em] text-white backdrop-blur-xl">{label}</span></div>;
 }
 
 function Signal({ icon, label }: { icon: ReactNode; label: string }) {
