@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import HispanosReputationSuite from "./HispanosReputationSuite";
 
 export const metadata: Metadata = {
-  title: "Reputation Suite | Hispanos Grill",
+  title: "Panel de reputación | GastroHelp",
   description:
-    "Centro privado de reputación, seguimiento, insights y materiales QR de Hispanos Grill.",
+    "Centro privado de reputación, seguimiento, insights y materiales QR.",
   robots: { index: false, follow: false },
 };
 
