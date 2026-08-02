@@ -76,8 +76,8 @@ export default function ReputationAccessPage() {
             <div className="flex items-center gap-4">
               <BrandMark className="h-24 w-24 rounded-[1.7rem]" />
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[.22em] text-blue-200">GastroHelp Reputation</p>
-                <p className="mt-1 text-2xl font-black">Panel de reputación</p>
+                <p className="text-[10px] font-black uppercase tracking-[.22em] text-blue-100">GastroHelp Reputation</p>
+                <p className="mt-1 text-2xl font-black text-white">Panel de reputación</p>
               </div>
             </div>
 
@@ -85,8 +85,8 @@ export default function ReputationAccessPage() {
               <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[.18em] text-blue-100 backdrop-blur-xl">
                 <Sparkles className="h-3.5 w-3.5" /> Acceso independiente
               </div>
-              <h1 className="mt-5 text-5xl font-black leading-[1.02] tracking-[-.045em] xl:text-6xl">Tu reputación, en un espacio hecho para tu restaurante.</h1>
-              <p className="mt-5 max-w-md text-base font-semibold leading-7 text-blue-100/86">Opiniones, estadísticas, seguimientos, insights y materiales de impresión, sin acceso al panel general.</p>
+              <h1 className="mt-5 text-5xl font-black leading-[1.02] tracking-[-.045em] text-white xl:text-6xl">Tu reputación, en un espacio hecho para tu restaurante.</h1>
+              <p className="mt-5 max-w-md text-base font-semibold leading-7 text-blue-100">Opiniones, estadísticas, seguimientos, insights y materiales de impresión, sin acceso al panel general.</p>
             </div>
           </div>
 
@@ -141,10 +141,7 @@ export default function ReputationAccessPage() {
 function BrandMark({ className, compact = false }: { className: string; compact?: boolean }) {
   return (
     <div className={`grid shrink-0 place-items-center border border-white/30 bg-white text-[#1559b6] shadow-2xl ${className}`} aria-label="GastroHelp">
-      <div className="flex flex-col items-center leading-none">
-        <ShieldCheck className={compact ? "h-6 w-6" : "h-9 w-9"} />
-        <span className={`${compact ? "mt-1 text-[9px]" : "mt-1.5 text-xs"} font-black tracking-[-.04em]`}>GH</span>
-      </div>
+      <span className={`${compact ? "text-2xl" : "text-4xl"} font-black leading-none tracking-[-.1em]`}>H<span className="text-[#1601ad]">+</span></span>
     </div>
   );
 }
@@ -153,8 +150,8 @@ function AccessPromise({ icon, title, text }: { icon: ReactNode; title: string; 
   return (
     <div className="rounded-2xl border border-white/15 bg-white/[.08] p-4 backdrop-blur-xl">
       <span className="grid h-9 w-9 place-items-center rounded-xl bg-white/10 text-blue-100 [&_svg]:h-4 [&_svg]:w-4">{icon}</span>
-      <p className="mt-3 text-xs font-black">{title}</p>
-      <p className="mt-1 text-[10px] font-semibold leading-4 text-blue-100/65">{text}</p>
+      <p className="mt-3 text-xs font-black text-white">{title}</p>
+      <p className="mt-1 text-[10px] font-semibold leading-4 text-blue-100">{text}</p>
     </div>
   );
 }
