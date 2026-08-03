@@ -267,6 +267,29 @@ export default function BookingWidget({
           </div>
         ) : null}
 
+        <ol className="grid grid-cols-3 gap-2" aria-label="Pasos de la reserva">
+          {[
+            ["1", "Disponibilidad"],
+            ["2", "Tus datos"],
+            ["3", "Confirmación"],
+          ].map(([step, label], index) => {
+            const active = index === 0 || (index === 1 && selectedSlot);
+            return (
+              <li
+                key={step}
+                className={`rounded-xl border px-2 py-2.5 text-center text-[10px] font-black uppercase tracking-[0.08em] sm:px-3 sm:text-[11px] ${
+                  active
+                    ? "border-slate-300 bg-slate-50 text-slate-900"
+                    : "border-slate-100 bg-white text-slate-400"
+                }`}
+                aria-current={index === 0 && !selectedSlot ? "step" : index === 1 && selectedSlot ? "step" : undefined}
+              >
+                <span className="mr-1 text-slate-400">{step}.</span> {label}
+              </li>
+            );
+          })}
+        </ol>
+
         <div className="grid gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
@@ -333,7 +356,7 @@ export default function BookingWidget({
             ) : null}
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4" aria-live="polite">
             {slots.map((slot) => {
               const selected = selectedSlot?.start === slot.start;
               return (
@@ -345,6 +368,7 @@ export default function BookingWidget({
                     setIdempotencyKey(crypto.randomUUID());
                     setSubmitError("");
                   }}
+                  aria-pressed={selected}
                   className="h-11 rounded-xl border text-sm font-black transition hover:-translate-y-0.5"
                   style={
                     selected
@@ -367,12 +391,12 @@ export default function BookingWidget({
           </div>
 
           {!loadingSlots && !slotsError && slots.length === 0 ? (
-            <p className="mt-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500">
+            <p className="mt-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500" role="status">
               No quedan horas online para ese día. Prueba con otra fecha.
             </p>
           ) : null}
           {slotsError ? (
-            <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            <p className="mt-3 rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">
               {slotsError}
             </p>
           ) : null}
@@ -380,6 +404,17 @@ export default function BookingWidget({
 
         {selectedSlot ? (
           <form onSubmit={submitBooking} className="space-y-4 border-t border-slate-100 pt-6">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
+                Paso 2 de 3
+              </p>
+              <h4 className="mt-1 text-xl font-black tracking-[-0.03em] text-slate-950">
+                Completa tus datos
+              </h4>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                Los campos marcados con * son obligatorios.
+              </p>
+            </div>
             <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
               <div
                 className="flex h-10 w-10 items-center justify-center rounded-xl"
@@ -398,7 +433,7 @@ export default function BookingWidget({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="block sm:col-span-2">
                 <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
-                  Nombre y apellidos
+                  Nombre y apellidos *
                 </span>
                 <input
                   name="name"
@@ -475,7 +510,7 @@ export default function BookingWidget({
             </label>
 
             {submitError ? (
-              <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">
                 {submitError}
               </p>
             ) : null}
