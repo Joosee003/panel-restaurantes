@@ -7,7 +7,9 @@ import {
   Fish,
   Instagram,
   MapPin,
+  MessageCircle,
   Phone,
+  Star,
   UtensilsCrossed,
 } from "lucide-react";
 import { notFound } from "next/navigation";
@@ -15,6 +17,7 @@ import { getPublicRestaurant } from "../../lib/publicRestaurant";
 import BookingWidget from "./BookingWidget";
 import {
   ExpandingImage,
+  MobileActionBar,
   RestaurantHeader,
   Reveal,
 } from "./RestaurantExperience";
@@ -95,6 +98,20 @@ function externalHref(value: string) {
   return `https://${value}`;
 }
 
+function whatsappHref(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  return `https://wa.me/${digits.startsWith("34") ? digits : `34${digits}`}`;
+}
+
+function formatPrice(value: number | null) {
+  if (value == null) return "";
+  return new Intl.NumberFormat("es-ES", {
+    style: "currency",
+    currency: "EUR",
+  }).format(value);
+}
+
 export default async function RestaurantPage({ params }: RestaurantPageProps) {
   const { slug } = await params;
   const restaurant = await getPublicRestaurant(slug);
@@ -118,35 +135,74 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
   const specialties = restaurant.specialties.length
     ? restaurant.specialties
     : ["Pescado del día", "Cocina canaria", "Producto local"];
+  const menuSections = restaurant.demo
+    ? demoMenu.map((section) => ({
+        title: section.title,
+        items: section.items.map(([name, description]) => ({
+          name,
+          description,
+          price: null,
+          imageUrl: "",
+          recommended: false,
+        })),
+      }))
+    : restaurant.menu.sections;
+  const publicUrl = `https://panel.gastrohelp.es/restaurante/${restaurant.slug}`;
+  const structuredData = {
+    "@context": "https://schema.org",
+    "@type": "Restaurant",
+    name: restaurant.name,
+    description: restaurant.seoDescription,
+    url: publicUrl,
+    image: gallery,
+    telephone: restaurant.phone || undefined,
+    email: restaurant.email || undefined,
+    address: restaurant.address || undefined,
+    servesCuisine: specialties,
+    hasMenu: restaurant.menu.publicPath
+      ? `https://panel.gastrohelp.es${restaurant.menu.publicPath}`
+      : undefined,
+    acceptsReservations: restaurant.booking.enabled,
+  };
 
   return (
     <div
-      className="min-h-screen overflow-hidden bg-[#f8f5ef] text-[#111916] selection:bg-amber-200"
+      className="restaurant-public-site min-h-screen overflow-hidden bg-[#f8f5ef] text-[#111916] selection:bg-amber-200"
       style={{
         backgroundColor,
         "--restaurant-primary": primaryColor,
         "--restaurant-accent": accentColor,
       } as React.CSSProperties}
     >
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(structuredData).replace(/</g, "\\u003c"),
+        }}
+      />
       <RestaurantHeader
         name={restaurant.name}
         logoUrl={restaurant.logoUrl}
         primaryColor={primaryColor}
         accentColor={accentColor}
       />
+      <MobileActionBar menuPath={restaurant.menu.publicPath} />
 
       {restaurant.demo ? (
-        <div className="fixed bottom-3 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-slate-950/90 px-3.5 py-2 text-[9px] font-black uppercase tracking-[0.17em] text-white shadow-2xl backdrop-blur sm:bottom-5 sm:px-4 sm:text-[10px]">
+        <div className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-slate-950/90 px-3.5 py-2 text-[9px] font-black uppercase tracking-[0.17em] text-white shadow-2xl backdrop-blur md:bottom-5 md:px-4 md:text-[10px]">
           Demostración GastroHelp
         </div>
       ) : null}
 
       <main>
-        <section id="inicio" className="relative min-h-[100svh] overflow-hidden bg-[#07100d] text-white">
+        <section id="inicio" className="restaurant-dark relative min-h-[100svh] overflow-hidden bg-[#07100d] text-white">
           {heroImage ? (
-            <div
-              className="absolute inset-0 scale-[1.02] bg-cover bg-center"
-              style={{ backgroundImage: `url(${heroImage})` }}
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={heroImage}
+              alt={`El espacio y la cocina de ${restaurant.name}`}
+              className="absolute inset-0 h-full w-full scale-[1.02] object-cover object-center"
+              fetchPriority="high"
             />
           ) : (
             <div className="absolute inset-0" style={{ backgroundColor: primaryColor }} />
@@ -167,17 +223,27 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
                   {restaurant.headline}
                 </h1>
               </Reveal>
-              <Reveal delay={160} className="mt-7 flex max-w-4xl flex-col gap-6 sm:mt-9 sm:flex-row sm:items-end sm:justify-between">
+              <Reveal delay={160} className="mt-7 flex max-w-5xl flex-col gap-6 sm:mt-9 lg:flex-row lg:items-end lg:justify-between">
                 <p className="max-w-xl text-sm font-semibold leading-7 text-white/72 sm:text-lg sm:leading-8">
                   {restaurant.subtitle}
                 </p>
-                <a
-                  href="#quienes-somos"
-                  className="group inline-flex w-fit shrink-0 items-center gap-3 rounded-full border border-white/20 bg-white/10 px-5 py-3.5 text-xs font-black text-white backdrop-blur transition hover:bg-white hover:text-slate-950 sm:px-6 sm:text-sm"
-                >
-                  Conócenos
-                  <ArrowDown className="h-4 w-4 transition group-hover:translate-y-1" />
-                </a>
+                <div className="flex flex-wrap gap-2.5">
+                  <a
+                    href="#reservar"
+                    className="group inline-flex w-fit shrink-0 items-center gap-3 rounded-full px-5 py-3.5 text-xs font-black shadow-xl transition hover:-translate-y-0.5 sm:px-6 sm:text-sm"
+                    style={{ backgroundColor: accentColor, color: primaryColor }}
+                  >
+                    Reservar mesa
+                    <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
+                  </a>
+                  <a
+                    href="#carta"
+                    className="group inline-flex w-fit shrink-0 items-center gap-3 rounded-full border border-white/25 bg-white/10 px-5 py-3.5 text-xs font-black text-white backdrop-blur transition hover:bg-white hover:text-slate-950 sm:px-6 sm:text-sm"
+                  >
+                    Ver la carta
+                    <ArrowDown className="h-4 w-4 transition group-hover:translate-y-1" />
+                  </a>
+                </div>
               </Reveal>
             </div>
 
@@ -203,7 +269,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
               <div>
                 <Reveal>
                   <h2 className="max-w-5xl text-[clamp(2.8rem,6.8vw,7.4rem)] font-black leading-[0.86] tracking-[-0.075em] text-slate-950">
-                    Una casa de comidas en El Golfo.
+                    {restaurant.demo ? "Una casa de comidas en El Golfo." : `Así es ${restaurant.name}.`}
                   </h2>
                 </Reveal>
                 <div className="mt-9 grid gap-7 border-t border-black/15 pt-8 sm:grid-cols-2 sm:gap-12">
@@ -214,7 +280,9 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
                   </Reveal>
                   <Reveal delay={140}>
                     <p className="text-sm font-medium leading-7 text-slate-500 sm:text-base sm:leading-8">
-                      Trabajamos con una carta corta y producto del día. Pescado, recetas canarias y una sobremesa mirando al Atlántico.
+                      {restaurant.demo
+                        ? "Trabajamos con una carta corta y producto del día. Pescado, recetas canarias y una sobremesa mirando al Atlántico."
+                        : `Una propuesta centrada en ${specialties.slice(0, 3).join(", ").toLowerCase()}. Consulta la carta y elige cuándo quieres visitarnos.`}
                     </p>
                   </Reveal>
                 </div>
@@ -232,16 +300,14 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
             ) : null}
 
             <div className="mt-14 grid gap-8 border-y border-black/15 py-9 sm:grid-cols-3 sm:py-11">
-              {[
-                ["01", "Producto", "Lo que llega cada día decide buena parte de la carta."],
-                ["02", "Cocina", "Recetas reconocibles, sin esconder el sabor del ingrediente."],
-                ["03", "Lugar", "Una mesa en un pueblo marinero de la costa oeste de Lanzarote."],
-              ].map(([number, title, copy], index) => (
-                <Reveal key={number} delay={index * 80} className="grid grid-cols-[2.5rem_1fr] gap-3 sm:block">
-                  <span className="text-[10px] font-black text-slate-400">{number}</span>
+              {specialties.slice(0, 3).map((specialty, index) => (
+                <Reveal key={specialty} delay={index * 80} className="grid grid-cols-[2.5rem_1fr] gap-3 sm:block">
+                  <span className="text-[10px] font-black text-slate-400">0{index + 1}</span>
                   <div className="sm:mt-6">
-                    <h3 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{title}</h3>
-                    <p className="mt-2 max-w-sm text-sm font-medium leading-6 text-slate-500">{copy}</p>
+                    <h3 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{specialty}</h3>
+                    <p className="mt-2 max-w-sm text-sm font-medium leading-6 text-slate-500">
+                      Parte de la propuesta gastronómica de {restaurant.name}.
+                    </p>
                   </div>
                 </Reveal>
               ))}
@@ -249,7 +315,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
           </div>
         </section>
 
-        <section id="carta" className="scroll-mt-20 bg-[#0b1512] px-5 py-20 text-white sm:px-8 sm:py-28 lg:px-10 lg:py-36 xl:px-12">
+        <section id="carta" className="restaurant-dark scroll-mt-20 bg-[#0b1512] px-5 py-20 text-white sm:px-8 sm:py-28 lg:px-10 lg:py-36 xl:px-12">
           <div className="mx-auto max-w-[96rem]">
             <div className="grid gap-9 lg:grid-cols-[0.72fr_1.28fr] lg:gap-20">
               <Reveal>
@@ -258,35 +324,60 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
                     La carta
                   </p>
                   <h2 className="mt-5 max-w-lg text-5xl font-black leading-[0.86] tracking-[-0.07em] text-white sm:text-7xl">
-                    Lo que hay, bien hecho.
+                    {restaurant.demo ? "Lo que hay, bien hecho." : "Descubre nuestra carta."}
                   </h2>
                   <p className="mt-6 max-w-md text-sm font-medium leading-7 text-white/50 sm:text-base">
-                    Esta selección es orientativa. El pescado y algunos platos cambian según mercado.
+                    {restaurant.demo
+                      ? "Esta selección es orientativa. El pescado y algunos platos cambian según mercado."
+                      : "Platos, precios y disponibilidad gestionados directamente por el restaurante."}
                   </p>
+                  {restaurant.menu.publicPath ? (
+                    <a
+                      href={restaurant.menu.publicPath}
+                      className="mt-7 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-5 py-3 text-xs font-black text-white transition hover:bg-white hover:text-slate-950"
+                    >
+                      Ver carta completa <ArrowRight className="h-4 w-4" />
+                    </a>
+                  ) : null}
                 </div>
               </Reveal>
 
               <div className="divide-y divide-white/15 border-y border-white/15">
-                {demoMenu.map((section, sectionIndex) => (
+                {menuSections.map((section, sectionIndex) => (
                   <Reveal key={section.title} delay={sectionIndex * 70} className="py-8 sm:py-10">
                     <div className="grid gap-6 sm:grid-cols-[10rem_1fr] sm:gap-10">
                       <h3 className="text-xs font-black uppercase tracking-[0.2em]" style={{ color: accentColor }}>
                         {section.title}
                       </h3>
                       <div className="space-y-6">
-                        {section.items.map(([name, description]) => (
-                          <div key={name} className="grid gap-1 border-b border-white/[0.07] pb-5 last:border-b-0 last:pb-0 sm:grid-cols-[1fr_auto] sm:items-end sm:gap-6">
+                        {section.items.map((item) => (
+                          <div key={item.name} className="grid gap-1 border-b border-white/[0.07] pb-5 last:border-b-0 last:pb-0 sm:grid-cols-[1fr_auto] sm:items-end sm:gap-6">
                             <div>
-                              <p className="text-lg font-black tracking-tight text-white sm:text-xl">{name}</p>
-                              <p className="mt-1 text-xs font-semibold leading-5 text-white/42 sm:text-sm">{description}</p>
+                              <p className="flex items-center gap-2 text-lg font-black tracking-tight text-white sm:text-xl">
+                                {item.name}
+                                {item.recommended ? <Star className="h-3.5 w-3.5 fill-current" style={{ color: accentColor }} /> : null}
+                              </p>
+                              {item.description ? (
+                                <p className="mt-1 text-xs font-semibold leading-5 text-white/42 sm:text-sm">{item.description}</p>
+                              ) : null}
                             </div>
-                            <span className="hidden text-[10px] font-black uppercase tracking-[0.16em] text-white/25 sm:block">Según mercado</span>
+                            <span className="text-xs font-black uppercase tracking-[0.12em] text-white/50">
+                              {item.price == null ? "Según mercado" : formatPrice(item.price)}
+                            </span>
                           </div>
                         ))}
                       </div>
                     </div>
                   </Reveal>
                 ))}
+                {!menuSections.length ? (
+                  <Reveal className="py-10">
+                    <p className="text-lg font-black text-white">La carta se está preparando.</p>
+                    <p className="mt-2 max-w-lg text-sm font-semibold leading-6 text-white/50">
+                      Contacta con el restaurante para consultar platos, precios y alérgenos.
+                    </p>
+                  </Reveal>
+                ) : null}
               </div>
             </div>
 
@@ -294,7 +385,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
               <div className="mt-16 sm:mt-24">
                 <ExpandingImage
                   src={menuImage}
-                  alt="Pescado preparado en la cocina"
+                  alt={`Un plato de la cocina de ${restaurant.name}`}
                   className="h-[52svh] min-h-[26rem] sm:h-[70svh] sm:min-h-[38rem]"
                 />
               </div>
@@ -303,15 +394,15 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
         </section>
 
         {wideImage ? (
-          <section aria-label="El mar y la mesa" className="bg-[#0b1512] pb-0">
+          <section aria-label={`La experiencia de ${restaurant.name}`} className="restaurant-dark bg-[#0b1512] pb-0">
             <div className="relative h-[60svh] min-h-[30rem] overflow-hidden sm:h-[82svh] sm:min-h-[44rem]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={wideImage} alt="Mesa frente al mar" className="absolute inset-0 h-full w-full object-cover" />
+              <img src={wideImage} alt={`El ambiente de ${restaurant.name}`} loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/5 to-black/10" />
               <div className="absolute inset-x-0 bottom-0 mx-auto max-w-[96rem] px-5 pb-9 sm:px-8 sm:pb-14 lg:px-10 xl:px-12">
                 <Reveal>
                   <p className="max-w-3xl text-3xl font-black leading-[0.95] tracking-[-0.05em] text-white sm:text-6xl">
-                    Ven con tiempo. El mar hace el resto.
+                    {restaurant.demo ? "Ven con tiempo. El mar hace el resto." : "Tu próxima mesa te está esperando."}
                   </p>
                 </Reveal>
               </div>
@@ -327,7 +418,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
                   Contacto y ubicación
                 </p>
                 <h2 className="mt-5 max-w-3xl text-[clamp(3rem,6.5vw,7rem)] font-black leading-[0.86] tracking-[-0.075em] text-slate-950">
-                  Nos vemos en El Golfo.
+                  {restaurant.demo ? "Nos vemos en El Golfo." : "Ven a visitarnos."}
                 </h2>
               </Reveal>
 
@@ -357,9 +448,19 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
                           <Phone className="h-4 w-4" /> Llamar
                         </a>
                       ) : null}
+                      {restaurant.whatsapp && whatsappHref(restaurant.whatsapp) ? (
+                        <a href={whatsappHref(restaurant.whatsapp)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white px-5 py-3 text-xs font-black text-slate-900 transition hover:-translate-y-0.5">
+                          <MessageCircle className="h-4 w-4" /> WhatsApp
+                        </a>
+                      ) : null}
                       {restaurant.instagramUrl ? (
                         <a href={externalHref(restaurant.instagramUrl)} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white px-5 py-3 text-xs font-black text-slate-900 transition hover:-translate-y-0.5">
                           <Instagram className="h-4 w-4" /> Instagram
+                        </a>
+                      ) : null}
+                      {restaurant.email ? (
+                        <a href={`mailto:${restaurant.email}`} className="inline-flex items-center gap-2 rounded-full border border-black/15 bg-white px-5 py-3 text-xs font-black text-slate-900 transition hover:-translate-y-0.5">
+                          Escribir
                         </a>
                       ) : null}
                     </div>
@@ -372,7 +473,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
               <div className="mt-14 sm:mt-20">
                 <ExpandingImage
                   src={placeImage}
-                  alt="Una mesa junto al mar"
+                  alt={`El espacio de ${restaurant.name}`}
                   className="h-[52svh] min-h-[25rem] sm:h-[68svh] sm:min-h-[36rem]"
                 />
               </div>
@@ -453,7 +554,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
         </section>
       </main>
 
-      <footer className="bg-[#07100d] px-5 pb-20 pt-12 text-white sm:px-8 sm:pt-14 lg:px-10 xl:px-12">
+      <footer className="restaurant-dark bg-[#07100d] px-5 pb-28 pt-12 text-white md:pb-20 sm:px-8 sm:pt-14 lg:px-10 xl:px-12">
         <div className="mx-auto max-w-[96rem]">
           <div className="flex flex-col gap-8 border-b border-white/10 pb-10 sm:flex-row sm:items-end sm:justify-between">
             <div>
