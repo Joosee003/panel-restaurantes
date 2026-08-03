@@ -68,6 +68,12 @@ const demoMenu = [
   },
 ];
 
+const demoSpecialtyDetails = [
+  "La selección cambia con la pesca y el mercado de cada día.",
+  "Recetas reconocibles, producto cercano y sabor de la isla.",
+  "Ingredientes escogidos para una carta corta y de temporada.",
+];
+
 export async function generateMetadata({
   params,
 }: RestaurantPageProps): Promise<Metadata> {
@@ -226,7 +232,7 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
                 </p>
               </Reveal>
               <Reveal delay={80}>
-                <h1 className="mt-6 max-w-6xl text-[clamp(3.7rem,10vw,10rem)] font-black leading-[0.78] tracking-[-0.09em] text-white">
+                <h1 className="mt-6 max-w-6xl break-words text-[clamp(3.1rem,10vw,10rem)] font-black leading-[0.8] tracking-[-0.085em] text-white sm:leading-[0.78] sm:tracking-[-0.09em]">
                   {restaurant.headline}
                 </h1>
               </Reveal>
@@ -313,7 +319,9 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
                   <div className="sm:mt-6">
                     <h3 className="text-xl font-black tracking-tight text-slate-950 sm:text-2xl">{specialty}</h3>
                     <p className="mt-2 max-w-sm text-sm font-medium leading-6 text-slate-500">
-                      Parte de la propuesta gastronómica de {restaurant.name}.
+                      {restaurant.demo
+                        ? demoSpecialtyDetails[index]
+                        : `Parte de la propuesta gastronómica de ${restaurant.name}.`}
                     </p>
                   </div>
                 </Reveal>
@@ -439,9 +447,9 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Horario</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Disponibilidad</p>
                       <p className="mt-2 text-base font-bold leading-7 text-slate-700">
-                        Consulta los días y horas disponibles al reservar.
+                        Consulta en tiempo real los días y horas disponibles al reservar.
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2 pt-2">
@@ -511,8 +519,8 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
                 <div className="space-y-6 border-t border-black/15 pt-7 lg:sticky lg:top-28">
                   {[
                     [CalendarDays, "Disponibilidad real", "Solo aparecen las horas que todavía se pueden reservar."],
-                    [Clock3, "Confirmación clara", "Recibirás el estado de tu reserva al terminar."],
-                    [UtensilsCrossed, "Sin intermediarios", "Tu solicitud entra directamente en GastroHelp."],
+                    [Clock3, "Cambios sencillos", "Después podrás consultar, cambiar o cancelar desde tu enlace privado."],
+                    [UtensilsCrossed, "Conectado al restaurante", "La solicitud aparece directamente en su panel de GastroHelp."],
                   ].map(([Icon, title, copy]) => {
                     const DetailIcon = Icon as typeof CalendarDays;
                     return (
@@ -576,7 +584,7 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
             </a>
           </div>
           <div className="flex flex-col gap-3 pt-6 text-[9px] font-bold uppercase tracking-[0.16em] text-white/28 sm:flex-row sm:items-center sm:justify-between sm:text-[10px]">
-            <span>Reservas seguras con GastroHelp</span>
+            <span>Web y reservas conectadas con GastroHelp</span>
             {restaurant.demo ? <span>Imágenes de demostración · Unsplash</span> : null}
           </div>
           <nav aria-label="Información legal" className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[10px] font-bold text-white/50">
