@@ -28,6 +28,19 @@ export type PublicRestaurant = {
   backgroundColor: string;
   seoTitle: string;
   seoDescription: string;
+  menu: {
+    publicPath: string;
+    sections: Array<{
+      title: string;
+      items: Array<{
+        name: string;
+        description: string;
+        price: number | null;
+        imageUrl: string;
+        recommended: boolean;
+      }>;
+    }>;
+  };
   booking: {
     enabled: boolean;
     timezone: string;
@@ -82,6 +95,22 @@ type BookingRow = {
   politica_cancelacion: string | null;
 };
 
+type MenuCategoryRow = {
+  id: string;
+  nombre: string;
+  orden: number;
+};
+
+type MenuProductRow = {
+  categoria_id: string | null;
+  nombre: string;
+  descripcion: string | null;
+  precio: number | null;
+  imagen_url: string | null;
+  recomendado: boolean;
+  orden: number;
+};
+
 const pilotFallback: PublicRestaurant = {
   restauranteId: null,
   slug: "el-pescador-casa-barriguita",
@@ -111,6 +140,10 @@ const pilotFallback: PublicRestaurant = {
   seoTitle: "El Pescador · Casa Barriguita | El Golfo",
   seoDescription:
     "Restaurante marinero en El Golfo, Lanzarote. Descubre su cocina y reserva mesa online.",
+  menu: {
+    publicPath: "",
+    sections: [],
+  },
   booking: {
     enabled: true,
     timezone: "Atlantic/Canary",
@@ -163,6 +196,55 @@ export async function getPublicRestaurant(
 
     if (bookingError) throw bookingError;
 
+    const { data: digitalMenu, error: menuError } = await supabase
+      .from("cartas_digitales")
+      .select("id,public_token")
+      .eq("restaurante_id", web.restaurante_id)
+      .eq("estado", "activa")
+      .order("updated_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<{ id: string; public_token: string }>();
+
+    if (menuError) throw menuError;
+
+    let menuSections: PublicRestaurant["menu"]["sections"] = [];
+    if (digitalMenu) {
+      const [{ data: categories, error: categoriesError }, { data: products, error: productsError }] =
+        await Promise.all([
+          supabase
+            .from("carta_categorias")
+            .select("id,nombre,orden")
+            .eq("carta_id", digitalMenu.id)
+            .eq("activa", true)
+            .order("orden", { ascending: true }),
+          supabase
+            .from("carta_productos")
+            .select("categoria_id,nombre,descripcion,precio,imagen_url,recomendado,orden")
+            .eq("carta_id", digitalMenu.id)
+            .eq("activo", true)
+            .order("orden", { ascending: true }),
+        ]);
+
+      if (categoriesError) throw categoriesError;
+      if (productsError) throw productsError;
+
+      const typedProducts = (products || []) as MenuProductRow[];
+      menuSections = ((categories || []) as MenuCategoryRow[])
+        .map((category) => ({
+          title: category.nombre,
+          items: typedProducts
+            .filter((product) => product.categoria_id === category.id)
+            .map((product) => ({
+              name: product.nombre,
+              description: product.descripcion || "",
+              price: product.precio == null ? null : Number(product.precio),
+              imageUrl: product.imagen_url || "",
+              recommended: product.recomendado === true,
+            })),
+        }))
+        .filter((section) => section.items.length > 0);
+    }
+
     return {
       restauranteId: web.restaurante_id,
       slug: web.slug,
@@ -189,6 +271,13 @@ export async function getPublicRestaurant(
       backgroundColor: web.color_fondo,
       seoTitle: web.seo_titulo || web.nombre_publico,
       seoDescription: web.seo_descripcion || web.descripcion || "",
+      menu: {
+        publicPath:
+          digitalMenu && web.slug !== pilotFallback.slug
+            ? `/carta/${digitalMenu.public_token}`
+            : "",
+        sections: web.slug === pilotFallback.slug ? [] : menuSections,
+      },
       booking: {
         enabled: booking?.activo === true,
         timezone: booking?.zona_horaria || "Europe/Madrid",

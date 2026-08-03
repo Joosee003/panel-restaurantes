@@ -262,6 +262,38 @@ main.theme-dark :focus-visible {
   outline-offset: 3px;
 }
 
+/* La web pública de cada restaurante no hereda el tema del panel. */
+.restaurant-public-site h1,
+.restaurant-public-site h2,
+.restaurant-public-site h3,
+.restaurant-public-site h4 {
+  color: inherit;
+}
+
+html.dark .restaurant-public-site {
+  color: #111916;
+}
+
+html.dark .restaurant-public-site .restaurant-dark {
+  color: #ffffff;
+}
+
+.restaurant-public-site input,
+.restaurant-public-site select,
+.restaurant-public-site textarea,
+html.dark .restaurant-public-site input,
+html.dark .restaurant-public-site select,
+html.dark .restaurant-public-site textarea {
+  border-color: #d1d5db;
+  background: #ffffff;
+  color: #0b1220;
+}
+
+.restaurant-public-site :focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--restaurant-accent) 80%, white);
+  outline-offset: 3px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

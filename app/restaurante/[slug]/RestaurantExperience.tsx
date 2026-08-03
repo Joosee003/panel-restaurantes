@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Fish, Menu, X } from "lucide-react";
+import { ArrowRight, CalendarDays, Fish, Menu, UtensilsCrossed, X } from "lucide-react";
 import {
   type CSSProperties,
   type ReactNode,
@@ -172,6 +172,28 @@ export function RestaurantHeader({
   );
 }
 
+export function MobileActionBar({ menuPath }: { menuPath: string }) {
+  return (
+    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-black/10 bg-[#f8f5ef]/95 p-2.5 shadow-[0_-14px_36px_rgba(15,23,42,0.14)] backdrop-blur-xl md:hidden">
+      <div className="mx-auto grid max-w-lg grid-cols-2 gap-2">
+        <a
+          href={menuPath || "#carta"}
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white text-xs font-black text-slate-950"
+        >
+          <UtensilsCrossed className="h-4 w-4" /> Carta
+        </a>
+        <a
+          href="#reservar"
+          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl text-xs font-black text-white shadow-lg"
+          style={{ backgroundColor: "var(--restaurant-primary)" }}
+        >
+          <CalendarDays className="h-4 w-4" /> Reservar
+        </a>
+      </div>
+    </div>
+  );
+}
+
 export function ExpandingImage({
   src,
   alt,
@@ -225,6 +247,8 @@ export function ExpandingImage({
       <img
         src={src}
         alt={alt}
+        loading="lazy"
+        decoding="async"
         className={`absolute inset-0 h-full w-full ${imageClassName}`}
         style={{ transform: `scale(${1.13 - progress * 0.13})` }}
       />
