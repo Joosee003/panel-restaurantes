@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { isBookingStartAllowed } from "../../../../../lib/bookingDate";
+import { BOOKING_LEGAL_VERSION } from "../../../../../lib/publicLegal";
 import { getPublicRestaurant } from "../../../../../lib/publicRestaurant";
 import { notifyReservationAutomation } from "../../../../../lib/reservationAutomation";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
@@ -17,6 +18,9 @@ type BookingBody = {
   notes?: unknown;
   company?: unknown;
   idempotencyKey?: unknown;
+  privacyInformed?: unknown;
+  conditionsAccepted?: unknown;
+  legalVersion?: unknown;
 };
 
 type BookingRpcResult = {
@@ -58,6 +62,7 @@ function rpcErrorCode(message: string) {
   if (/SLOT_NOT_AVAILABLE/.test(message)) return "SLOT_NOT_AVAILABLE";
   if (/INVALID_BOOKING_REQUEST/.test(message)) return "INVALID_BOOKING_REQUEST";
   if (/BOOKING_NOT_AVAILABLE/.test(message)) return "BOOKING_NOT_AVAILABLE";
+  if (/LEGAL_ACCEPTANCE_REQUIRED/.test(message)) return "LEGAL_ACCEPTANCE_REQUIRED";
   return "BOOKING_FAILED";
 }
 
@@ -95,6 +100,9 @@ export async function POST(
   const email = cleanText(body.email, 254).toLowerCase();
   const notes = cleanText(body.notes, 800);
   const idempotencyKey = cleanText(body.idempotencyKey, 36);
+  const privacyInformed = body.privacyInformed === true;
+  const conditionsAccepted = body.conditionsAccepted === true;
+  const legalVersion = cleanText(body.legalVersion, 40);
 
   if (
     !/^\d{4}-\d{2}-\d{2}T/.test(start) ||
@@ -103,6 +111,9 @@ export async function POST(
     party < 1 ||
     party > 500 ||
     name.length < 2 ||
+    !privacyInformed ||
+    !conditionsAccepted ||
+    legalVersion !== BOOKING_LEGAL_VERSION ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       idempotencyKey,
     )
@@ -147,7 +158,7 @@ export async function POST(
     if (limitError) throw limitError;
     if (allowed !== true) return json({ ok: false, error: "RATE_LIMITED" }, 429);
 
-    const { data, error } = await supabase.rpc("crear_reserva_publica", {
+    const { data, error } = await supabase.rpc("crear_reserva_publica_con_aceptacion", {
       p_slug: slug,
       p_inicio_at: start,
       p_personas: party,
@@ -156,6 +167,9 @@ export async function POST(
       p_email: email || null,
       p_notas: notes || null,
       p_idempotency_key: idempotencyKey,
+      p_privacidad_informada: privacyInformed,
+      p_condiciones_aceptadas: conditionsAccepted,
+      p_version_legal: BOOKING_LEGAL_VERSION,
     });
 
     if (error) {
@@ -170,9 +184,9 @@ export async function POST(
     }
 
     if (!result.duplicate) {
-      const siteUrl = (
-        process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin
-      ).replace(/\/$/, "");
+      const siteUrl = restaurant.customDomain
+        ? `https://${restaurant.customDomain}`
+        : (process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).replace(/\/$/, "");
       await notifyReservationAutomation({
         event: "reservation.created",
         reservationId: result.reserva_id,
