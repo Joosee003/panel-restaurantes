@@ -263,10 +263,14 @@ main.theme-dark :focus-visible {
 }
 
 /* La web pública de cada restaurante no hereda el tema del panel. */
-.restaurant-public-site h1,
-.restaurant-public-site h2,
-.restaurant-public-site h3,
-.restaurant-public-site h4 {
+html:not(.dark) .restaurant-public-site h1,
+html:not(.dark) .restaurant-public-site h2,
+html:not(.dark) .restaurant-public-site h3,
+html:not(.dark) .restaurant-public-site h4,
+html.dark .restaurant-public-site h1,
+html.dark .restaurant-public-site h2,
+html.dark .restaurant-public-site h3,
+html.dark .restaurant-public-site h4 {
   color: inherit;
 }
 
