@@ -13,7 +13,11 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import { notFound } from "next/navigation";
-import { getPublicRestaurant } from "../../lib/publicRestaurant";
+import { legalPath } from "../../lib/publicLegal";
+import {
+  getPublicRestaurant,
+  publicRestaurantUrl,
+} from "../../lib/publicRestaurant";
 import BookingWidget from "./BookingWidget";
 import {
   ExpandingImage,
@@ -83,10 +87,14 @@ export async function generateMetadata({
     robots: restaurant.demo
       ? { index: false, follow: false }
       : { index: true, follow: true },
+    alternates: {
+      canonical: publicRestaurantUrl(restaurant),
+    },
     openGraph: {
       title: restaurant.seoTitle,
       description: restaurant.seoDescription,
       type: "website",
+      url: publicRestaurantUrl(restaurant),
       images: previewImage ? [previewImage] : [],
     },
   };
@@ -112,8 +120,7 @@ function formatPrice(value: number | null) {
   }).format(value);
 }
 
-export default async function RestaurantPage({ params }: RestaurantPageProps) {
-  const { slug } = await params;
+export async function RestaurantPageContent({ slug }: { slug: string }) {
   const restaurant = await getPublicRestaurant(slug);
   if (!restaurant) notFound();
 
@@ -147,7 +154,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
         })),
       }))
     : restaurant.menu.sections;
-  const publicUrl = `https://panel.gastrohelp.es/restaurante/${restaurant.slug}`;
+  const publicUrl = publicRestaurantUrl(restaurant);
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Restaurant",
@@ -160,7 +167,7 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
     address: restaurant.address || undefined,
     servesCuisine: specialties,
     hasMenu: restaurant.menu.publicPath
-      ? `https://panel.gastrohelp.es${restaurant.menu.publicPath}`
+      ? new URL(restaurant.menu.publicPath, publicUrl).toString()
       : undefined,
     acceptsReservations: restaurant.booking.enabled,
   };
@@ -539,6 +546,8 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
                     primaryColor={primaryColor}
                     accentColor={accentColor}
                     demo={restaurant.demo}
+                    privacyPath={legalPath(restaurant, "privacidad")}
+                    conditionsPath={legalPath(restaurant, "condiciones-reserva")}
                   />
                 ) : (
                   <div className="rounded-[2rem] border border-black/10 bg-white p-7 shadow-xl sm:p-9">
@@ -570,8 +579,19 @@ export default async function RestaurantPage({ params }: RestaurantPageProps) {
             <span>Reservas seguras con GastroHelp</span>
             {restaurant.demo ? <span>Imágenes de demostración · Unsplash</span> : null}
           </div>
+          <nav aria-label="Información legal" className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[10px] font-bold text-white/50">
+            <a className="transition hover:text-white" href={legalPath(restaurant, "aviso-legal")}>Aviso legal</a>
+            <a className="transition hover:text-white" href={legalPath(restaurant, "privacidad")}>Privacidad</a>
+            <a className="transition hover:text-white" href={legalPath(restaurant, "condiciones-reserva")}>Condiciones de reserva</a>
+            <a className="transition hover:text-white" href={legalPath(restaurant, "cookies")}>Cookies</a>
+          </nav>
         </div>
       </footer>
     </div>
   );
+}
+
+export default async function RestaurantPage({ params }: RestaurantPageProps) {
+  const { slug } = await params;
+  return <RestaurantPageContent slug={slug} />;
 }

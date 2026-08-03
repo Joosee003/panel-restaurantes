@@ -39,6 +39,8 @@ type BookingWidgetProps = {
   primaryColor: string;
   accentColor: string;
   demo: boolean;
+  privacyPath: string;
+  conditionsPath: string;
 };
 
 type BookingResult = {
@@ -63,6 +65,7 @@ function readableError(code: string) {
       "Esa hora acaba de ocuparse. Actualiza la disponibilidad y elige otra.",
     INVALID_BOOKING_REQUEST: "Revisa los datos antes de continuar.",
     BOOKING_NOT_AVAILABLE: "Las reservas online no están disponibles ahora mismo.",
+    LEGAL_ACCEPTANCE_REQUIRED: "Debes leer la información de privacidad y aceptar las condiciones de reserva.",
     RATE_LIMITED: "Has hecho varios intentos seguidos. Espera un momento y prueba otra vez.",
   };
 
@@ -83,6 +86,8 @@ export default function BookingWidget({
   primaryColor,
   accentColor,
   demo,
+  privacyPath,
+  conditionsPath,
 }: BookingWidgetProps) {
   const today = useMemo(() => dateInTimezone(timezone), [timezone]);
   const maxDate = useMemo(
@@ -173,6 +178,9 @@ export default function BookingWidget({
             notes: String(form.get("notes") || ""),
             company: String(form.get("company") || ""),
             idempotencyKey,
+            privacyInformed: form.get("privacyInformed") === "on",
+            conditionsAccepted: form.get("conditionsAccepted") === "on",
+            legalVersion: "2026-08-03",
           }),
         },
       );
@@ -439,8 +447,12 @@ export default function BookingWidget({
                   maxLength={800}
                   rows={3}
                   className="w-full resize-none rounded-xl border-slate-200 bg-white px-4 py-3 text-sm font-semibold outline-none focus:border-slate-500"
-                  placeholder="Alergias, carrito de bebé, celebración..."
+                  placeholder="Carrito de bebé, celebración u otra indicación no médica..."
+                  aria-describedby="booking-notes-help"
                 />
+                <span id="booking-notes-help" className="mt-2 block text-[11px] font-semibold leading-4 text-slate-400">
+                  No incluyas información médica. Para alergias o necesidades especiales, contacta directamente con el restaurante.
+                </span>
               </label>
               <label className="absolute -left-[9999px]" aria-hidden="true">
                 Empresa
@@ -449,9 +461,16 @@ export default function BookingWidget({
             </div>
 
             <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500">
-              <input type="checkbox" required className="mt-1 h-4 w-4" />
+              <input name="privacyInformed" type="checkbox" required className="mt-1 h-4 w-4" />
               <span>
-                Acepto que {restaurantName} use estos datos únicamente para gestionar esta reserva.
+                He leído la <a href={privacyPath} target="_blank" rel="noreferrer" className="font-black text-slate-800 underline underline-offset-2">información de privacidad</a> y sé cómo {restaurantName} tratará los datos de esta reserva.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500">
+              <input name="conditionsAccepted" type="checkbox" required className="mt-1 h-4 w-4" />
+              <span>
+                Acepto las <a href={conditionsPath} target="_blank" rel="noreferrer" className="font-black text-slate-800 underline underline-offset-2">condiciones de reserva</a> de {restaurantName}.
               </span>
             </label>
 

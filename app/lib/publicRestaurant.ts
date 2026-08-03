@@ -28,6 +28,17 @@ export type PublicRestaurant = {
   backgroundColor: string;
   seoTitle: string;
   seoDescription: string;
+  customDomain: string;
+  legal: {
+    owner: string;
+    taxId: string;
+    address: string;
+    email: string;
+    registry: string;
+    privacyEmail: string;
+    bookingRetention: string;
+    updatedAt: string;
+  };
   menu: {
     publicPath: string;
     sections: Array<{
@@ -80,6 +91,15 @@ type WebRow = {
   color_fondo: string;
   seo_titulo: string | null;
   seo_descripcion: string | null;
+  dominio_personalizado: string | null;
+  titular_legal: string | null;
+  nif_cif: string | null;
+  domicilio_legal: string | null;
+  email_legal: string | null;
+  datos_registrales: string | null;
+  privacidad_email: string | null;
+  conservacion_reservas: string | null;
+  legal_actualizado_en: string | null;
 };
 
 type BookingRow = {
@@ -140,6 +160,17 @@ const pilotFallback: PublicRestaurant = {
   seoTitle: "El Pescador · Casa Barriguita | El Golfo",
   seoDescription:
     "Restaurante marinero en El Golfo, Lanzarote. Descubre su cocina y reserva mesa online.",
+  customDomain: "",
+  legal: {
+    owner: "",
+    taxId: "",
+    address: "",
+    email: "",
+    registry: "",
+    privacyEmail: "",
+    bookingRetention: "",
+    updatedAt: "",
+  },
   menu: {
     publicPath: "",
     sections: [],
@@ -163,6 +194,33 @@ function cleanSlug(slug: string) {
   return slug.trim().toLowerCase();
 }
 
+export function normalizePublicDomain(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .split("/")[0]
+    .split(":")[0]
+    .replace(/^www\./, "");
+}
+
+export function isPlatformDomain(value: string) {
+  const domain = normalizePublicDomain(value);
+  return (
+    !domain ||
+    domain === "localhost" ||
+    domain === "127.0.0.1" ||
+    domain === "panel.gastrohelp.es" ||
+    domain.endsWith(".vercel.app")
+  );
+}
+
+export function publicRestaurantUrl(restaurant: PublicRestaurant) {
+  if (restaurant.customDomain) return `https://${restaurant.customDomain}`;
+  const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://panel.gastrohelp.es").replace(/\/$/, "");
+  return `${siteUrl}/restaurante/${restaurant.slug}`;
+}
+
 function isPilotPreview(slug: string) {
   return process.env.NODE_ENV !== "production" && slug === pilotFallback.slug;
 }
@@ -177,7 +235,7 @@ export async function getPublicRestaurant(
     const { data: web, error: webError } = await supabase
       .from("restaurante_webs")
       .select(
-        "restaurante_id,slug,publicada,nombre_publico,antetitulo,titular,subtitulo,descripcion,direccion_publica,telefono_publico,email_publico,whatsapp,google_maps_url,instagram_url,facebook_url,logo_url,hero_image_url,galeria_urls,especialidades,color_primario,color_acento,color_fondo,seo_titulo,seo_descripcion",
+        "restaurante_id,slug,publicada,nombre_publico,antetitulo,titular,subtitulo,descripcion,direccion_publica,telefono_publico,email_publico,whatsapp,google_maps_url,instagram_url,facebook_url,logo_url,hero_image_url,galeria_urls,especialidades,color_primario,color_acento,color_fondo,seo_titulo,seo_descripcion,dominio_personalizado,titular_legal,nif_cif,domicilio_legal,email_legal,datos_registrales,privacidad_email,conservacion_reservas,legal_actualizado_en",
       )
       .eq("slug", slug)
       .eq("publicada", true)
@@ -271,6 +329,17 @@ export async function getPublicRestaurant(
       backgroundColor: web.color_fondo,
       seoTitle: web.seo_titulo || web.nombre_publico,
       seoDescription: web.seo_descripcion || web.descripcion || "",
+      customDomain: web.dominio_personalizado || "",
+      legal: {
+        owner: web.titular_legal || "",
+        taxId: web.nif_cif || "",
+        address: web.domicilio_legal || "",
+        email: web.email_legal || "",
+        registry: web.datos_registrales || "",
+        privacyEmail: web.privacidad_email || web.email_legal || "",
+        bookingRetention: web.conservacion_reservas || "",
+        updatedAt: web.legal_actualizado_en || "",
+      },
       menu: {
         publicPath:
           digitalMenu && web.slug !== pilotFallback.slug
@@ -294,5 +363,28 @@ export async function getPublicRestaurant(
   } catch (error) {
     console.error("No se ha podido cargar la web pública", error);
     return isPilotPreview(slug) ? pilotFallback : null;
+  }
+}
+
+export async function getPublicRestaurantByDomain(
+  requestedDomain: string,
+): Promise<PublicRestaurant | null> {
+  const domain = normalizePublicDomain(requestedDomain);
+  if (isPlatformDomain(domain)) return null;
+
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("restaurante_webs")
+      .select("slug")
+      .eq("dominio_personalizado", domain)
+      .eq("publicada", true)
+      .maybeSingle<{ slug: string }>();
+
+    if (error) throw error;
+    return data?.slug ? getPublicRestaurant(data.slug) : null;
+  } catch (error) {
+    console.error("No se ha podido resolver el dominio del restaurante", error);
+    return null;
   }
 }

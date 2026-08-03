@@ -5,9 +5,11 @@ import {
   CheckCircle2,
   Clock3,
   ExternalLink,
+  FileText,
   Globe2,
   ImagePlus,
   Loader2,
+  Link2,
   Palette,
   Save,
   ShieldCheck,
@@ -58,6 +60,17 @@ type BookingConfig = {
   requiere_email: boolean;
   aviso_reserva: string;
   politica_cancelacion: string;
+};
+
+type LegalConfig = {
+  dominio_personalizado: string;
+  titular_legal: string;
+  nif_cif: string;
+  domicilio_legal: string;
+  email_legal: string;
+  datos_registrales: string;
+  privacidad_email: string;
+  conservacion_reservas: string;
 };
 
 type ScheduleRow = {
@@ -231,6 +244,16 @@ export default function WebReservasSettings({
     aviso_reserva: "La disponibilidad se comprueba en tiempo real.",
     politica_cancelacion: "",
   });
+  const [legal, setLegal] = useState<LegalConfig>({
+    dominio_personalizado: "",
+    titular_legal: "",
+    nif_cif: "",
+    domicilio_legal: "",
+    email_legal: "",
+    datos_registrales: "",
+    privacidad_email: "",
+    conservacion_reservas: "Los datos de la reserva se conservan durante 24 meses, salvo que una obligación legal exija otro plazo.",
+  });
   const [schedule, setSchedule] = useState<DaySchedule[]>(defaultDays);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -299,6 +322,16 @@ export default function WebReservasSettings({
           color_fondo: String(row.color_fondo || "#f7f3e8"),
           seo_titulo: String(row.seo_titulo || ""),
           seo_descripcion: String(row.seo_descripcion || ""),
+        });
+        setLegal({
+          dominio_personalizado: String(row.dominio_personalizado || ""),
+          titular_legal: String(row.titular_legal || ""),
+          nif_cif: String(row.nif_cif || ""),
+          domicilio_legal: String(row.domicilio_legal || ""),
+          email_legal: String(row.email_legal || ""),
+          datos_registrales: String(row.datos_registrales || ""),
+          privacidad_email: String(row.privacidad_email || ""),
+          conservacion_reservas: String(row.conservacion_reservas || "Los datos de la reserva se conservan durante 24 meses, salvo que una obligación legal exija otro plazo."),
         });
       }
 
@@ -382,6 +415,20 @@ export default function WebReservasSettings({
       return;
     }
 
+    if (
+      legal.dominio_personalizado.trim() &&
+      ![
+        legal.titular_legal,
+        legal.nif_cif,
+        legal.domicilio_legal,
+        legal.email_legal,
+        legal.privacidad_email,
+      ].every((value) => value.trim())
+    ) {
+      setError("Para conectar un dominio, completa primero los datos legales obligatorios.");
+      return;
+    }
+
     const invalidRange = schedule.some(
       (day) =>
         (day.lunchEnabled && day.lunchEnd <= day.lunchStart) ||
@@ -431,7 +478,7 @@ export default function WebReservasSettings({
 
     setSaving(true);
     const { error: saveError } = await supabase.rpc(
-      "guardar_configuracion_web_reservas",
+      "guardar_configuracion_web_reservas_legal",
       {
         p_restaurante_id: restauranteId,
         p_web: {
@@ -441,6 +488,7 @@ export default function WebReservasSettings({
         },
         p_config: booking,
         p_horarios: rows,
+        p_legal: legal,
       },
     );
     setSaving(false);
@@ -453,6 +501,10 @@ export default function WebReservasSettings({
           ? "Los horarios de comida y cena no pueden solaparse."
         : /duplicate key|unique/i.test(saveError.message)
           ? "Esa dirección web ya está ocupada."
+        : /CUSTOM_DOMAIN_REQUIRES_LEGAL_DATA/.test(saveError.message)
+          ? "Completa los datos legales antes de conectar el dominio."
+        : /INVALID_CUSTOM_DOMAIN/.test(saveError.message)
+          ? "El dominio no es válido. Escribe solo algo como restaurante.es."
           : "No se ha podido guardar. Revisa los campos y vuelve a intentarlo.";
       setError(errorText);
       return;
@@ -461,7 +513,11 @@ export default function WebReservasSettings({
     setMessage("Web, reservas y horarios guardados correctamente.");
   }
 
-  const previewPath = web.slug ? `/restaurante/${web.slug}` : "";
+  const previewPath = legal.dominio_personalizado.trim()
+    ? `https://${legal.dominio_personalizado.trim().replace(/^https?:\/\//, "").replace(/^www\./, "")}`
+    : web.slug
+      ? `/restaurante/${web.slug}`
+      : "";
 
   if (loading) {
     return (
@@ -732,6 +788,71 @@ export default function WebReservasSettings({
               <Toggle checked={booking.requiere_telefono} onChange={(value) => setBooking((current) => ({ ...current, requiere_telefono: value }))} label="Pedir teléfono" detail="Recomendado para cambios urgentes." />
               <Toggle checked={booking.requiere_email} onChange={(value) => setBooking((current) => ({ ...current, requiere_email: value }))} label="Pedir email" detail="Útil para confirmaciones por correo." />
             </div>
+          </div>
+        </PanelCard>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <PanelCard
+          icon={<Link2 className="h-5 w-5" />}
+          title="Dominio del restaurante"
+          description="Conecta aquí el dominio que después añadirás también en Vercel y en su proveedor DNS."
+        >
+          <label className="block">
+            <span className={labelClass}>Dominio personalizado</span>
+            <input
+              className={fieldClass}
+              value={legal.dominio_personalizado}
+              onChange={(event) => setLegal((current) => ({ ...current, dominio_personalizado: event.target.value }))}
+              placeholder="restaurante.es"
+              inputMode="url"
+              autoCapitalize="none"
+            />
+          </label>
+          <p className="mt-3 text-xs font-semibold leading-5 text-slate-500">
+            Escribe solo el dominio, sin rutas. Se reconocerán tanto restaurante.es como www.restaurante.es.
+          </p>
+          {legal.dominio_personalizado.trim() ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold leading-5 text-amber-900">
+              Después de guardar, todavía hay que añadir este dominio al proyecto de Vercel y configurar sus registros DNS.
+            </div>
+          ) : null}
+        </PanelCard>
+
+        <PanelCard
+          icon={<FileText className="h-5 w-5" />}
+          title="Datos legales"
+          description="Aparecen en el aviso legal, privacidad, reservas y cookies de este restaurante."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="sm:col-span-2">
+              <span className={labelClass}>Titular legal *</span>
+              <input className={fieldClass} value={legal.titular_legal} onChange={(event) => setLegal((current) => ({ ...current, titular_legal: event.target.value }))} placeholder="Nombre o razón social" />
+            </label>
+            <label>
+              <span className={labelClass}>NIF / CIF *</span>
+              <input className={fieldClass} value={legal.nif_cif} onChange={(event) => setLegal((current) => ({ ...current, nif_cif: event.target.value }))} />
+            </label>
+            <label>
+              <span className={labelClass}>Email legal *</span>
+              <input type="email" className={fieldClass} value={legal.email_legal} onChange={(event) => setLegal((current) => ({ ...current, email_legal: event.target.value }))} />
+            </label>
+            <label className="sm:col-span-2">
+              <span className={labelClass}>Domicilio legal *</span>
+              <input className={fieldClass} value={legal.domicilio_legal} onChange={(event) => setLegal((current) => ({ ...current, domicilio_legal: event.target.value }))} />
+            </label>
+            <label className="sm:col-span-2">
+              <span className={labelClass}>Datos registrales</span>
+              <textarea className={fieldClass} rows={2} value={legal.datos_registrales} onChange={(event) => setLegal((current) => ({ ...current, datos_registrales: event.target.value }))} placeholder="Solo si corresponden" />
+            </label>
+            <label className="sm:col-span-2">
+              <span className={labelClass}>Email para privacidad *</span>
+              <input type="email" className={fieldClass} value={legal.privacidad_email} onChange={(event) => setLegal((current) => ({ ...current, privacidad_email: event.target.value }))} />
+            </label>
+            <label className="sm:col-span-2">
+              <span className={labelClass}>Conservación de reservas</span>
+              <textarea className={fieldClass} rows={3} value={legal.conservacion_reservas} onChange={(event) => setLegal((current) => ({ ...current, conservacion_reservas: event.target.value }))} />
+            </label>
           </div>
         </PanelCard>
       </div>
