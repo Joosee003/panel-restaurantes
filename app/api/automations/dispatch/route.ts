@@ -60,6 +60,15 @@ function text(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function deliveryErrorMessage(error: unknown) {
+  if (!(error instanceof Error)) return "delivery_failed";
+  const cause = (error as Error & { cause?: unknown }).cause;
+  if (cause instanceof Error) {
+    return `${error.message}: ${cause.message}`.slice(0, 1000);
+  }
+  return error.message.slice(0, 1000);
+}
+
 function webhookFor(eventType: string) {
   if (eventType === "visit.review_request") {
     return process.env.N8N_REVIEW_WEBHOOK_URL || DEFAULT_REVIEW_WEBHOOK;
@@ -261,7 +270,8 @@ async function deliverEvent(event: AutomationEvent) {
       httpStatus: response.status,
     };
   } catch (error) {
-    const message = error instanceof Error ? error.message : "delivery_failed";
+    const message = deliveryErrorMessage(error);
+    console.error("Error entregando automatización", event.event_id, message);
     try {
       await completeEvent(event, false, null, message);
     } catch (completeError) {
