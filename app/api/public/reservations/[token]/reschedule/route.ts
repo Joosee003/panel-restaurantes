@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getManagedReservation, isUuid } from "../../../../../lib/managedReservation";
+import { isUuid } from "../../../../../lib/managedReservation";
 import { consumePublicRateLimit } from "../../../../../lib/publicRateLimit";
-import { notifyReservationAutomation } from "../../../../../lib/reservationAutomation";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -37,9 +36,6 @@ export async function POST(
     const allowed = await consumePublicRateLimit(request, "manage-reschedule", token, 12);
     if (!allowed) return json({ ok: false, error: "RATE_LIMITED" }, 429);
 
-    const before = await getManagedReservation(token);
-    if (!before) return json({ ok: false, error: "RESERVATION_NOT_FOUND" }, 404);
-
     const { data, error } = await getSupabaseAdmin().rpc(
       "reprogramar_reserva_publica_gestion",
       {
@@ -63,28 +59,6 @@ export async function POST(
     if (!result?.ok || !result.inicio_at) {
       return json({ ok: false, error: "RESCHEDULE_FAILED" }, 500);
     }
-
-    await notifyReservationAutomation({
-      event: "reservation.rescheduled",
-      reservationId: before.reservationId,
-      restaurantSlug: before.restaurantSlug,
-      restaurantName: before.restaurantName,
-      restaurantEmail: before.restaurantEmail || null,
-      restaurantTimezone: before.timezone,
-      previousStart: before.start,
-      start: result.inicio_at,
-      end: result.fin_at,
-      party: before.party,
-      customer: {
-        name: before.customerName,
-        phone: before.customerPhone || null,
-        email: before.customerEmail || null,
-      },
-      managementUrl: `${(
-        process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin
-      ).replace(/\/$/, "")}/reserva/${token}`,
-      source: "gastrohelp_native_web",
-    });
 
     return json({ ok: true, start: result.inicio_at, end: result.fin_at });
   } catch (error) {
