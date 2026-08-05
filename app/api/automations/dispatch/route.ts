@@ -240,7 +240,8 @@ async function deliverEvent(event: AutomationEvent) {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
-    const webhookSecret = process.env.N8N_WEBHOOK_SECRET?.trim();
+    const webhookSecret =
+      process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET?.trim();
     let response: Response;
     try {
       response = await fetch(webhookFor(event.event_type), {
