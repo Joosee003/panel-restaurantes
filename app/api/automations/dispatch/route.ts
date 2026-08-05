@@ -240,6 +240,7 @@ async function deliverEvent(event: AutomationEvent) {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
+    const webhookSecret = process.env.N8N_WEBHOOK_SECRET?.trim();
     let response: Response;
     try {
       response = await fetch(webhookFor(event.event_type), {
@@ -248,6 +249,9 @@ async function deliverEvent(event: AutomationEvent) {
           "Content-Type": "application/json",
           "X-GastroHelp-Automation-Event": event.event_id,
           "X-GastroHelp-Delivery-Mode": event.delivery_mode,
+          ...(webhookSecret
+            ? { "X-GastroHelp-Webhook-Secret": webhookSecret }
+            : {}),
         },
         body: JSON.stringify(body),
         cache: "no-store",
