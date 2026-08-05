@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { isBookingStartAllowed } from "../../../../../lib/bookingDate";
 import { BOOKING_LEGAL_VERSION } from "../../../../../lib/publicLegal";
 import { getPublicRestaurant } from "../../../../../lib/publicRestaurant";
-import { notifyReservationAutomation } from "../../../../../lib/reservationAutomation";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -181,29 +180,6 @@ export async function POST(
     const result = data as BookingRpcResult | null;
     if (!result?.ok || !result.reserva_id || !result.inicio_at || !result.gestion_token) {
       return json({ ok: false, error: "BOOKING_FAILED" }, 500);
-    }
-
-    if (!result.duplicate) {
-      const siteUrl = restaurant.customDomain
-        ? `https://${restaurant.customDomain}`
-        : (process.env.NEXT_PUBLIC_SITE_URL || request.nextUrl.origin).replace(/\/$/, "");
-      await notifyReservationAutomation({
-        event: "reservation.created",
-        reservationId: result.reserva_id,
-        restaurantId: restaurant.restauranteId,
-        restaurantSlug: restaurant.slug,
-        restaurantName: restaurant.name,
-        restaurantEmail: restaurant.email || null,
-        restaurantTimezone: restaurant.booking.timezone,
-        status: result.estado,
-        start: result.inicio_at,
-        end: result.fin_at,
-        party,
-        customer: { name, phone: phone || null, email: email || null },
-        managementUrl: `${siteUrl}/reserva/${result.gestion_token}`,
-        notes: notes || null,
-        source: "gastrohelp_native_web",
-      });
     }
 
     return json(
