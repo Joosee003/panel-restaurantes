@@ -22,7 +22,18 @@ export async function POST(
 
   try {
     const allowed = await consumePublicRateLimit(request, "manage-cancel", token, 8);
-    if (!allowed) return json({ ok: false, error: "RATE_LIMITED" }, 429);
+    if (!allowed) {
+      return NextResponse.json(
+        { ok: false, error: "RATE_LIMITED" },
+        {
+          status: 429,
+          headers: {
+            "Cache-Control": "private, no-store, max-age=0",
+            "Retry-After": "600",
+          },
+        },
+      );
+    }
 
     const { data, error } = await getSupabaseAdmin().rpc(
       "cancelar_reserva_publica_gestion",
