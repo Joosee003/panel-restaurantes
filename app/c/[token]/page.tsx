@@ -1056,7 +1056,12 @@ export default async function ClientePremiosPage({
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) redirect(`/c/${tokenLocal}?err=email`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaNacimiento)) redirect(`/c/${tokenLocal}?err=fecha`);
 
-    const { error } = await admin.from("clientes").update({ nombre, telefono, email, fecha_nacimiento: fechaNacimiento }).eq("id", c.id);
+    const { error } = await admin
+      .from("clientes")
+      .update({ nombre, telefono, email, fecha_nacimiento: fechaNacimiento })
+      .eq("id", c.id)
+      .eq("restaurante_id", c.restaurante_id)
+      .eq("public_token", tokenLocal);
     if (error) redirect(`/c/${tokenLocal}?err=save`);
     redirect(`/c/${tokenLocal}?ok=perfil&tab=inicio`);
   }
@@ -1076,7 +1081,12 @@ export default async function ClientePremiosPage({
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) redirect(`/c/${tokenLocal}?tab=perfil&err=email`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaNacimiento)) redirect(`/c/${tokenLocal}?tab=perfil&err=fecha`);
 
-    const { error } = await admin.from("clientes").update({ nombre, telefono, email, fecha_nacimiento: fechaNacimiento }).eq("id", cliente.id);
+    const { error } = await admin
+      .from("clientes")
+      .update({ nombre, telefono, email, fecha_nacimiento: fechaNacimiento })
+      .eq("id", cliente.id)
+      .eq("restaurante_id", cliente.restaurante_id)
+      .eq("public_token", tokenLocal);
     if (error) redirect(`/c/${tokenLocal}?tab=perfil&err=save`);
     redirect(`/c/${tokenLocal}?tab=perfil&ok=perfil`);
   }
