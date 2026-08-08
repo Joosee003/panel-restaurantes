@@ -1,5 +1,6 @@
 // app/c/[token]/page.tsx
 import React from "react";
+import type { Metadata } from "next";
 import { createClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import {
@@ -34,6 +35,17 @@ import ScratchCoupon from "./ScratchCoupon";
 import LevelExperience, { type ClientLevelThresholds } from "./LevelExperience";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "Área privada de cliente",
+  description: "Consulta tus reservas, puntos y ventajas del restaurante.",
+  referrer: "no-referrer",
+  robots: {
+    index: false,
+    follow: false,
+    noarchive: true,
+  },
+};
 
 type TabKey = "inicio" | "reservas" | "nivel" | "premios" | "cupones" | "perfil";
 
