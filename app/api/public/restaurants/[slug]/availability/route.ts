@@ -1,7 +1,7 @@
-import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { isBookingDateAllowed } from "../../../../../lib/bookingDate";
 import { getPublicRestaurant } from "../../../../../lib/publicRestaurant";
+import { consumePublicRateLimit } from "../../../../../lib/publicRateLimit";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -20,19 +20,6 @@ function json(body: Record<string, unknown>, status = 200) {
     status,
     headers: { "Cache-Control": "private, no-store, max-age=0" },
   });
-}
-
-function requestFingerprint(request: NextRequest, slug: string) {
-  const forwarded = request.headers.get("x-forwarded-for") || "";
-  const ip = forwarded.split(",")[0]?.trim() || request.headers.get("x-real-ip") || "unknown";
-  const secret =
-    process.env.BOOKING_RATE_LIMIT_SECRET ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    "local-development";
-
-  return createHash("sha256")
-    .update(`${secret}:availability:${slug}:${ip}`)
-    .digest("hex");
 }
 
 export async function GET(
@@ -69,18 +56,24 @@ export async function GET(
 
   try {
     const supabase = getSupabaseAdmin();
-    const fingerprint = requestFingerprint(request, slug);
-    const { data: allowed, error: limitError } = await supabase.rpc(
-      "consumir_limite_reserva_publica",
-      {
-        p_key_hash: fingerprint,
-        p_limite: 80,
-        p_ventana_segundos: 600,
-      },
+    const allowed = await consumePublicRateLimit(
+      request,
+      "booking-availability",
+      slug,
+      80,
     );
-
-    if (limitError) throw limitError;
-    if (allowed !== true) return json({ ok: false, error: "RATE_LIMITED" }, 429);
+    if (!allowed) {
+      return NextResponse.json(
+        { ok: false, error: "RATE_LIMITED" },
+        {
+          status: 429,
+          headers: {
+            "Cache-Control": "private, no-store, max-age=0",
+            "Retry-After": "600",
+          },
+        },
+      );
+    }
 
     const { data, error } = await supabase.rpc("obtener_disponibilidad_reservas", {
       p_slug: slug,
