@@ -39,7 +39,18 @@ export async function GET(
       token,
       80,
     );
-    if (!allowed) return json({ ok: false, error: "RATE_LIMITED" }, 429);
+    if (!allowed) {
+      return NextResponse.json(
+        { ok: false, error: "RATE_LIMITED" },
+        {
+          status: 429,
+          headers: {
+            "Cache-Control": "private, no-store, max-age=0",
+            "Retry-After": "600",
+          },
+        },
+      );
+    }
 
     const reservation = await getManagedReservation(token);
     if (!reservation) return json({ ok: false, error: "RESERVATION_NOT_FOUND" }, 404);
