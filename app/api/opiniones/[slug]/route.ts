@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpinionesServerClient } from "@/lib/opiniones/supabase";
+import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { consumePublicRateLimit } from "@/app/lib/publicRateLimit";
 
 type RouteContext = {
   params: Promise<{ slug: string }>;
@@ -44,7 +45,7 @@ function cleanAspects(value: unknown) {
   ).slice(0, 6);
 }
 
-export async function GET(_request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, context: RouteContext) {
   try {
     const { slug } = await context.params;
     const normalizedSlug = slug.toLowerCase().trim();
@@ -53,7 +54,20 @@ export async function GET(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Enlace no válido." }, { status: 400 });
     }
 
-    const supabase = getOpinionesServerClient();
+    const allowed = await consumePublicRateLimit(
+      request,
+      "opinion-config",
+      normalizedSlug,
+      120,
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Demasiadas peticiones. Inténtalo de nuevo más tarde." },
+        { status: 429, headers: { "Retry-After": "600" } },
+      );
+    }
+
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase.rpc("get_opinion_public_config_v2", {
       p_slug: normalizedSlug,
     });
@@ -118,6 +132,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Enlace no válido." }, { status: 400 });
     }
 
+    const contentLength = Number(request.headers.get("content-length") || 0);
+    if (contentLength > 10_000) {
+      return NextResponse.json({ error: "Petición demasiado grande." }, { status: 413 });
+    }
+
+    const allowed = await consumePublicRateLimit(
+      request,
+      "opinion-submit",
+      normalizedSlug,
+      10,
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { error: "Demasiadas peticiones. Inténtalo de nuevo más tarde." },
+        { status: 429, headers: { "Retry-After": "600" } },
+      );
+    }
+
     const body = (await request.json()) as Record<string, unknown>;
 
     if (typeof body.website === "string" && body.website.trim()) {
@@ -174,7 +206,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
         ? body.submissionToken
         : crypto.randomUUID();
 
-    const supabase = getOpinionesServerClient();
+    const supabase = getSupabaseAdmin();
     const { data, error } = await supabase.rpc("submit_opinion_qr_v2", {
       p_slug: normalizedSlug,
       p_rating: rating,
