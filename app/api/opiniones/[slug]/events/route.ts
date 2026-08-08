@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOpinionesServerClient } from "@/lib/opiniones/supabase";
+import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { consumePublicRateLimit } from "@/app/lib/publicRateLimit";
 
 type RouteContext = {
   params: Promise<{ slug: string }>;
@@ -36,6 +37,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
 
+    const contentLength = Number(request.headers.get("content-length") || 0);
+    if (contentLength > 5_000) {
+      return NextResponse.json({ ok: false }, { status: 413 });
+    }
+
+    const allowed = await consumePublicRateLimit(
+      request,
+      "opinion-event",
+      normalizedSlug,
+      120,
+    );
+    if (!allowed) {
+      return NextResponse.json(
+        { ok: false },
+        { status: 429, headers: { "Retry-After": "600" } },
+      );
+    }
+
     const body = (await request.json()) as Record<string, unknown>;
     const eventType =
       typeof body.eventType === "string"
@@ -58,7 +77,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ ok: false }, { status: 400 });
     }
 
-    const supabase = getOpinionesServerClient();
+    const supabase = getSupabaseAdmin();
     const { error } = await supabase.rpc("track_opinion_event", {
       p_slug: normalizedSlug,
       p_submission_token: submissionToken,
