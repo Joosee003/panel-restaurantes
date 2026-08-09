@@ -5,11 +5,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const DEFAULT_RESERVATION_WEBHOOK =
-  "https://n8n.gastrohelp.es/webhook/gh-reservas-a291d7ee7e9d54e53d761579aba8735ab99410b8694426e8";
-const DEFAULT_REVIEW_WEBHOOK =
-  "https://n8n.gastrohelp.es/webhook/resena-email";
-
 type AutomationEvent = {
   event_id: string;
   event_type: string;
@@ -69,14 +64,41 @@ function deliveryErrorMessage(error: unknown) {
   return error.message.slice(0, 1000);
 }
 
-function webhookFor(eventType: string) {
-  if (eventType === "visit.review_request") {
-    return process.env.N8N_REVIEW_WEBHOOK_URL || DEFAULT_REVIEW_WEBHOOK;
+async function webhookFor(eventType: string) {
+  const envUrl =
+    eventType === "visit.review_request"
+      ? process.env.N8N_REVIEW_WEBHOOK_URL
+      : process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL;
+
+  let configuredUrl = envUrl?.trim() || "";
+  if (!configuredUrl) {
+    const endpointKey =
+      eventType === "visit.review_request"
+        ? "review_webhook"
+        : "native_booking_webhook";
+    const { data, error } = await getSupabaseAdmin()
+      .from("private_integration_endpoints")
+      .select("url")
+      .eq("key", endpointKey)
+      .eq("active", true)
+      .maybeSingle<{ url: string }>();
+
+    if (error) throw error;
+    configuredUrl = data?.url?.trim() || "";
   }
-  return (
-    process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL ||
-    DEFAULT_RESERVATION_WEBHOOK
-  );
+
+  if (!configuredUrl) throw new Error("AUTOMATION_WEBHOOK_NOT_CONFIGURED");
+
+  const parsed = new URL(configuredUrl);
+  if (
+    parsed.protocol !== "https:" ||
+    parsed.hostname !== "n8n.gastrohelp.es" ||
+    !parsed.pathname.startsWith("/webhook/")
+  ) {
+    throw new Error("AUTOMATION_WEBHOOK_INVALID");
+  }
+
+  return parsed.toString();
 }
 
 async function completeEvent(
@@ -244,7 +266,7 @@ async function deliverEvent(event: AutomationEvent) {
       process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET?.trim();
     let response: Response;
     try {
-      response = await fetch(webhookFor(event.event_type), {
+      response = await fetch(await webhookFor(event.event_type), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
