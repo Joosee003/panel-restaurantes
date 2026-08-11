@@ -93,3 +93,4 @@ Después de fusionar:
 ## Documentación
 
 - `docs/PRODUCTION_AUDIT.md`: estado confirmado de GitHub, Vercel, dominio y demo.
+- `docs/CIERRE-OPERATIVO-2026-08-11.md`: pruebas finales, seguridad, WhatsApp y recuperación.
