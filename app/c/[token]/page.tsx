@@ -1,7 +1,8 @@
 // app/c/[token]/page.tsx
 import React from "react";
 import type { Metadata } from "next";
-import { createClient } from "@supabase/supabase-js";
+import { createHash, randomUUID } from "node:crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import {
   ArrowRight,
@@ -140,10 +141,78 @@ type ReprogramarHorasData = {
   response?: string;
 };
 
+type LegacyAvailabilityRow = {
+  inicio_at: string;
+  hora_local: string;
+};
+
 function getAdmin() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
   const service = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   return createClient(url, service, { auth: { persistSession: false } });
+}
+
+async function consumeClientPortalLimit(
+  admin: SupabaseClient,
+  scope: string,
+  token: string,
+  limit = 10,
+) {
+  const secret =
+    process.env.BOOKING_RATE_LIMIT_SECRET ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!secret || !token) return false;
+
+  const keyHash = createHash("sha256")
+    .update(`${secret}:client-portal:${scope}:${token}`)
+    .digest("hex");
+  const { data, error } = await admin.rpc("consumir_limite_reserva_publica", {
+    p_key_hash: keyHash,
+    p_limite: limit,
+    p_ventana_segundos: 600,
+  });
+
+  if (error) {
+    console.error("No se pudo comprobar el límite del portal de cliente", error);
+    return false;
+  }
+  return data === true;
+}
+
+async function ensureManagementToken(
+  admin: SupabaseClient,
+  reservation: {
+    id: string;
+    cliente_id: string;
+    restaurante_id: string;
+    gestion_token?: string | null;
+  },
+) {
+  if (reservation.gestion_token) return reservation.gestion_token;
+
+  const candidate = randomUUID();
+  const { data: updated, error } = await admin
+    .from("reservas")
+    .update({ gestion_token: candidate })
+    .eq("id", reservation.id)
+    .eq("cliente_id", reservation.cliente_id)
+    .eq("restaurante_id", reservation.restaurante_id)
+    .is("gestion_token", null)
+    .select("gestion_token")
+    .maybeSingle();
+
+  if (error) throw error;
+  if (updated?.gestion_token) return String(updated.gestion_token);
+
+  const { data: current, error: currentError } = await admin
+    .from("reservas")
+    .select("gestion_token")
+    .eq("id", reservation.id)
+    .eq("cliente_id", reservation.cliente_id)
+    .eq("restaurante_id", reservation.restaurante_id)
+    .maybeSingle();
+  if (currentError) throw currentError;
+  return current?.gestion_token ? String(current.gestion_token) : null;
 }
 
 function clsx(...values: Array<string | false | null | undefined>) {
@@ -1055,12 +1124,16 @@ export default async function ClientePremiosPage({
 
   async function completarPerfilAction(formData: FormData) {
     "use server";
-    const tokenLocal = String(formData.get("token") ?? "").trim();
+    const tokenLocal = token;
     const nombre = String(formData.get("nombre") ?? "").trim();
     const telefono = String(formData.get("telefono") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim();
     const fechaNacimiento = String(formData.get("fecha_nacimiento") ?? "").trim();
     const admin = getAdmin();
+
+    if (!(await consumeClientPortalLimit(admin, "complete-profile", tokenLocal, 6))) {
+      redirect(`/c/${tokenLocal}?err=rate_limit`);
+    }
 
     const { data: c } = await admin.from("clientes").select("id, restaurante_id, public_token").eq("public_token", tokenLocal).maybeSingle();
     if (!c) redirect(`/c/${tokenLocal}?err=cliente`);
@@ -1080,12 +1153,16 @@ export default async function ClientePremiosPage({
 
   async function actualizarPerfilAction(formData: FormData) {
     "use server";
-    const tokenLocal = String(formData.get("token") ?? "").trim();
+    const tokenLocal = token;
     const nombre = String(formData.get("nombre") ?? "").trim();
     const telefono = String(formData.get("telefono") ?? "").trim();
     const email = String(formData.get("email") ?? "").trim();
     const fechaNacimiento = String(formData.get("fecha_nacimiento") ?? "").trim();
     const admin = getAdmin();
+
+    if (!(await consumeClientPortalLimit(admin, "update-profile", tokenLocal, 6))) {
+      redirect(`/c/${tokenLocal}?tab=perfil&err=rate_limit`);
+    }
 
     const { data: cliente } = await admin.from("clientes").select("id, restaurante_id, public_token").eq("public_token", tokenLocal).maybeSingle();
     if (!cliente) redirect(`/c/${tokenLocal}?tab=perfil&err=cliente`);
@@ -1106,8 +1183,12 @@ export default async function ClientePremiosPage({
   async function canjearAction(formData: FormData) {
     "use server";
     const premioId = String(formData.get("premio_id") ?? "").trim();
-    const tokenLocal = String(formData.get("token") ?? "").trim();
+    const tokenLocal = token;
     const admin = getAdmin();
+
+    if (!(await consumeClientPortalLimit(admin, "redeem-reward", tokenLocal, 8))) {
+      redirect(`/c/${tokenLocal}?tab=premios&err=rate_limit`);
+    }
 
     const { data: cliente } = await admin.from("clientes").select("id,restaurante_id,public_token").eq("public_token", tokenLocal).maybeSingle();
     if (!cliente) redirect(`/c/${tokenLocal}?tab=premios&err=cliente`);
@@ -1139,9 +1220,13 @@ export default async function ClientePremiosPage({
 
   async function canjearCuponAction(formData: FormData) {
     "use server";
-    const tokenLocal = String(formData.get("token") ?? "").trim();
+    const tokenLocal = token;
     const cuponId = String(formData.get("cupon_id") ?? "").trim();
     const admin = getAdmin();
+
+    if (!(await consumeClientPortalLimit(admin, "redeem-coupon", tokenLocal, 8))) {
+      redirect(`/c/${tokenLocal}?tab=cupones&err=rate_limit`);
+    }
 
     const { data: cliente } = await admin.from("clientes").select("id, restaurante_id, public_token").eq("public_token", tokenLocal).maybeSingle();
     if (!cliente) redirect(`/c/${tokenLocal}?tab=cupones&err=cliente`);
@@ -1183,17 +1268,20 @@ export default async function ClientePremiosPage({
 
   async function cancelarReservaAction(formData: FormData) {
     "use server";
-    const tokenLocal = String(formData.get("token") ?? "").trim();
+    const tokenLocal = token;
     const reservaId = String(formData.get("reserva_id") ?? "").trim();
     if (!tokenLocal || !reservaId) redirect(`/c/${tokenLocal || token}?tab=reservas&err=cancel`);
 
     const admin = getAdmin();
+    if (!(await consumeClientPortalLimit(admin, "cancel-booking", tokenLocal, 8))) {
+      redirect(`/c/${tokenLocal}?tab=reservas&err=rate_limit`);
+    }
     const { data: cliente } = await admin.from("clientes").select("id, restaurante_id").eq("public_token", tokenLocal).maybeSingle();
     if (!cliente) redirect(`/c/${tokenLocal}?tab=reservas&err=cliente`);
 
     const { data: reserva } = await admin
       .from("reservas")
-      .select("id,fecha_hora_reserva,estado,cliente_id,restaurante_id")
+      .select("id,fecha_hora_reserva,estado,cliente_id,restaurante_id,gestion_token")
       .eq("id", reservaId)
       .eq("cliente_id", cliente.id)
       .eq("restaurante_id", cliente.restaurante_id)
@@ -1202,12 +1290,17 @@ export default async function ClientePremiosPage({
     if (!reserva) redirect(`/c/${tokenLocal}?tab=reservas&err=reserva`);
     if (!canCancelReserva(reserva as ReservaCliente)) redirect(`/c/${tokenLocal}?tab=reservas&err=cancel_tarde`);
 
-    const { error } = await admin
-      .from("reservas")
-      .update({ estado: "cancelada" })
-      .eq("id", reservaId)
-      .eq("cliente_id", cliente.id)
-      .eq("restaurante_id", cliente.restaurante_id);
+    const managementToken = await ensureManagementToken(admin, {
+      id: reserva.id,
+      cliente_id: cliente.id,
+      restaurante_id: cliente.restaurante_id,
+      gestion_token: reserva.gestion_token,
+    });
+    if (!managementToken) redirect(`/c/${tokenLocal}?tab=reservas&err=cancel`);
+
+    const { error } = await admin.rpc("cancelar_reserva_publica_gestion", {
+      p_gestion_token: managementToken,
+    });
 
     if (error) {
       console.error("Error cancelando reserva desde cliente", error);
@@ -1218,7 +1311,7 @@ export default async function ClientePremiosPage({
 
   async function confirmarCambioHoraAction(formData: FormData) {
     "use server";
-    const tokenLocal = String(formData.get("token") || "").trim();
+    const tokenLocal = token;
     const reservaId = String(formData.get("reserva_id") || "").trim();
     const nuevaFecha = String(formData.get("nueva_fecha") || "").trim();
     const nuevaHora = String(formData.get("nueva_hora") || "").trim();
@@ -1229,12 +1322,15 @@ export default async function ClientePremiosPage({
     if (!fechaOk || !horaOk) redirect(`/c/${tokenLocal}?tab=reservas&err=reprogramar`);
 
     const admin = getAdmin();
+    if (!(await consumeClientPortalLimit(admin, "reschedule-booking", tokenLocal, 8))) {
+      redirect(`/c/${tokenLocal}?tab=reservas&err=rate_limit`);
+    }
     const { data: cliente } = await admin.from("clientes").select("id, restaurante_id").eq("public_token", tokenLocal).maybeSingle();
     if (!cliente) redirect(`/c/${tokenLocal}?tab=reservas&err=cliente`);
 
     const { data: reserva } = await admin
       .from("reservas")
-      .select("id,fecha_hora_reserva,estado,cliente_id,restaurante_id")
+      .select("id,fecha_hora_reserva,estado,cliente_id,restaurante_id,gestion_token,personas")
       .eq("id", reservaId)
       .eq("cliente_id", cliente.id)
       .eq("restaurante_id", cliente.restaurante_id)
@@ -1243,16 +1339,43 @@ export default async function ClientePremiosPage({
     if (!reserva) redirect(`/c/${tokenLocal}?tab=reservas&err=reserva`);
     if (!canCancelReserva(reserva as ReservaCliente)) redirect(`/c/${tokenLocal}?tab=reservas&err=cancel_tarde`);
 
-    const horaNumero = Number(nuevaHora.slice(0, 2));
-    const nuevoTurno = horaNumero >= 17 ? "cena" : "comida";
-    const nuevaFechaHora = `${nuevaFecha} ${nuevaHora}:00`;
+    const { data: web } = await admin
+      .from("restaurante_webs")
+      .select("slug")
+      .eq("restaurante_id", cliente.restaurante_id)
+      .eq("publicada", true)
+      .maybeSingle();
+    if (!web?.slug) redirect(`/c/${tokenLocal}?tab=reservas&err=reprogramar`);
 
-    const { error } = await admin
-      .from("reservas")
-      .update({ fecha_hora_reserva: nuevaFechaHora, turno: nuevoTurno, estado: "confirmada" })
-      .eq("id", reservaId)
-      .eq("cliente_id", cliente.id)
-      .eq("restaurante_id", cliente.restaurante_id);
+    const { data: slots, error: slotsError } = await admin.rpc(
+      "obtener_disponibilidad_reservas",
+      {
+        p_slug: web.slug,
+        p_fecha: nuevaFecha,
+        p_personas: Math.max(1, Number(reserva.personas || 1)),
+        p_excluir_reserva_id: reserva.id,
+      },
+    );
+    if (slotsError) redirect(`/c/${tokenLocal}?tab=reservas&err=reprogramar`);
+    const selectedSlot = ((slots || []) as LegacyAvailabilityRow[]).find(
+      (slot) => slot.hora_local === nuevaHora,
+    );
+    if (!selectedSlot?.inicio_at) {
+      redirect(`/c/${tokenLocal}?tab=reservas&err=reprogramar`);
+    }
+
+    const managementToken = await ensureManagementToken(admin, {
+      id: reserva.id,
+      cliente_id: cliente.id,
+      restaurante_id: cliente.restaurante_id,
+      gestion_token: reserva.gestion_token,
+    });
+    if (!managementToken) redirect(`/c/${tokenLocal}?tab=reservas&err=reprogramar`);
+
+    const { error } = await admin.rpc("reprogramar_reserva_publica_gestion", {
+      p_gestion_token: managementToken,
+      p_nuevo_inicio_at: selectedSlot.inicio_at,
+    });
 
     if (error) {
       console.error("Error reprogramando reserva desde cliente", error);
@@ -1263,9 +1386,12 @@ export default async function ClientePremiosPage({
 
   async function marcarAvisoLeidoAction(formData: FormData) {
     "use server";
-    const tokenLocal = String(formData.get("token") ?? "").trim();
+    const tokenLocal = token;
     const avisoId = String(formData.get("aviso_id") ?? "").trim();
     const admin = getAdmin();
+    if (!(await consumeClientPortalLimit(admin, "read-notification", tokenLocal, 30))) {
+      redirect(`/c/${tokenLocal}?tab=perfil&err=rate_limit`);
+    }
     const { data: cliente } = await admin.from("clientes").select("id, restaurante_id, public_token").eq("public_token", tokenLocal).maybeSingle();
     if (!cliente || !avisoId) redirect(`/c/${tokenLocal}?tab=perfil&err=aviso`);
     const { error } = await admin.from("cliente_notificaciones").update({ leida: true }).eq("id", avisoId).eq("cliente_id", cliente.id).eq("restaurante_id", cliente.restaurante_id);
@@ -1400,20 +1526,61 @@ export default async function ClientePremiosPage({
   let horasCambio: ReprogramarHorasData | null = null;
   if (reservaSeleccionadaCambio && canCancelReserva(reservaSeleccionadaCambio)) {
     try {
-      const res = await fetch("https://n8n.gastrohelp.es/webhook/panel-reprogramar-horas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, reserva_id: reservaSeleccionadaCambio.id }),
-        cache: "no-store",
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok || data?.ok === false) {
-        horasCambio = { ok: false, horas: [], error: String(data?.error || data?.message || `HTTP_${res.status}`), response: String(data?.response || "No se pudieron cargar las horas disponibles.") };
+      const allowed = await consumeClientPortalLimit(
+        supabase,
+        "booking-availability",
+        token,
+        80,
+      );
+      const { data: web } = await supabase
+        .from("restaurante_webs")
+        .select("slug")
+        .eq("restaurante_id", cliente.restaurante_id)
+        .eq("publicada", true)
+        .maybeSingle();
+
+      if (!allowed || !web?.slug) {
+        horasCambio = {
+          ok: false,
+          horas: [],
+          error: allowed ? "BOOKING_NOT_AVAILABLE" : "RATE_LIMITED",
+          response: "No se pudieron cargar las horas disponibles.",
+        };
       } else {
-        horasCambio = { ok: true, reserva_id: String(data?.reserva_id || reservaSeleccionadaCambio.id), fecha: String(data?.fecha || onlyDate(reservaSeleccionadaCambio.fecha_hora_reserva)), personas: Number(data?.personas || reservaSeleccionadaCambio.personas || 1), horas: Array.isArray(data?.horas) ? data.horas.map((h: any) => String(h)) : [] };
+        const fecha = onlyDate(reservaSeleccionadaCambio.fecha_hora_reserva);
+        const { data: slots, error: slotsError } = await supabase.rpc(
+          "obtener_disponibilidad_reservas",
+          {
+            p_slug: web.slug,
+            p_fecha: fecha,
+            p_personas: Math.max(
+              1,
+              Number(reservaSeleccionadaCambio.personas || 1),
+            ),
+            p_excluir_reserva_id: reservaSeleccionadaCambio.id,
+          },
+        );
+        if (slotsError) throw slotsError;
+        horasCambio = {
+          ok: true,
+          reserva_id: reservaSeleccionadaCambio.id,
+          fecha,
+          personas: Math.max(
+            1,
+            Number(reservaSeleccionadaCambio.personas || 1),
+          ),
+          horas: ((slots || []) as LegacyAvailabilityRow[]).map(
+            (slot) => slot.hora_local,
+          ),
+        };
       }
-    } catch (error: any) {
-      horasCambio = { ok: false, horas: [], error: String(error?.message || "WEBHOOK_ERROR"), response: "No se pudieron cargar las horas disponibles." };
+    } catch (error: unknown) {
+      horasCambio = {
+        ok: false,
+        horas: [],
+        error: error instanceof Error ? error.message : "AVAILABILITY_ERROR",
+        response: "No se pudieron cargar las horas disponibles.",
+      };
     }
   }
 
