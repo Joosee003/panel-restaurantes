@@ -4,10 +4,10 @@
 
 - Repositorio: `Joosee003/panel-restaurantes`.
 - Rama de producción: `main`.
-- Commit desplegado: `06afb2e999756c13fb823aab1760cc6f352f9424`.
-- Pull request de cierre: `#27`.
+- Commit desplegado: `9043a233caecf467cb4089730810997318c6b547`.
+- Pull requests de cierre: `#27` (seguridad) y `#28` (acta operativa).
 - Producción: `https://panel.gastrohelp.es`.
-- Vercel: despliegue `dpl_3Vmf5UsHoW9gkQRmqMFcF7Xp2eRR`, estado `READY`.
+- Vercel: despliegue `dpl_GXV5VY9jhNsohL7gZre5xgVZyJgS`, estado `READY`.
 - Supabase: proyecto `yyiotkszobortppwiqal`.
 - n8n: flujo `wEhIpYsLyJt8wmDf`, publicado con la versión `35e536e0-59c5-4d89-9471-34c9c87f3468`.
 
@@ -28,6 +28,7 @@
 - Las funciones sensibles de reserva no pueden ejecutarse con los roles `anon` ni `authenticated`; solo con `service_role`.
 - `npm audit --omit=dev` termina con cero avisos.
 - La compilación de Next.js termina correctamente.
+- Vercel no registra errores de ejecución en las últimas 24 horas.
 
 ## Controles multi-restaurante
 
@@ -48,13 +49,28 @@
 - Las confirmaciones y estados de WhatsApp se ignoran para no abrir el chatbot.
 - Las opiniones entregadas se guardan por restaurante en los datos estáticos del flujo.
 - En Supabase existen 14 alertas pendientes de Hispanos Grill y no existen alertas duplicadas por opinión y tipo.
+- La ejecución `69410` entregó cinco opiniones de Hispanos Grill y guardó su seguimiento.
+- Los errores `69408`, `69413`, `69414` y `69416` son anteriores a la versión activa del router.
+- No se han observado errores posteriores del router en la revisión disponible.
 
-Pendiente de comprobación manual:
+## Clasificación final
 
-1. consultar las últimas ejecuciones desde la pantalla de n8n;
-2. enviar `reseñas` desde el teléfono del responsable de Hispanos Grill;
-3. confirmar que una segunda consulta no repite las opiniones entregadas;
-4. identificar en Meta el token anterior y retirarlo sin tocar el token usado por n8n.
+| Trabajo que no requiere a Jose | Estado |
+| --- | --- |
+| Seguridad de reservas públicas, límites y enlaces privados | Terminado y probado en producción |
+| Dependencias y compilación | Cero vulnerabilidades de producción; compilación correcta |
+| GitHub y Vercel | `main` sincronizado; despliegue actual `READY`; sin errores de ejecución en 24 horas |
+| Supabase | RLS, funciones sensibles y separación por restaurante revisadas; cero usuarios anónimos creados |
+| n8n y opiniones | Flujos activos revisados; entrega real de cinco opiniones confirmada; cero duplicados por opinión y tipo |
+| Limpieza del repositorio | Copias antiguas de código, rutas ignoradas y recursos duplicados retirados |
+| Documentación de recuperación | Actualizada con los identificadores vigentes |
+
+| Trabajo que requiere a Jose y asistencia guiada | Motivo y tiempo previsto |
+| --- | --- |
+| Proteger el GET de verificación de n8n y volver a verificar el callback en Meta | El token debe escribirlo Jose dentro de su sesión privada; 10 minutos |
+| Revisar en Supabase Auth los accesos anónimos, activar protección de contraseñas filtradas y comprobar Backups | Son controles del panel que requieren la sesión de Jose; 5 minutos |
+| Enviar `reseñas` otra vez desde el WhatsApp de Jose y hacer una prueba desde el teléfono del responsable | Confirma que no se repiten opiniones y que cada responsable recibe solo su restaurante; 3 minutos más la prueba del responsable |
+| Rotar el token de Meta y retirar el anterior | Debe hacerse con la sesión de Meta abierta y sin revocar el token activo antes de probar el nuevo; 10 minutos |
 
 ## Recuperación
 
