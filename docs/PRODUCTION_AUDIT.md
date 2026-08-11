@@ -112,15 +112,15 @@ Acciones:
 
 ### 3. Variables y proyectos de Supabase
 
-No se ha verificado todavía qué proyecto es producción, qué variables usa Vercel, qué políticas RLS están activas ni cómo se realizan las copias de seguridad.
+El proyecto de producción verificado es `yyiotkszobortppwiqal`. Las políticas RLS y las funciones expuestas se revisaron durante el cierre. La pantalla de copias de seguridad y dos controles de Auth requieren una última revisión con la sesión privada de Jose.
 
 ### 4. Deuda de lint
 
 Resultado inicial:
 
-- 171 incidencias;
-- 130 errores;
-- 41 avisos.
+- 179 incidencias;
+- 131 errores;
+- 48 avisos.
 
 Grupos principales detectados:
 
@@ -129,19 +129,18 @@ Grupos principales detectados:
 - llamadas que actualizan estado desde efectos;
 - dependencias ausentes en hooks;
 - imágenes sin optimización de Next.js;
-- una carpeta antigua denominada `app copy` que también entra en el análisis.
+- una copia antigua de código que entraba en el análisis y se retiró durante el cierre del 11/08/2026.
 
 El informe completo se guarda como artefacto de GitHub Actions en cada ejecución. El control es no bloqueante de manera temporal para no impedir cambios seguros que sí construyen correctamente. Debe pasar a bloqueante cuando la deuda llegue a cero.
 
 Orden de corrección recomendado:
 
-1. revisar y retirar `app copy` si es una copia obsoleta;
-2. corregir errores de orden de declaración;
-3. tipar utilidades compartidas y `safeQuery`;
-4. corregir los efectos y hooks de clientes, alertas y rentabilidad;
-5. tipar carta, productos, ocupación y ventas;
-6. corregir avisos de imágenes y dependencias;
-7. activar lint bloqueante.
+1. corregir errores de orden de declaración;
+2. tipar utilidades compartidas y `safeQuery`;
+3. corregir los efectos y hooks de clientes, alertas y rentabilidad;
+4. tipar carta, productos, ocupación y ventas;
+5. corregir avisos de imágenes y dependencias;
+6. activar lint bloqueante.
 
 ## Resultado de la validación
 
