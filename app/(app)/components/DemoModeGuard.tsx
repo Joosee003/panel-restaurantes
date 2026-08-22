@@ -186,7 +186,7 @@ export default function DemoModeGuard() {
           <div className="grid shrink-0 gap-2 sm:grid-cols-3 lg:flex">
             <a
               data-demo-allow
-              href="https://wa.me/34643416157?text=Hola%20Jose%2C%20acabo%20de%20ver%20la%20demo%20de%20GastroHelp%20y%20quiero%20informaci%C3%B3n%20para%20mi%20restaurante."
+              href="https://wa.me/34613885231?text=Hola%20Jose%2C%20acabo%20de%20ver%20la%20demo%20de%20GastroHelp%20y%20quiero%20informaci%C3%B3n%20para%20mi%20restaurante."
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-950/15 transition hover:-translate-y-0.5"
@@ -220,7 +220,7 @@ export default function DemoModeGuard() {
       <div className="fixed bottom-3 left-3 right-3 z-[90] grid grid-cols-[1fr_auto] gap-2 rounded-2xl border border-white/15 bg-slate-950/95 p-2 shadow-2xl backdrop-blur-xl sm:hidden">
         <a
           data-demo-allow
-          href="https://wa.me/34643416157?text=Hola%20Jose%2C%20acabo%20de%20ver%20la%20demo%20de%20GastroHelp%20y%20quiero%20informaci%C3%B3n%20para%20mi%20restaurante."
+          href="https://wa.me/34613885231?text=Hola%20Jose%2C%20acabo%20de%20ver%20la%20demo%20de%20GastroHelp%20y%20quiero%20informaci%C3%B3n%20para%20mi%20restaurante."
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-xs font-black text-white"
