@@ -18,7 +18,7 @@ export default function PublicLayout({
             </p>
           </div>
           <a
-            href="https://wa.me/34643416157?text=Hola%20Jose%2C%20quiero%20informaci%C3%B3n%20sobre%20GastroHelp%20para%20mi%20restaurante."
+            href="https://wa.me/34613885231?text=Hola%20Jose%2C%20quiero%20informaci%C3%B3n%20sobre%20GastroHelp%20para%20mi%20restaurante."
             target="_blank"
             rel="noopener noreferrer"
             className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 px-4 text-xs font-black text-white shadow-lg shadow-emerald-950/20 transition hover:-translate-y-0.5 sm:flex-none"
