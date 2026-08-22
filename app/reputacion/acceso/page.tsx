@@ -164,12 +164,12 @@ function BrandMark({ className, compact = false }: { className: string; compact?
   return (
     <div className={`grid shrink-0 place-items-center overflow-hidden border border-white/30 bg-white shadow-2xl ${className}`}>
       <Image
-        src="/brand/gastrohelp-logo.jpg"
+        src="/brand/gastrohelp-logo.svg"
         alt="Logo de GastroHelp"
         width={150}
         height={150}
         priority
-        className={`h-full w-full object-contain mix-blend-multiply ${compact ? "p-1.5" : "p-2"}`}
+        className={`h-full w-full object-contain ${compact ? "p-1.5" : "p-2"}`}
       />
     </div>
   );

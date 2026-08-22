@@ -70,7 +70,7 @@ export default function HispanosReputationSuite() {
       setCanSwitch(configs.length > 1);
       setBrand({
         name: restaurant?.nombre || selectedConfig.slug,
-        logo: restaurant?.logo_url || selectedConfig.logo_url || "/brand/gastrohelp-logo.jpg",
+        logo: restaurant?.logo_url || selectedConfig.logo_url || "/brand/gastrohelp-logo.svg",
         googleMaps: selectedConfig.google_review_url || (isHispanos ? HISPANOS_BRAND.googleMaps : ""),
         isHispanos,
       });
