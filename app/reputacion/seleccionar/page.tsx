@@ -131,7 +131,7 @@ export default function SelectReputationRestaurantPage() {
           <div className="max-w-3xl">
             <div className="flex items-center gap-4">
               <div className="grid h-16 w-16 place-items-center overflow-hidden rounded-2xl bg-white p-2 shadow-2xl">
-                <Image src="/brand/gastrohelp-logo.svg" alt="GastroHelp" width={120} height={120} className="h-full w-full object-contain" priority />
+                <Image src="/brand/gastrohelp-logo.jpg" alt="GastroHelp" width={120} height={120} className="h-full w-full object-contain mix-blend-multiply" priority />
               </div>
               <div><p className="text-[10px] font-black uppercase tracking-[.2em] text-blue-100">GastroHelp Reputation</p><p className="mt-1 text-xl font-black">Cuenta de agencia</p></div>
             </div>
