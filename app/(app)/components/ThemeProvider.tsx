@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect } from "react";
 
 type ThemeContextType = {
   dark: boolean;
@@ -21,19 +21,17 @@ export default function ThemeProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [dark, setDark] = useState(false);
+  const dark = false;
 
   useEffect(() => {
     document.documentElement.classList.remove("dark");
     localStorage.setItem("theme", "light");
-    setDark(false);
   }, []);
 
   function toggle() {
     // Panel fijado en modo claro para evitar pantallas mezcladas: fondo claro + tarjetas oscuras.
     document.documentElement.classList.remove("dark");
     localStorage.setItem("theme", "light");
-    setDark(false);
   }
 
   return (

@@ -22,6 +22,7 @@ import {
   Tag,
   UserRound,
   X,
+  type LucideIcon,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { getRestauranteUsuario } from "../../lib/getRestauranteUsuario";
@@ -312,7 +313,14 @@ export default function ClienteFichaPage() {
   }, [id, restauranteId]);
 
   useEffect(() => {
-    cargarFicha();
+    let activo = true;
+    queueMicrotask(() => {
+      if (activo) void cargarFicha();
+    });
+
+    return () => {
+      activo = false;
+    };
   }, [cargarFicha]);
 
   const segmentos = useMemo(() => (cliente ? segmentosCliente(cliente, nivelesConfig) : []), [cliente, nivelesConfig]);
@@ -605,7 +613,7 @@ export default function ClienteFichaPage() {
   );
 }
 
-function Kpi({ icon: Icon, label, value, help }: { icon: any; label: string; value: string | number; help: string }) {
+function Kpi({ icon: Icon, label, value, help }: { icon: LucideIcon; label: string; value: string | number; help: string }) {
   return (
     <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">

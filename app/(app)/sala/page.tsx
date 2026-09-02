@@ -59,6 +59,11 @@ type MesaConReserva = {
   estadoMesa: "libre" | "reservada" | "ocupada" | "atendida" | "bloqueada";
 };
 
+type RestauranteSala = Record<string, unknown> & {
+  id?: string | null;
+  horarios?: unknown;
+};
+
 function normalizarEstado(estado: string | null | undefined) {
   return (estado ?? "").toString().trim().toLowerCase();
 }
@@ -154,15 +159,16 @@ function parseRangoHorario(rango: string | null | undefined) {
   };
 }
 
-function leerRangoTurno(restaurante: any, turno: "comida" | "cena") {
+function leerRangoTurno(restaurante: RestauranteSala | null | undefined, turno: "comida" | "cena") {
   if (!restaurante) return null;
 
+  const horarios = restaurante.horarios;
   if (
-    restaurante.horarios &&
-    typeof restaurante.horarios === "object" &&
-    typeof restaurante.horarios[turno] === "string"
+    horarios &&
+    typeof horarios === "object" &&
+    typeof (horarios as Record<string, unknown>)[turno] === "string"
   ) {
-    return restaurante.horarios[turno];
+    return (horarios as Record<string, string>)[turno];
   }
 
   const claves =
@@ -212,7 +218,7 @@ function construirFranjas(inicioMin: number, finMin: number) {
   return franjas;
 }
 
-function construirTurnos(restaurante: any): TurnoConfig[] {
+function construirTurnos(restaurante: RestauranteSala | null | undefined): TurnoConfig[] {
   const salida: TurnoConfig[] = [];
 
   const rangoComida = parseRangoHorario(leerRangoTurno(restaurante, "comida"));
@@ -362,7 +368,8 @@ export default function SalaPage() {
   const isDark = dark;
 
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ?? null;
+  const restauranteData = restauranteActual as RestauranteSala | null | undefined;
+  const restauranteId = restauranteData?.id ?? null;
 
   const [fechaSeleccionada, setFechaSeleccionada] = useState(() => new Date());
   const fechaKey = formatDateInput(fechaSeleccionada);
@@ -420,7 +427,6 @@ export default function SalaPage() {
       return;
     }
 
-    const restauranteData = restauranteActual;
     const nuevosTurnos = construirTurnos(restauranteData);
 
     const { data: zonasData, error: zonasError } = await supabase
@@ -772,6 +778,7 @@ export default function SalaPage() {
     { label: "Libres", value: totalLibres, sub: "mesas disponibles" },
     { label: "Reservadas", value: totalReservadas, sub: "con reserva asignada" },
     { label: "Ocupadas", value: totalOcupadas, sub: "cliente en mesa" },
+    { label: "Bloqueadas", value: totalBloqueadas, sub: "fuera de servicio" },
     { label: "Sin mesa", value: reservasSinAsignarFranja.length, sub: "en esta franja" },
   ];
 
@@ -907,7 +914,7 @@ export default function SalaPage() {
         </div>
 
         <div className={`${panelClass} p-4 xl:col-span-2`}>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
             {kpis.map((kpi) => (
               <div key={kpi.label} className={isDark ? "rounded-2xl bg-slate-900 p-3" : "rounded-2xl bg-slate-50 p-3"}>
                 <p className={`text-xs font-black uppercase ${mutedClass}`}>{kpi.label}</p>

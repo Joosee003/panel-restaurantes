@@ -55,7 +55,14 @@ export default function DailyAlerts({ restauranteId }: { restauranteId: string }
   }, [restauranteId]);
 
   useEffect(() => {
-    if (restauranteId) cargarAlertas();
+    let activo = true;
+    queueMicrotask(() => {
+      if (activo && restauranteId) void cargarAlertas();
+    });
+
+    return () => {
+      activo = false;
+    };
   }, [cargarAlertas, restauranteId]);
 
   if (alerts.length === 0) return null;

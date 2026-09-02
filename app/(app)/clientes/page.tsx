@@ -18,6 +18,7 @@ import {
   Star,
   Trophy,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
@@ -329,8 +330,16 @@ export default function ClientesPage() {
   }
 
   useEffect(() => {
-    cargarClientes();
-    cargarConfigNiveles();
+    let activo = true;
+    queueMicrotask(() => {
+      if (!activo) return;
+      void cargarClientes();
+      void cargarConfigNiveles();
+    });
+
+    return () => {
+      activo = false;
+    };
   }, [cargarClientes, cargarConfigNiveles]);
 
   useEffect(() => {
@@ -873,7 +882,7 @@ export default function ClientesPage() {
   );
 }
 
-function KpiCard({ icon: Icon, label, value, help }: { icon: any; label: string; value: number; help: string }) {
+function KpiCard({ icon: Icon, label, value, help }: { icon: LucideIcon; label: string; value: number; help: string }) {
   return (
     <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">
