@@ -174,8 +174,7 @@ export default function ResenasPage() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("pedir");
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
-  const [openModal, setOpenModal] = useState(false);
-  const [resenaSeleccionada, setResenaSeleccionada] = useState<string | null>(null);
+  const [resenaSeleccionada, setResenaSeleccionada] = useState<Resena | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
   const [googleReviewUrl, setGoogleReviewUrl] = useState("");
   const [googleReviewDraft, setGoogleReviewDraft] = useState("");
@@ -642,7 +641,7 @@ export default function ResenasPage() {
                         <p className={clsx("mt-2 text-xs font-bold", t.muted)}>{formatFecha(resena.fecha_reseña || resena.created_at)}</p>
                         {resena.respuesta_texto && (
                           <div className={clsx("mt-3 rounded-2xl border p-3 text-sm font-semibold", dark ? "border-slate-800 bg-slate-900 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-700")}>
-                            <span className="font-black">Respuesta: </span>{resena.respuesta_texto}
+                            <span className="font-black">{resena.responded ? "Respuesta registrada: " : "Borrador: "}</span>{resena.respuesta_texto}
                           </div>
                         )}
                       </div>
@@ -651,12 +650,11 @@ export default function ResenasPage() {
                         {!resena.responded && (
                           <button
                             onClick={() => {
-                              setResenaSeleccionada(resena.id);
-                              setOpenModal(true);
+                              setResenaSeleccionada(resena);
                             }}
                             className={t.primary}
                           >
-                            Responder
+                            {resena.respuesta_texto ? "Editar borrador" : "Preparar respuesta"}
                           </button>
                         )}
                         {resena.google_review_id && (
@@ -674,9 +672,11 @@ export default function ResenasPage() {
 
       {resenaSeleccionada && (
         <ResponderResenaModal
-          open={openModal}
-          resenaId={resenaSeleccionada}
-          onClose={() => setOpenModal(false)}
+          open
+          resenaId={resenaSeleccionada.id}
+          restauranteId={restauranteId || ""}
+          initialText={resenaSeleccionada.respuesta_texto || ""}
+          onClose={() => setResenaSeleccionada(null)}
           onSaved={cargarDatos}
         />
       )}
