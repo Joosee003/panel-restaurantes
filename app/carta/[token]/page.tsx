@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import {
   ArrowLeft,
   Check,
@@ -652,6 +653,61 @@ const imagenesFallback = [
   "https://images.unsplash.com/photo-1581006852262-e4307cf6283a?q=80&w=1200&auto=format&fit=crop",
 ];
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "";
+}
+
+function leerTraduccionCategoria(categoria: Categoria, idiomaActivo: LanguageCode) {
+  const traduccion = categoria.traducciones?.[idiomaActivo];
+
+  if (!traduccion) return categoria.nombre;
+  if (typeof traduccion === "string") return traduccion || categoria.nombre;
+
+  return traduccion.nombre || categoria.nombre;
+}
+
+function leerTraduccionProducto(producto: Producto, idiomaActivo: LanguageCode) {
+  const traduccion = producto.traducciones?.[idiomaActivo];
+
+  if (!traduccion || typeof traduccion === "string") return null;
+  return traduccion;
+}
+
+function fechaLocalISO(fecha: Date) {
+  const year = fecha.getFullYear();
+  const month = String(fecha.getMonth() + 1).padStart(2, "0");
+  const day = String(fecha.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function horaAMinutos(valor: string | null | undefined) {
+  if (!valor) return null;
+  const [horas, minutos] = valor.split(":").map(Number);
+  if (Number.isNaN(horas) || Number.isNaN(minutos)) return null;
+  return horas * 60 + minutos;
+}
+
+function menuDisponibleAhora(menu: MenuDiaQR, forzarVistaPrevia = false) {
+  if (forzarVistaPrevia) return true;
+
+  const ahora = new Date();
+  const hoyISO = fechaLocalISO(ahora);
+  const diaSemana = ahora.getDay() || 7;
+  const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
+
+  if (menu.fecha_desde && hoyISO < menu.fecha_desde) return false;
+  if (menu.fecha_hasta && hoyISO > menu.fecha_hasta) return false;
+  if (menu.dias_semana?.length && !menu.dias_semana.includes(diaSemana)) return false;
+
+  const inicio = horaAMinutos(menu.hora_inicio);
+  const fin = horaAMinutos(menu.hora_fin);
+
+  if (inicio !== null && minutosAhora < inicio) return false;
+  if (fin !== null && minutosAhora > fin) return false;
+
+  return true;
+}
+
 export default function CartaPublicaPage() {
   const params = useParams();
   const searchParams = useSearchParams();
@@ -691,7 +747,10 @@ export default function CartaPublicaPage() {
     idiomasDisponibles.find((item) => item.code === idioma) ||
     idiomasDisponibles[0];
 
-  const t = (key: string) => textos[idioma]?.[key] || textos.es[key] || key;
+  const t = useCallback(
+    (key: string) => textos[idioma]?.[key] || textos.es[key] || key,
+    [idioma],
+  );
 
   const nombreCartaPublica = useMemo(() => {
     if (restauranteNombre) return restauranteNombre;
@@ -710,7 +769,7 @@ export default function CartaPublicaPage() {
     }
 
     return nombre;
-  }, [carta, restauranteNombre, idioma]);
+  }, [carta, restauranteNombre, t]);
 
   useEffect(() => {
     const idiomaUrl = searchParams.get("lang")?.toLowerCase();
@@ -737,15 +796,7 @@ export default function CartaPublicaPage() {
     }
   }, [idioma]);
 
-  useEffect(() => {
-    cargarCarta();
-  }, [token]);
-
-  useEffect(() => {
-    comprobarAccesoPedido();
-  }, [token, mesaId, accessToken]);
-
-  async function comprobarAccesoPedido() {
+  const comprobarAccesoPedido = useCallback(async () => {
     setAccesoPedido("comprobando");
 
     if (!token || !mesaId || !accessToken) {
@@ -767,9 +818,9 @@ export default function CartaPublicaPage() {
 
     const resultado = Array.isArray(data) ? data[0] : data;
     setAccesoPedido(resultado?.valido === true ? "valido" : "invalido");
-  }
+  }, [accessToken, mesaId, token]);
 
-  async function cargarCarta() {
+  const cargarCarta = useCallback(async () => {
     setCargando(true);
     setError(null);
 
@@ -796,13 +847,33 @@ export default function CartaPublicaPage() {
       setCategorias(Array.isArray(payload.categorias) ? payload.categorias : []);
       setProductos(Array.isArray(payload.productos) ? payload.productos : []);
       setMenusDia(Array.isArray(payload.menus) ? payload.menus : []);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "No se pudo cargar la carta.");
+      setError(errorMessage(err) || "No se pudo cargar la carta.");
     } finally {
       setCargando(false);
     }
-  }
+  }, [token]);
+
+  useEffect(() => {
+    let activo = true;
+    queueMicrotask(() => {
+      if (activo) void cargarCarta();
+    });
+    return () => {
+      activo = false;
+    };
+  }, [cargarCarta]);
+
+  useEffect(() => {
+    let activo = true;
+    queueMicrotask(() => {
+      if (activo) void comprobarAccesoPedido();
+    });
+    return () => {
+      activo = false;
+    };
+  }, [comprobarAccesoPedido]);
 
   function cambiarIdioma(nuevoIdioma: LanguageCode) {
     setIdioma(nuevoIdioma);
@@ -826,32 +897,13 @@ export default function CartaPublicaPage() {
     }
   }
 
-  function leerTraduccionCategoria(categoria: Categoria, idiomaActivo: LanguageCode) {
-    const traduccion = categoria.traducciones?.[idiomaActivo] as any;
-
-    if (!traduccion) return categoria.nombre;
-    if (typeof traduccion === "string") return traduccion || categoria.nombre;
-
-    return traduccion.nombre || categoria.nombre;
-  }
-
-  function leerTraduccionProducto(producto: Producto, idiomaActivo: LanguageCode) {
-    const traduccion = producto.traducciones?.[idiomaActivo] as any;
-
-    if (!traduccion || typeof traduccion === "string") {
-      return null;
-    }
-
-    return traduccion as TraduccionProducto;
-  }
-
   function getCategoriaNombre(categoria: Categoria) {
     if (idioma === "es") return categoria.nombre;
 
     return leerTraduccionCategoria(categoria, idioma);
   }
 
-  function getProductoTexto(producto: Producto) {
+  const getProductoTexto = useCallback((producto: Producto) => {
     const traduccion = idioma !== "es" ? leerTraduccionProducto(producto, idioma) : null;
 
     return {
@@ -863,7 +915,7 @@ export default function CartaPublicaPage() {
       tipo: traduccion?.tipo || producto.tipo,
       alergenos: traduccion?.alergenos || producto.alergenos || [],
     };
-  }
+  }, [idioma]);
 
   function getMenuTexto(menu: MenuDiaQR): {
     titulo: string;
@@ -884,43 +936,6 @@ export default function CartaPublicaPage() {
           ? menu.secciones
           : [],
     };
-  }
-
-  function fechaLocalISO(fecha: Date) {
-    const year = fecha.getFullYear();
-    const month = String(fecha.getMonth() + 1).padStart(2, "0");
-    const day = String(fecha.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  }
-
-  function menuDisponibleAhora(menu: MenuDiaQR, forzarVistaPrevia = false) {
-    if (forzarVistaPrevia) return true;
-
-    const ahora = new Date();
-    const hoyISO = fechaLocalISO(ahora);
-    const diaSemana = ahora.getDay();
-    const minutosAhora = ahora.getHours() * 60 + ahora.getMinutes();
-
-    if (menu.fecha_desde && hoyISO < menu.fecha_desde) return false;
-    if (menu.fecha_hasta && hoyISO > menu.fecha_hasta) return false;
-    if (menu.dias_semana?.length && !menu.dias_semana.includes(diaSemana)) {
-      return false;
-    }
-
-    const inicio = horaAMinutos(menu.hora_inicio);
-    const fin = horaAMinutos(menu.hora_fin);
-
-    if (inicio !== null && minutosAhora < inicio) return false;
-    if (fin !== null && minutosAhora > fin) return false;
-
-    return true;
-  }
-
-  function horaAMinutos(valor: string | null | undefined) {
-    if (!valor) return null;
-    const [horas, minutos] = valor.split(":").map(Number);
-    if (Number.isNaN(horas) || Number.isNaN(minutos)) return null;
-    return horas * 60 + minutos;
   }
 
   function convertirMenuAProducto(menu: MenuDiaQR): Producto {
@@ -985,7 +1000,7 @@ export default function CartaPublicaPage() {
     });
 
     return Array.from(mapa.values()).sort((a, b) => a.localeCompare(b));
-  }, [productos, idioma]);
+  }, [getProductoTexto, productos]);
 
   const productosFiltrados = useMemo(() => {
     return productos.filter((producto) => {
@@ -1012,7 +1027,7 @@ export default function CartaPublicaPage() {
 
       return coincideCategoria && coincideBusqueda && !bloqueadoPorAlergeno;
     });
-  }, [productos, categoriaActiva, busqueda, idioma, alergenosBloqueados]);
+  }, [alergenosBloqueados, busqueda, categoriaActiva, getProductoTexto, productos]);
 
   const productosPorCategoria = useMemo(() => {
     return categorias
@@ -1040,11 +1055,11 @@ export default function CartaPublicaPage() {
 
   const recomendaciones = useMemo(() => {
     return obtenerRecomendaciones(productos, carrito, t);
-  }, [productos, carrito, idioma]);
+  }, [carrito, productos, t]);
 
   const menusActivos = useMemo(() => {
     return menusDia.filter((menu) => menu.activo && menuDisponibleAhora(menu, vistaPreviaMenu));
-  }, [menusDia, idioma, vistaPreviaMenu]);
+  }, [menusDia, vistaPreviaMenu]);
 
   const heroImageUrl = useMemo(() => {
     const fondoCarta = carta?.archivo_url || "";
@@ -1224,9 +1239,9 @@ export default function CartaPublicaPage() {
       setTimeout(() => {
         setPedidoEnviado(false);
       }, 7000);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(mensajeErrorPedido(String(err?.message || "")));
+      setError(mensajeErrorPedido(errorMessage(err)));
     } finally {
       setEnviando(false);
     }
@@ -1646,11 +1661,14 @@ export default function CartaPublicaPage() {
             {recomendaciones.length > 0 && carrito.length > 0 && (
               <section className="mb-6 rounded-[2rem] border border-amber-200 bg-amber-50 p-4 shadow-sm">
                 <div className="flex items-center gap-4">
-                  <div className="hidden h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-200 sm:block">
-                    <img
+                  <div className="relative hidden h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-200 sm:block">
+                    <Image
                       src={obtenerImagen(recomendaciones[0].producto)}
                       alt={getProductoTexto(recomendaciones[0].producto).nombre}
-                      className="h-full w-full object-cover"
+                      fill
+                      sizes="80px"
+                      unoptimized
+                      className="object-cover"
                     />
                   </div>
 
@@ -1700,10 +1718,13 @@ export default function CartaPublicaPage() {
                         onClick={() => añadirProducto(producto)}
                         className="group relative h-60 w-full overflow-hidden rounded-[2rem] bg-stone-950 text-left shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl"
                       >
-                        <img
+                        <Image
                           src={obtenerImagen(producto, index)}
                           alt={textoProducto.nombre}
-                          className="food-photo-motion h-full w-full object-cover transition duration-700 group-hover:scale-125"
+                          fill
+                          sizes="(min-width: 640px) 50vw, 100vw"
+                          unoptimized
+                          className="food-photo-motion object-cover transition duration-700 group-hover:scale-125"
                         />
 
                         <div className="food-shine" />
@@ -1961,10 +1982,13 @@ export default function CartaPublicaPage() {
                     className="overflow-hidden rounded-3xl border border-stone-200 bg-stone-50"
                   >
                     <div className="relative h-40 overflow-hidden">
-                      <img
+                      <Image
                         src={obtenerImagen(producto, index)}
                         alt={textoProducto.nombre}
-                        className="food-photo-motion h-full w-full object-cover"
+                        fill
+                        sizes="(min-width: 768px) 50vw, 100vw"
+                        unoptimized
+                        className="food-photo-motion object-cover"
                       />
 
                       <div className="food-shine" />
@@ -2053,10 +2077,13 @@ export default function CartaPublicaPage() {
         <div className="fixed inset-0 z-[70] flex items-end bg-black/60 p-4 backdrop-blur-sm md:items-center md:justify-center">
           <div className="max-h-[92vh] w-full overflow-y-auto rounded-[2rem] bg-white shadow-2xl md:max-w-2xl">
             <div className="relative h-72 overflow-hidden bg-stone-950">
-              <img
+              <Image
                 src={obtenerImagen(productoDetalle)}
                 alt={getProductoTexto(productoDetalle).nombre}
-                className="food-photo-motion h-full w-full object-cover"
+                fill
+                sizes="(min-width: 768px) 672px, 100vw"
+                unoptimized
+                className="food-photo-motion object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
 
@@ -2262,10 +2289,13 @@ function ProductoCard({
       }`}
     >
       <div className="relative h-44 overflow-hidden bg-stone-950 sm:h-52">
-        <img
+        <Image
           src={imagen}
           alt={textoProducto.nombre}
-          className="food-photo-motion h-full w-full object-cover transition duration-700 group-hover:scale-125"
+          fill
+          sizes="(min-width: 640px) 50vw, 100vw"
+          unoptimized
+          className="food-photo-motion object-cover transition duration-700 group-hover:scale-125"
         />
 
         <div className="food-shine" />

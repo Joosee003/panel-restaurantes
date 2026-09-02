@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CalendarDays,
@@ -78,8 +78,16 @@ const diasSemana = [
   { id: 4, label: "J", nombre: "Jueves" },
   { id: 5, label: "V", nombre: "Viernes" },
   { id: 6, label: "S", nombre: "Sábado" },
-  { id: 0, label: "D", nombre: "Domingo" },
+  { id: 7, label: "D", nombre: "Domingo" },
 ];
+
+function diaSemanaISO(fecha = new Date()) {
+  return fecha.getDay() || 7;
+}
+
+function mensajeError(error: unknown, mensaje: string) {
+  return error instanceof Error ? error.message : mensaje;
+}
 
 const seccionesIniciales: SeccionMenu[] = [
   {
@@ -134,15 +142,26 @@ function normalizarSecciones(valor: unknown): SeccionMenu[] {
   if (!Array.isArray(valor)) return clonarSecciones(seccionesIniciales);
 
   const limpias = valor
-    .map((seccion: any) => ({
-      nombre: String(seccion?.nombre || "Sección").trim(),
-      opciones: Array.isArray(seccion?.opciones)
-        ? seccion.opciones.map((opcion: any) => ({
-            nombre: String(opcion?.nombre || "").trim(),
-            descripcion: String(opcion?.descripcion || "").trim(),
-          }))
-        : [],
-    }))
+    .map((seccion) => {
+      const datos = seccion && typeof seccion === "object"
+        ? (seccion as Record<string, unknown>)
+        : {};
+      const opciones = Array.isArray(datos.opciones)
+        ? datos.opciones.map((opcion) => {
+            const datosOpcion = opcion && typeof opcion === "object"
+              ? (opcion as Record<string, unknown>)
+              : {};
+            return {
+              nombre: String(datosOpcion.nombre || "").trim(),
+              descripcion: String(datosOpcion.descripcion || "").trim(),
+            };
+          })
+        : [];
+      return {
+        nombre: String(datos.nombre || "Sección").trim(),
+        opciones,
+      };
+    })
     .filter((seccion: SeccionMenu) => seccion.nombre);
 
   return limpias.length > 0 ? limpias : clonarSecciones(seccionesIniciales);
@@ -191,7 +210,7 @@ function diasTexto(dias: number[] | null | undefined) {
 function menuVigenteHoy(menu: MenuDia) {
   if (!menu.activo) return false;
   const hoy = fechaHoyISO();
-  const dia = new Date().getDay();
+  const dia = diaSemanaISO();
   if (menu.fecha_desde && menu.fecha_desde > hoy) return false;
   if (menu.fecha_hasta && menu.fecha_hasta < hoy) return false;
   if (menu.dias_semana?.length && !menu.dias_semana.includes(dia)) return false;
@@ -200,9 +219,9 @@ function menuVigenteHoy(menu: MenuDia) {
 
 export default function MenuDiaPage() {
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
-  const restauranteNombre = (restauranteActual as any)?.nombre
-    ? String((restauranteActual as any).nombre)
+  const restauranteId = restauranteActual?.id ? String(restauranteActual.id) : null;
+  const restauranteNombre = restauranteActual?.nombre
+    ? String(restauranteActual.nombre)
     : "Restaurante";
 
   const [cartaActiva, setCartaActiva] = useState<Carta | null>(null);
@@ -224,7 +243,7 @@ export default function MenuDiaPage() {
   const menusActivos = useMemo(() => menus.filter((menu) => menu.activo).length, [menus]);
   const menuHoy = useMemo(() => menus.find(menuVigenteHoy) || null, [menus]);
 
-  async function cargarTodo() {
+  const cargarTodo = useCallback(async () => {
     if (loadingRestaurante) return;
 
     setCargando(true);
@@ -239,7 +258,7 @@ export default function MenuDiaPage() {
         return;
       }
 
-      const { data: cartasData, error: cartasError } = await (supabase as any)
+      const { data: cartasData, error: cartasError } = await supabase
         .from("cartas_digitales")
         .select("id,nombre,public_token,restaurante_id,created_at")
         .eq("restaurante_id", restauranteId)
@@ -257,7 +276,7 @@ export default function MenuDiaPage() {
         return;
       }
 
-      const { data: menusData, error: menusError } = await (supabase as any)
+      const { data: menusData, error: menusError } = await supabase
         .from("menus_dia_qr")
         .select("*")
         .eq("restaurante_id", restauranteId)
@@ -268,19 +287,19 @@ export default function MenuDiaPage() {
       if (menusError) throw menusError;
 
       setMenus((menusData || []) as MenuDia[]);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error cargando menú del día", err);
-      setError(err?.message || "No se pudo cargar el menú del día.");
+      setError(mensajeError(err, "No se pudo cargar el menú del día."));
     } finally {
       setCargando(false);
     }
-  }
+  }, [loadingRestaurante, restauranteId]);
 
   useEffect(() => {
-    cargarTodo();
-  }, [restauranteId, loadingRestaurante]);
+    void cargarTodo();
+  }, [cargarTodo]);
 
-  function cambiarCampo(campo: keyof FormMenu, valor: any) {
+  function cambiarCampo<K extends keyof FormMenu>(campo: K, valor: FormMenu[K]) {
     setForm((actual) => ({ ...actual, [campo]: valor }));
   }
 
@@ -393,7 +412,7 @@ export default function MenuDiaPage() {
 
   function activarSoloHoy() {
     const hoy = fechaHoyISO();
-    const dia = new Date().getDay();
+    const dia = diaSemanaISO();
     setForm((actual) => ({
       ...actual,
       activo: true,
@@ -435,7 +454,7 @@ export default function MenuDiaPage() {
       };
 
       if (menuEditando) {
-        const { error: updateError } = await (supabase as any)
+        const { error: updateError } = await supabase
           .from("menus_dia_qr")
           .update(payload)
           .eq("id", menuEditando.id)
@@ -443,16 +462,16 @@ export default function MenuDiaPage() {
 
         if (updateError) throw updateError;
       } else {
-        const { error: insertError } = await (supabase as any).from("menus_dia_qr").insert(payload);
+        const { error: insertError } = await supabase.from("menus_dia_qr").insert(payload);
         if (insertError) throw insertError;
       }
 
       setOk(menuEditando ? "Menú actualizado correctamente." : "Menú creado correctamente.");
       nuevoMenu();
       await cargarTodo();
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error guardando menú", err);
-      setError(err?.message || "No se pudo guardar el menú.");
+      setError(mensajeError(err, "No se pudo guardar el menú."));
     } finally {
       setGuardando(false);
     }
@@ -463,7 +482,7 @@ export default function MenuDiaPage() {
     const confirmar = window.confirm(`¿Eliminar ${menu.titulo}?`);
     if (!confirmar) return;
 
-    const { error: deleteError } = await (supabase as any)
+    const { error: deleteError } = await supabase
       .from("menus_dia_qr")
       .delete()
       .eq("id", menu.id)
@@ -481,7 +500,7 @@ export default function MenuDiaPage() {
   async function ocultarMostrarMenu(menu: MenuDia, activo: boolean) {
     if (!restauranteId) return;
 
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await supabase
       .from("menus_dia_qr")
       .update({ activo, actualizado_en: new Date().toISOString() })
       .eq("id", menu.id)
@@ -498,7 +517,7 @@ export default function MenuDiaPage() {
   async function duplicarMenu(menu: MenuDia) {
     if (!restauranteId || !cartaActiva?.id) return;
 
-    const { error: insertError } = await (supabase as any).from("menus_dia_qr").insert({
+    const { error: insertError } = await supabase.from("menus_dia_qr").insert({
       restaurante_id: restauranteId,
       carta_id: cartaActiva.id,
       titulo: `${menu.titulo} copia`,

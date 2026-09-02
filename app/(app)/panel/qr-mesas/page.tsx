@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -12,7 +12,6 @@ import {
   QrCode,
   RefreshCw,
   Settings2,
-  Table2,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { supabase } from "../../lib/supabaseClient";
@@ -60,10 +59,6 @@ const idiomasQR = [
   { code: "pt", label: "Português" },
 ];
 
-function clsx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(" ");
-}
-
 function normalizarDominio(valor: string) {
   return (valor || "https://panel.gastrohelp.es").trim().replace(/\/$/, "");
 }
@@ -72,14 +67,20 @@ function esperar(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function errorMessage(error: unknown) {
+  return error instanceof Error ? error.message : "";
+}
+
+type RestauranteQR = {
+  id?: string | null;
+  nombre?: string | null;
+};
+
 export default function QRMesasPage() {
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id
-    ? String((restauranteActual as any).id)
-    : null;
-  const restauranteNombre = (restauranteActual as any)?.nombre
-    ? String((restauranteActual as any).nombre)
-    : "Restaurante";
+  const restaurante = restauranteActual as RestauranteQR | null | undefined;
+  const restauranteId = restaurante?.id ? String(restaurante.id) : null;
+  const restauranteNombre = restaurante?.nombre ? String(restaurante.nombre) : "Restaurante";
 
   const [cartaActiva, setCartaActiva] = useState<CartaDigital | null>(null);
   const [zonas, setZonas] = useState<Zona[]>([]);
@@ -118,7 +119,7 @@ export default function QRMesasPage() {
     };
   }, []);
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
     setOkMsg(null);
@@ -137,19 +138,19 @@ export default function QRMesasPage() {
     }
 
     const [cartasRes, zonasRes, mesasRes] = await Promise.all([
-      (supabase as any)
+      supabase
         .from("cartas_digitales")
         .select("id,nombre,public_token,restaurante_id,created_at")
         .eq("restaurante_id", restauranteId)
         .order("created_at", { ascending: false })
         .limit(1),
-      (supabase as any)
+      supabase
         .from("sala_zonas")
         .select("id,nombre,orden,activa")
         .eq("restaurante_id", restauranteId)
         .eq("activa", true)
         .order("orden", { ascending: true }),
-      (supabase as any)
+      supabase
         .from("sala_mesas")
         .select("id,restaurante_id,zona_id,nombre,capacidad,orden,activa,bloqueada,qr_access_token,qr_expires_at")
         .eq("restaurante_id", restauranteId)
@@ -166,11 +167,18 @@ export default function QRMesasPage() {
     setZonas((zonasRes.data || []) as Zona[]);
     setMesas((mesasRes.data || []) as Mesa[]);
     setLoading(false);
-  }
+  }, [loadingRestaurante, restauranteId]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [restauranteId, loadingRestaurante]);
+    let activo = true;
+    queueMicrotask(() => {
+      if (activo) void cargarDatos();
+    });
+
+    return () => {
+      activo = false;
+    };
+  }, [cargarDatos]);
 
   const zonasById = useMemo(() => {
     const map = new Map<string, Zona>();
@@ -264,7 +272,7 @@ export default function QRMesasPage() {
     setOkMsg(null);
 
     try {
-      const { data, error } = await (supabase as any).rpc("renovar_acceso_mesa_qr", {
+      const { data, error } = await supabase.rpc("renovar_acceso_mesa_qr", {
         p_mesa_id: mesaId,
         p_duracion_horas: 12,
       });
@@ -289,8 +297,8 @@ export default function QRMesasPage() {
       );
       setOkMsg("URL renovada. La anterior ya no permite enviar pedidos.");
       setTimeout(() => setOkMsg(null), 3500);
-    } catch (err: any) {
-      const message = String(err?.message || "");
+    } catch (err: unknown) {
+      const message = errorMessage(err);
       setErrorMsg(
         /MESA_CON_PEDIDOS_ABIERTOS/i.test(message)
           ? "No puedes renovar esta URL mientras la mesa tenga pedidos abiertos. Cierra y cobra la mesa primero."
