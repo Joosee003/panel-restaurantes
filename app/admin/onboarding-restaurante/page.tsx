@@ -47,6 +47,7 @@ type Modulos = {
   resenas: boolean | null;
   fidelizacion: boolean | null;
   metricas: boolean | null;
+  rentabilidad: boolean | null;
   chatbot: boolean | null;
   camarero_digital: boolean | null;
   menu_digital: boolean | null;
@@ -465,6 +466,7 @@ export default function OnboardingRestaurantePage() {
       resenas: true,
       fidelizacion: true,
       metricas: true,
+      rentabilidad: true,
       chatbot: true,
       camarero_digital: true,
       menu_digital: true,

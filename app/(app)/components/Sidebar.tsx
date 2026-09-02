@@ -22,30 +22,12 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
-
-type ModulosRestaurante = {
-  reservas: boolean;
-  clientes: boolean;
-  resenas: boolean;
-  fidelizacion: boolean;
-  metricas: boolean;
-  chatbot: boolean;
-  camarero_digital: boolean;
-  menu_digital: boolean;
-  automatizaciones: boolean;
-};
-
-const modulosDefault: ModulosRestaurante = {
-  reservas: true,
-  clientes: true,
-  resenas: false,
-  fidelizacion: false,
-  metricas: false,
-  chatbot: false,
-  camarero_digital: false,
-  menu_digital: false,
-  automatizaciones: false,
-};
+import {
+  defaultRestaurantModules,
+  parseRestaurantModules,
+  restaurantModuleColumns,
+  type RestaurantModules,
+} from "../lib/restaurantModules";
 
 export default function Sidebar({
   mobile = false,
@@ -59,19 +41,22 @@ export default function Sidebar({
 
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
   const [restauranteNombre, setRestauranteNombre] = useState("Restaurante");
-  const [modulos, setModulos] = useState<ModulosRestaurante>(modulosDefault);
+  const [modulos, setModulos] = useState<RestaurantModules>(defaultRestaurantModules);
 
   const [reservasPendientes, setReservasPendientes] = useState(0);
   const [clientesNuevos, setClientesNuevos] = useState(0);
   const [resenasPendientes, setResenasPendientes] = useState(0);
 
-  const camareroDigitalActivo =
+  const menuDigitalActivo =
     pathname.startsWith("/panel/carta-productos") ||
+    pathname.startsWith("/panel/menu-dia");
+  const camareroDigitalActivo =
     pathname.startsWith("/panel/qr-mesas") ||
-    pathname.startsWith("/panel/menu-dia") ||
     pathname.startsWith("/panel/pedidos-qr");
 
+  const [menuAbierto, setMenuAbierto] = useState(false);
   const [camareroAbierto, setCamareroAbierto] = useState(false);
+  const mostrarMenu = menuAbierto || menuDigitalActivo;
   const mostrarCamarero = camareroAbierto || camareroDigitalActivo;
 
   useEffect(() => {
@@ -93,9 +78,7 @@ export default function Sidebar({
         supabase.from("restaurantes").select("nombre").eq("id", restauranteId).maybeSingle(),
         supabase
           .from("restaurante_modulos")
-          .select(
-            "reservas, clientes, resenas, fidelizacion, metricas, chatbot, camarero_digital, menu_digital, automatizaciones"
-          )
+          .select(restaurantModuleColumns)
           .eq("restaurante_id", restauranteId)
           .maybeSingle(),
       ]);
@@ -109,17 +92,7 @@ export default function Sidebar({
       }
 
       if (modulosRes.data) {
-        setModulos({
-          reservas: Boolean(modulosRes.data.reservas),
-          clientes: Boolean(modulosRes.data.clientes),
-          resenas: Boolean(modulosRes.data.resenas),
-          fidelizacion: Boolean(modulosRes.data.fidelizacion),
-          metricas: Boolean(modulosRes.data.metricas),
-          chatbot: Boolean(modulosRes.data.chatbot),
-          camarero_digital: Boolean(modulosRes.data.camarero_digital),
-          menu_digital: Boolean(modulosRes.data.menu_digital),
-          automatizaciones: Boolean(modulosRes.data.automatizaciones),
-        });
+        setModulos(parseRestaurantModules(modulosRes.data));
       }
     };
 
@@ -201,14 +174,18 @@ export default function Sidebar({
     { href: "/sala", label: "Sala", icon: LayoutGrid, visible: modulos.reservas },
     { href: "/clientes", label: "Clientes", icon: Users, badge: clientesNuevos, visible: modulos.clientes },
     { href: "/resenas", label: "Reseñas", icon: MessageSquare, badge: resenasPendientes, visible: modulos.resenas },
-    { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: BarChart3, visible: modulos.metricas },
+    { href: "/estadisticas", label: "Métricas", icon: BarChart3, visible: modulos.metricas },
+    { href: "/dashboard/rentabilidad", label: "Rentabilidad", icon: BarChart3, visible: modulos.rentabilidad },
     { href: "/dashboard/fidelizacion/cupones", label: "Fidelización", icon: Gift, visible: modulos.fidelizacion },
   ];
 
-  const camareroItems = [
+  const menuDigitalItems = [
     { href: "/panel/carta-productos", label: "Productos carta", icon: Pencil },
-    { href: "/panel/qr-mesas", label: "QR mesas", icon: QrCode },
     { href: "/panel/menu-dia", label: "Menú del día", icon: CalendarClock },
+  ];
+
+  const camareroItems = [
+    { href: "/panel/qr-mesas", label: "QR mesas", icon: QrCode },
     { href: "/panel/pedidos-qr", label: "Cocina / pedidos", icon: ChefHat },
   ];
 
@@ -269,6 +246,53 @@ export default function Sidebar({
             </Link>
           );
         })}
+
+        {modulos.menu_digital && (
+          <div className="my-3 border-t border-slate-200 pt-3">
+            <button
+              type="button"
+              onClick={() => setMenuAbierto((actual) => !actual)}
+              className={[
+                "flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left font-black transition",
+                menuDigitalActivo
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "text-slate-800 hover:bg-slate-100",
+              ].join(" ")}
+            >
+              <span className="flex items-center gap-3">
+                <Utensils size={18} />
+                Carta QR
+              </span>
+              <ChevronDown size={16} className={mostrarMenu ? "rotate-180 transition" : "transition"} />
+            </button>
+
+            {mostrarMenu && (
+              <div className="mt-2 flex flex-col gap-1 border-l border-slate-200 pl-3">
+                {menuDigitalItems.map((item) => {
+                  const isActive = isItemActive(item.href);
+                  const Icon = item.icon;
+
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={onNavigate}
+                      className={[
+                        "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition",
+                        isActive
+                          ? "bg-blue-700 text-white shadow-sm"
+                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                      ].join(" ")}
+                    >
+                      <Icon size={16} />
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {modulos.camarero_digital && (
           <div className="my-3 border-t border-slate-200 pt-3">

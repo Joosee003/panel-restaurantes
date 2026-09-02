@@ -318,7 +318,9 @@ function ReservaCard({
             <X size={16} /> Cancelar
           </button>
         ) : null}
-        {reserva.estado === "confirmada" && !reserva.consumo_registrado_en && reserva.atendida !== false ? (
+        {(reserva.estado === "confirmada" || reserva.estado === "ha venido" || reserva.atendida === true) &&
+        reserva.atendida !== false &&
+        !reserva.consumo_registrado_en ? (
           <button onClick={() => onRegistrarConsumo(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100">
             <Banknote size={16} /> Registrar consumo
           </button>

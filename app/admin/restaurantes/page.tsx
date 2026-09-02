@@ -53,6 +53,7 @@ type RestauranteModulo = {
   resenas: boolean | null;
   fidelizacion: boolean | null;
   metricas: boolean | null;
+  rentabilidad: boolean | null;
   chatbot: boolean | null;
   camarero_digital: boolean | null;
   menu_digital: boolean | null;
@@ -198,6 +199,7 @@ const modulos = [
   { key: "resenas", label: "Reseñas", icon: BadgeCheck },
   { key: "fidelizacion", label: "Fidelización", icon: Gift },
   { key: "metricas", label: "Métricas", icon: BarChart3 },
+  { key: "rentabilidad", label: "Rentabilidad", icon: BarChart3 },
   { key: "chatbot", label: "Chatbot", icon: Sparkles },
   { key: "camarero_digital", label: "Camarero", icon: ChefHat },
   { key: "menu_digital", label: "Carta QR", icon: QrCode },
@@ -664,6 +666,7 @@ export default function AdminRestaurantesPage() {
           resenas,
           fidelizacion,
           metricas,
+          rentabilidad,
           chatbot,
           camarero_digital,
           menu_digital,
