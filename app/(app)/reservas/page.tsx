@@ -66,6 +66,15 @@ type Reserva = {
   cliente?: ClienteMini | null;
 };
 
+type ReservaQueryRow = Omit<Reserva, "cliente"> & {
+  cliente: ClienteMini | ClienteMini[] | null;
+};
+
+type RegistrarConsumoResult = {
+  ok?: boolean;
+  error?: string;
+};
+
 type Bloqueo = {
   id: string;
   restaurante_id: string;
@@ -358,7 +367,7 @@ function ReservaCard({
 
 export default function ReservasPage() {
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ?? null;
+  const restauranteId = restauranteActual?.id ?? null;
 
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [mesas, setMesas] = useState<Mesa[]>([]);
@@ -433,7 +442,7 @@ export default function ReservasPage() {
       if (bloqueosRes.error) throw bloqueosRes.error;
 
       setReservas(
-        ((reservasRes.data || []) as any[]).map((r) => ({
+        ((reservasRes.data || []) as unknown as ReservaQueryRow[]).map((r) => ({
           ...r,
           nombre_cliente: r.nombre_cliente || "Cliente",
           personas: Number(r.personas || 0),
@@ -547,7 +556,8 @@ export default function ReservasPage() {
   const cambiarEstado = async (reserva: Reserva, estado: EstadoReserva) => {
     if (!restauranteId) return;
     setSaving(reserva.id);
-    const payload: any = estado === "cancelada" ? { estado, atendida: null } : { estado };
+    const payload: Pick<Reserva, "estado"> & { atendida?: boolean | null } =
+      estado === "cancelada" ? { estado, atendida: null } : { estado };
     const { error } = await supabase.from("reservas").update(payload).eq("id", reserva.id).eq("restaurante_id", restauranteId);
     if (!error) {
       setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, ...payload } : r)));
@@ -624,7 +634,7 @@ export default function ReservasPage() {
       return;
     }
 
-    const result = data as any;
+    const result = data as RegistrarConsumoResult | null;
     if (result?.ok === false) {
       setError(result?.error === "CONSUMO_YA_REGISTRADO" ? "Esta reserva ya tiene consumo registrado." : "No se pudo registrar el consumo.");
       setSaving(null);
@@ -919,7 +929,13 @@ export default function ReservasPage() {
         <div className="grid gap-4 xl:grid-cols-[280px_1fr]">
           <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
             <label className="text-xs font-black uppercase tracking-wide text-slate-500">Día</label>
-            <input type="date" value={diaActivo} onChange={(e) => setDiaActivo(e.target.value)} className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100" />
+            <input
+              type="date"
+              value={diaActivo}
+              onInput={(event) => setDiaActivo(event.currentTarget.value)}
+              onChange={(event) => setDiaActivo(event.currentTarget.value)}
+              className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100"
+            />
             <div className="mt-4 rounded-2xl bg-slate-50 p-3">
               <p className="text-sm font-black text-slate-950">{fechaCompleta(diaActivo)}</p>
               <p className="mt-1 text-xs text-slate-500">{reservasDia.length} reserva{reservasDia.length === 1 ? "" : "s"} visibles</p>
