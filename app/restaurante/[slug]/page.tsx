@@ -198,8 +198,12 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
         logoUrl={restaurant.logoUrl}
         primaryColor={primaryColor}
         accentColor={accentColor}
+        menuEnabled={restaurant.menu.enabled}
       />
-      <MobileActionBar menuPath={restaurant.menu.publicPath} />
+      <MobileActionBar
+        menuPath={restaurant.menu.publicPath}
+        menuEnabled={restaurant.menu.enabled}
+      />
 
       {restaurant.demo ? (
         <div className="fixed bottom-20 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/15 bg-slate-950/90 px-3.5 py-2 text-[9px] font-black uppercase tracking-[0.17em] text-white shadow-2xl backdrop-blur md:bottom-5 md:px-4 md:text-[10px]">
@@ -249,13 +253,15 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
                     Reservar mesa
                     <ArrowRight className="h-4 w-4 transition group-hover:translate-x-1" />
                   </a>
-                  <a
-                    href="#carta"
-                    className="group inline-flex w-fit shrink-0 items-center gap-3 rounded-full border border-white/25 bg-white/10 px-5 py-3.5 text-xs font-black text-white backdrop-blur transition hover:bg-white hover:text-slate-950 sm:px-6 sm:text-sm"
-                  >
-                    Ver la carta
-                    <ArrowDown className="h-4 w-4 transition group-hover:translate-y-1" />
-                  </a>
+                  {restaurant.menu.enabled ? (
+                    <a
+                      href="#carta"
+                      className="group inline-flex w-fit shrink-0 items-center gap-3 rounded-full border border-white/25 bg-white/10 px-5 py-3.5 text-xs font-black text-white backdrop-blur transition hover:bg-white hover:text-slate-950 sm:px-6 sm:text-sm"
+                    >
+                      Ver la carta
+                      <ArrowDown className="h-4 w-4 transition group-hover:translate-y-1" />
+                    </a>
+                  ) : null}
                 </div>
               </Reveal>
             </div>
@@ -295,7 +301,9 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
                     <p className="text-sm font-medium leading-7 text-slate-500 sm:text-base sm:leading-8">
                       {restaurant.demo
                         ? "Trabajamos con una carta corta y producto del día. Pescado, recetas canarias y una sobremesa mirando al Atlántico."
-                        : `Una propuesta centrada en ${specialties.slice(0, 3).join(", ").toLowerCase()}. Consulta la carta y elige cuándo quieres visitarnos.`}
+                        : restaurant.menu.enabled
+                          ? `Una propuesta centrada en ${specialties.slice(0, 3).join(", ").toLowerCase()}. Consulta la carta y elige cuándo quieres visitarnos.`
+                          : `Una propuesta centrada en ${specialties.slice(0, 3).join(", ").toLowerCase()}. Elige cuándo quieres visitarnos.`}
                     </p>
                   </Reveal>
                 </div>
@@ -330,6 +338,7 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
           </div>
         </section>
 
+        {restaurant.menu.enabled ? (
         <section id="carta" className="restaurant-dark scroll-mt-20 bg-[#0b1512] px-5 py-20 text-white sm:px-8 sm:py-28 lg:px-10 lg:py-36 xl:px-12">
           <div className="mx-auto max-w-[96rem]">
             <div className="grid gap-9 lg:grid-cols-[0.72fr_1.28fr] lg:gap-20">
@@ -407,6 +416,7 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
             ) : null}
           </div>
         </section>
+        ) : null}
 
         {wideImage ? (
           <section aria-label={`La experiencia de ${restaurant.name}`} className="restaurant-dark bg-[#0b1512] pb-0">
