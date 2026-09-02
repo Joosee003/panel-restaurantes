@@ -2,7 +2,7 @@ type SafeError = {
   message: string;
 };
 
-type SupabaseLikeResult<T = any> = {
+type SupabaseLikeResult<T = unknown> = {
   data?: T | null;
   error?: SafeError | null;
   count?: number | null;
@@ -32,13 +32,15 @@ export async function withTimeout<T>(
         }, ms);
       }),
     ]);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.warn("Consulta fallida:", error);
+
+    const message = error instanceof Error ? error.message : "Error cargando datos";
 
     return {
       data: null,
       error: {
-        message: error?.message || "Error cargando datos",
+        message,
       },
       count: null,
     } as T;
@@ -49,7 +51,7 @@ export async function withTimeout<T>(
   }
 }
 
-export async function safeQuery<T = any>(
+export async function safeQuery<T = unknown>(
   query: PromiseLike<SupabaseLikeResult<T>> | Promise<SupabaseLikeResult<T>>,
   options?: {
     timeoutMs?: number;

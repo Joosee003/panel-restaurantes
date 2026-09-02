@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
@@ -234,24 +234,7 @@ export default function AjustesPage() {
     return warnings;
   }, [nombre, telefono, horarioComida, horarioCena, zonasOrdenadas.length, mesasActivas.length, puntosActivo]);
 
-  useEffect(() => {
-    if (!restauranteActivo?.id) return;
-
-    const data = restauranteActivo as RestauranteConfig;
-    setRestaurante(data);
-    setNombre(data.nombre || "");
-    setTelefono(data.telefono || "");
-    setCapacidadTotal(toNumber(data.capacidad_total));
-    setHorarioComida(data.horario_comida || "");
-    setHorarioCena(data.horario_cena || "");
-    setCapacidadComida(toNumber(data.capacidad_comida));
-    setCapacidadCena(toNumber(data.capacidad_cena));
-    setPuntosActivo(Boolean(data.puntos_activo));
-    setPuntosPorEuroInput(formatPuntos(toNumber(data.puntos_por_euro, 1)));
-    void cargarSalaData(data.id);
-  }, [restauranteActivo?.id]);
-
-  async function cargarSalaData(idParam?: string) {
+  const cargarSalaData = useCallback(async (idParam?: string) => {
     const id = idParam || restauranteId;
     if (!id) return;
 
@@ -281,8 +264,8 @@ export default function AjustesPage() {
 
     if (!zonasError && zonasData) {
       setZonas(zonasData as Zona[]);
-      if (!nuevaMesaZonaId && zonasData.length > 0) {
-        setNuevaMesaZonaId(zonasData[0].id);
+      if (zonasData.length > 0) {
+        setNuevaMesaZonaId((actual) => actual || zonasData[0].id);
       }
     }
 
@@ -291,7 +274,33 @@ export default function AjustesPage() {
     }
 
     setCargandoSala(false);
-  }
+  }, [restauranteId]);
+
+  useEffect(() => {
+    if (!restauranteActivo?.id) return;
+
+    let activo = true;
+    queueMicrotask(() => {
+      if (!activo) return;
+
+      const data = restauranteActivo as RestauranteConfig;
+      setRestaurante(data);
+      setNombre(data.nombre || "");
+      setTelefono(data.telefono || "");
+      setCapacidadTotal(toNumber(data.capacidad_total));
+      setHorarioComida(data.horario_comida || "");
+      setHorarioCena(data.horario_cena || "");
+      setCapacidadComida(toNumber(data.capacidad_comida));
+      setCapacidadCena(toNumber(data.capacidad_cena));
+      setPuntosActivo(Boolean(data.puntos_activo));
+      setPuntosPorEuroInput(formatPuntos(toNumber(data.puntos_por_euro, 1)));
+      void cargarSalaData(data.id);
+    });
+
+    return () => {
+      activo = false;
+    };
+  }, [cargarSalaData, restauranteActivo]);
 
   const guardarCambios = async () => {
     if (!restauranteId) return;

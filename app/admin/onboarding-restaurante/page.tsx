@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
@@ -208,6 +209,7 @@ function PasoCard({ paso }: { paso: Paso }) {
 }
 
 export default function OnboardingRestaurantePage() {
+  const router = useRouter();
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([]);
   const [restauranteId, setRestauranteId] = useState<string>("");
   const [restaurante, setRestaurante] = useState<Restaurante | null>(null);
@@ -245,22 +247,7 @@ export default function OnboardingRestaurantePage() {
     activarAutomatizaciones: false,
   });
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setPublicOrigin(window.location.origin);
-    }, 0);
-    void cargarInicial();
-
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (restauranteId) {
-      cargarRestaurante(restauranteId);
-    }
-  }, [restauranteId]);
-
-  async function cargarInicial() {
+  const cargarInicial = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -309,9 +296,9 @@ export default function OnboardingRestaurantePage() {
     if (!inicial) {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function cargarRestaurante(id: string) {
+  const cargarRestaurante = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
 
@@ -340,7 +327,27 @@ export default function OnboardingRestaurantePage() {
     setMenus((menusRes.data || []) as MenuDia[]);
     setPedidos((pedidosRes.data || []) as Pedido[]);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPublicOrigin(window.location.origin);
+      void cargarInicial();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [cargarInicial]);
+
+  useEffect(() => {
+    let activo = true;
+    queueMicrotask(() => {
+      if (activo && restauranteId) void cargarRestaurante(restauranteId);
+    });
+
+    return () => {
+      activo = false;
+    };
+  }, [cargarRestaurante, restauranteId]);
 
   function seleccionarRestaurante(id: string) {
     setRestauranteId(id);
@@ -361,7 +368,7 @@ export default function OnboardingRestaurantePage() {
 
     if (typeof window !== "undefined") {
       window.setTimeout(() => {
-        window.location.assign("/dashboard");
+        router.push("/dashboard");
       }, 80);
     }
   }
