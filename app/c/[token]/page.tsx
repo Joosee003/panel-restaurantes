@@ -1314,6 +1314,9 @@ export default async function ClientePremiosPage({
     });
 
     if (error) {
+      if (error.code === "23505") {
+        redirect(`/c/${tokenLocal}?tab=cupones&ok=cupon`);
+      }
       console.error("Error canjeando cupón de cliente", error);
       redirect(`/c/${tokenLocal}?tab=cupones&err=canje`);
     }
