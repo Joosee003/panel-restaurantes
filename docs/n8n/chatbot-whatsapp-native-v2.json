@@ -33,16 +33,9 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $env.GASTROHELP_CHATBOT_API_URL || 'https://panel.gastrohelp.es/api/chatbot/messages' }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "X-GastroHelp-Webhook-Secret",
-              "value": "={{ $env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET }}"
-            }
-          ]
-        },
+        "url": "https://panel.gastrohelp.es/api/chatbot/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ $json }}",
