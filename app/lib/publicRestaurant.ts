@@ -29,6 +29,8 @@ export type PublicRestaurant = {
   seoTitle: string;
   seoDescription: string;
   customDomain: string;
+  legalBasePath?: string;
+  publicUrlOverride?: string;
   legal: {
     owner: string;
     taxId: string;
@@ -218,6 +220,7 @@ export function isPlatformDomain(value: string) {
 }
 
 export function publicRestaurantUrl(restaurant: PublicRestaurant) {
+  if (restaurant.publicUrlOverride) return restaurant.publicUrlOverride;
   if (restaurant.customDomain) return `https://${restaurant.customDomain}`;
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://panel.gastrohelp.es").replace(/\/$/, "");
   return `${siteUrl}/restaurante/${restaurant.slug}`;

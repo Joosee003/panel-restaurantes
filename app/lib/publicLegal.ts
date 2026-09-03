@@ -16,9 +16,12 @@ export function isLegalDocument(value: string): value is LegalDocument {
 }
 
 export function legalPath(
-  restaurant: Pick<PublicRestaurant, "slug" | "customDomain">,
+  restaurant: Pick<PublicRestaurant, "slug" | "customDomain" | "legalBasePath">,
   document: LegalDocument,
 ) {
+  if (restaurant.legalBasePath) {
+    return `${restaurant.legalBasePath.replace(/\/$/, "")}/${document}`;
+  }
   return restaurant.customDomain
     ? `/legal/${document}`
     : `/restaurante/${restaurant.slug}/legal/${document}`;
