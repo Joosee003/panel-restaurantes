@@ -68,7 +68,7 @@ export default function ResetPasswordPage() {
           Nueva contraseña
         </h1>
         <p className="mt-2 text-center text-sm font-semibold text-slate-500">
-          La contraseña debe tener al menos 10 caracteres.
+          Usa 12 caracteres o más, con mayúscula, minúscula, número y símbolo.
         </p>
 
         {!error || password || password2 ? (
@@ -78,7 +78,7 @@ export default function ResetPasswordPage() {
               autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="Nueva contraseña"
+              placeholder="Contraseña segura"
               className="w-full rounded-2xl border border-slate-200 px-4 py-3.5 text-sm font-bold outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
             />
             <input
