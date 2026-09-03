@@ -16,7 +16,9 @@ El nodo `Consultar motor GastroHelp` debe usar una credencial n8n de tipo `HTTP 
 
 - Nombre recomendado: `GastroHelp Chatbot Webhook`
 - Cabecera: `X-GastroHelp-Webhook-Secret`
-- Valor: exactamente el mismo valor de `N8N_NATIVE_BOOKING_WEBHOOK_SECRET` guardado en Vercel
+- Valor: exactamente el mismo valor de `N8N_CHATBOT_WEBHOOK_SECRET` guardado en Vercel
+
+La API mantiene `N8N_NATIVE_BOOKING_WEBHOOK_SECRET` solo como respaldo temporal para instalaciones anteriores. Las nuevas credenciales del chatbot deben usar `N8N_CHATBOT_WEBHOOK_SECRET` para no compartir ni rotar claves de otros sistemas.
 
 La clave no debe escribirse en el flujo, este archivo, GitHub, Notion ni una conversación.
 
@@ -46,4 +48,3 @@ No publicar ni conectar el flujo al router hasta que el código de la rama de pr
 - Datos legales, horarios, dirección y reservas revisados.
 - Número receptor de la prueba real confirmado en ese momento.
 - Autorización explícita antes del primer WhatsApp real.
-
