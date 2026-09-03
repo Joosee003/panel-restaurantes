@@ -366,7 +366,7 @@ export async function POST(request: NextRequest) {
       reply: result.reply,
       handoff: result.handoff,
       action: result.action || null,
-      suppressDelivery: mode === "test",
+      suppressDelivery: mode === "test" || result.suppressDelivery === true,
       mode,
     };
     const { data: completed, error: completeError } = await supabase.rpc("complete_chatbot_turn", {

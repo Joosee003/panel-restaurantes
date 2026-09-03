@@ -101,6 +101,7 @@ export type ChatbotEngineResult = {
   draft: ChatbotDraft;
   selectedReservationId: string | null;
   handoff: boolean;
+  suppressDelivery?: boolean;
   action?: "booking_created" | "booking_cancelled" | "booking_rescheduled" | "test_only";
 };
 
@@ -391,19 +392,21 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
   const normalized = normalizeText(text);
   const draft: ChatbotDraft = { ...input.draft };
 
-  if (["reiniciar", "empezar de nuevo", "cancelar proceso", "salir"].includes(normalized)) {
+  if (["reiniciar", "empezar de nuevo", "cancelar proceso", "cancelar", "salir", "no"].includes(normalized)) {
     return reset("He cerrado el proceso. ¿Qué necesitas?");
   }
 
   if (isHumanRequest(text)) return handoff(restaurant.name);
 
   if (input.state === "handoff") {
-    return stateResult(
-      "La conversación está pendiente del equipo. Si quieres volver al menú automático, responde REINICIAR.",
-      "handoff",
-      {},
-      true,
-    );
+    return {
+      reply: "",
+      state: "handoff",
+      draft: {},
+      selectedReservationId: null,
+      handoff: true,
+      suppressDelivery: true,
+    };
   }
 
   const faq = faqIntent(text);
