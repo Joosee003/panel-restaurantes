@@ -238,3 +238,164 @@ export async function POST(request: NextRequest) {
     p_text_content: text,
     p_lock_token: lockToken,
   });
+
+  if (beginError) {
+    console.error("No se ha podido iniciar el turno del chatbot", beginError.code);
+    return json({ ok: false, error: "CHATBOT_STATE_FAILED" }, 500);
+  }
+
+  const begin = (beginData || {}) as BeginTurnResult;
+  if (begin.status === "duplicate") {
+    return json({
+      ok: true,
+      duplicate: true,
+      suppressDelivery: true,
+      originalResponse: begin.response || null,
+    });
+  }
+  if (begin.status === "busy") {
+    return json({ ok: false, error: "CHATBOT_BUSY", retryAfterMs: 1500 }, 409);
+  }
+  if (begin.status !== "acquired") {
+    return json({ ok: false, error: "CHATBOT_STATE_FAILED" }, 500);
+  }
+
+  try {
+    const savedState = begin.state || "";
+    const result = await runChatbotTurn({
+      state: isChatbotState(savedState) ? savedState : "idle",
+      draft: begin.draft && typeof begin.draft === "object" ? begin.draft : {},
+      text,
+      phone,
+      contactName: begin.contactName || name,
+      mode,
+      restaurant: {
+        id: restaurantId,
+        name: web?.nombre_publico || restaurant.nombre,
+        slug: web?.slug || restaurant.slug || "",
+        timezone: booking?.zona_horaria || "Europe/Madrid",
+        bookingEnabled: booking?.activo === true && legalReady,
+        minParty: booking?.personas_minimas || 1,
+        maxParty: booking?.personas_maximas || 12,
+        maxAdvanceDays: booking?.dias_maximos_antelacion || 60,
+        requiresEmail: booking?.requiere_email === true,
+        address: web?.direccion_publica || restaurant.direccion || "",
+        mapsUrl: web?.google_maps_url || "",
+        menuUrl,
+        hoursLunch: restaurant.horario_comida || "",
+        hoursDinner: restaurant.horario_cena || "",
+        privacyUrl: `${publicBase}/legal/privacidad`,
+        bookingTermsUrl: `${publicBase}/legal/condiciones-reserva`,
+      },
+      dependencies: {
+        getAvailability: async (date, party, excludeReservationId) => {
+          const { data, error } = await supabase.rpc("obtener_disponibilidad_chatbot", {
+            p_restaurante_id: restaurantId,
+            p_fecha: date,
+            p_personas: party,
+            p_excluir_reserva_id: excludeReservationId || null,
+          });
+          if (error) throw new Error(rpcMessage(error));
+          return ((data || []) as Array<{ inicio_at: string; hora_local: string }>).map(
+            (slot): ChatbotSlot => ({ start: slot.inicio_at, time: slot.hora_local }),
+          );
+        },
+        createBooking: async (input) => {
+          const { data, error } = await supabase.rpc("crear_reserva_chatbot", {
+            p_restaurante_id: restaurantId,
+            p_inicio_at: input.start,
+            p_personas: input.party,
+            p_nombre: input.name,
+            p_telefono: input.phone,
+            p_email: input.email || null,
+            p_idempotency_key: input.idempotencyKey,
+            p_privacidad_informada: true,
+            p_condiciones_aceptadas: true,
+            p_version_legal: BOOKING_LEGAL_VERSION,
+          });
+          if (error) throw new Error(rpcMessage(error));
+          const created = data as BookingResult | null;
+          if (!created?.ok || !created.reserva_id || !created.inicio_at || !created.gestion_token) {
+            throw new Error("BOOKING_FAILED");
+          }
+          return {
+            reservationId: created.reserva_id,
+            start: created.inicio_at,
+            managementPath: `${siteUrl}/reserva/${created.gestion_token}`,
+          };
+        },
+        listUpcomingReservations: async () => {
+          const { data, error } = await supabase.rpc("obtener_reservas_chatbot_telefono", {
+            p_restaurante_id: restaurantId,
+            p_contact_phone: phone,
+          });
+          if (error) throw new Error(rpcMessage(error));
+          return ((data || []) as Array<{
+            reserva_id: string;
+            nombre_cliente: string | null;
+            personas: number | null;
+            inicio_at: string;
+            gestion_token: string;
+          }>).map(
+            (reservation): ChatbotReservation => ({
+              id: reservation.reserva_id,
+              managementToken: reservation.gestion_token,
+              name: reservation.nombre_cliente || "",
+              party: reservation.personas || 1,
+              start: reservation.inicio_at,
+            }),
+          );
+        },
+        cancelReservation: async (managementToken) => {
+          const { data, error } = await supabase.rpc("cancelar_reserva_publica_gestion", {
+            p_gestion_token: managementToken,
+          });
+          if (error) throw new Error(rpcMessage(error));
+          if (!(data as { ok?: boolean } | null)?.ok) throw new Error("CANCELLATION_FAILED");
+        },
+        rescheduleReservation: async (managementToken, start) => {
+          const { data, error } = await supabase.rpc("reprogramar_reserva_publica_gestion", {
+            p_gestion_token: managementToken,
+            p_nuevo_inicio_at: start,
+          });
+          if (error) throw new Error(rpcMessage(error));
+          if (!(data as { ok?: boolean } | null)?.ok) throw new Error("RESCHEDULE_FAILED");
+        },
+      },
+    });
+
+    const response = {
+      ok: true,
+      reply: result.reply,
+      handoff: result.handoff,
+      action: result.action || null,
+      suppressDelivery: mode === "test" || result.suppressDelivery === true,
+      mode,
+    };
+    const { data: completed, error: completeError } = await supabase.rpc("complete_chatbot_turn", {
+      p_restaurante_id: restaurantId,
+      p_provider_message_id: messageId,
+      p_lock_token: lockToken,
+      p_state: result.state,
+      p_draft: result.draft,
+      p_selected_reservation_id: result.selectedReservationId,
+      p_handoff: result.handoff,
+      p_response: response,
+    });
+    if (completeError || completed !== true) {
+      console.error("No se ha podido cerrar el turno del chatbot", completeError?.code);
+      return json({ ok: false, error: "CHATBOT_STATE_FAILED" }, 500);
+    }
+    return json(response);
+  } catch (error) {
+    const errorCode = rpcMessage(error).slice(0, 100);
+    console.error("Error procesando el chatbot", errorCode);
+    await supabase.rpc("fail_chatbot_turn", {
+      p_restaurante_id: restaurantId,
+      p_provider_message_id: messageId,
+      p_lock_token: lockToken,
+      p_error_code: errorCode,
+    });
+    return json({ ok: false, error: "CHATBOT_FAILED", retryable: true }, 500);
+  }
+}
