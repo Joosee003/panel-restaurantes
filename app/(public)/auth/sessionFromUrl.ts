@@ -81,8 +81,24 @@ export async function getSessionFromAuthUrl({
 }
 
 export function validateNewPassword(password: string, repeatedPassword: string) {
-  if (password.length < 10) {
-    return "La contraseña debe tener al menos 10 caracteres.";
+  if (password.length < 12) {
+    return "La contraseña debe tener al menos 12 caracteres.";
+  }
+
+  if (!/[a-z]/.test(password)) {
+    return "Añade al menos una letra minúscula.";
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return "Añade al menos una letra mayúscula.";
+  }
+
+  if (!/\d/.test(password)) {
+    return "Añade al menos un número.";
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return "Añade al menos un símbolo.";
   }
 
   if (password !== repeatedPassword) {
