@@ -2,6 +2,7 @@
 import React from "react";
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
@@ -632,10 +633,10 @@ function Hero({
           </div>
         </div>
 
-        <a href={avisosHref} aria-label="Ver avisos" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/12 backdrop-blur active:scale-[0.96]">
+        <Link href={avisosHref} scroll={false} aria-label="Ver avisos" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/12 backdrop-blur active:scale-[0.96]">
           <Bell className="h-5 w-5" />
           {avisosSinLeer > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white">{avisosSinLeer}</span> : null}
-        </a>
+        </Link>
       </div>
 
       <div className="relative z-10 mt-6 rounded-[28px] border border-white/14 bg-white/10 p-4 backdrop-blur-xl">
@@ -677,10 +678,10 @@ function Hero({
         )}
       </div>
 
-      <a href={mainHref} className="relative z-10 mt-4 inline-flex min-h-[54px] w-full touch-manipulation items-center justify-center gap-2 rounded-[22px] bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-xl transition active:scale-[0.97] active:opacity-90">
+      <Link href={mainHref} scroll={false} className="relative z-10 mt-4 inline-flex min-h-[54px] w-full touch-manipulation items-center justify-center gap-2 rounded-[22px] bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-xl transition active:scale-[0.97] active:opacity-90">
         {mainIcon}
         {mainLabel}
-      </a>
+      </Link>
     </header>
   );
 }
@@ -716,10 +717,10 @@ function CompactHeader({
           </div>
         </div>
 
-        <a href={avisosHref} aria-label="Ver avisos" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm active:scale-[0.96]" style={{ backgroundColor: accent }}>
+        <Link href={avisosHref} scroll={false} aria-label="Ver avisos" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm active:scale-[0.96]" style={{ backgroundColor: accent }}>
           <Bell className="h-5 w-5" />
           {avisosSinLeer > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white">{avisosSinLeer}</span> : null}
-        </a>
+        </Link>
       </div>
     </header>
   );
@@ -757,9 +758,10 @@ function BottomNav({
           {items.map((item) => {
             const active = item.activeTabs?.includes(currentTab) ?? currentTab === item.key;
             return (
-              <a
+              <Link
                 key={item.key}
                 href={buildTabHref(item.key)}
+                scroll={false}
                 className={clsx(
                   "relative flex touch-manipulation flex-col items-center justify-center rounded-2xl px-1 py-2 text-[10px] font-black transition active:scale-[0.94] active:opacity-80",
                   active ? "text-white" : "text-slate-400 hover:text-slate-700"
@@ -769,7 +771,7 @@ function BottomNav({
                 {item.icon}
                 <span className="mt-1 truncate">{item.label}</span>
                 {item.count && item.count > 0 ? <span className="absolute right-2 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-black text-white">{item.count}</span> : null}
-              </a>
+              </Link>
             );
           })}
         </div>
@@ -819,13 +821,13 @@ function ReservaCard({
 
       <div className="mt-5 grid grid-cols-2 gap-2">
         {managementHref ? (
-          <a href={managementHref} className="col-span-2 inline-flex min-h-[46px] w-full touch-manipulation items-center justify-center rounded-2xl px-4 py-3 text-sm font-black text-white shadow-sm transition active:scale-[0.97]" style={{ backgroundColor: accent }}>
+          <Link href={managementHref} className="col-span-2 inline-flex min-h-[46px] w-full touch-manipulation items-center justify-center rounded-2xl px-4 py-3 text-sm font-black text-white shadow-sm transition active:scale-[0.97]" style={{ backgroundColor: accent }}>
             Gestionar reserva
-          </a>
+          </Link>
         ) : canChange ? (
-          <a href={`/c/${token}?tab=reservas&cambiar=${reserva.id}`} className="inline-flex min-h-[46px] w-full touch-manipulation items-center justify-center rounded-2xl px-4 py-3 text-sm font-black text-white shadow-sm transition active:scale-[0.97]" style={{ backgroundColor: accent }}>
+          <Link href={`/c/${token}?tab=reservas&cambiar=${reserva.id}`} scroll={false} className="inline-flex min-h-[46px] w-full touch-manipulation items-center justify-center rounded-2xl px-4 py-3 text-sm font-black text-white shadow-sm transition active:scale-[0.97]" style={{ backgroundColor: accent }}>
             Cambiar hora
-          </a>
+          </Link>
         ) : whatsappHref ? (
           <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-[46px] w-full touch-manipulation items-center justify-center rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white shadow-sm transition active:scale-[0.97]">
             WhatsApp
@@ -1814,7 +1816,7 @@ export default async function ClientePremiosPage({
                       </div>
                     </div>
                     <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, progressPct))}%`, backgroundColor: accent }} /></div>
-                    <a href={buildTabHref("premios")} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white" style={{ backgroundColor: accent }}>Ver premios <ArrowRight className="h-4 w-4" /></a>
+                    <Link href={buildTabHref("premios")} scroll={false} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white" style={{ backgroundColor: accent }}>Ver premios <ArrowRight className="h-4 w-4" /></Link>
                   </div>
                 ) : (
                   <EmptyState title="Sin premios configurados" text="El restaurante podrá añadir recompensas desde su panel." icon={<Gift className="h-6 w-6" />} accent={accent} />
@@ -1830,7 +1832,7 @@ export default async function ClientePremiosPage({
                   <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{notificaciones[0].tipo}</div>
                   <div className="mt-2 text-lg font-black tracking-[-0.04em] text-slate-950">{notificaciones[0].titulo}</div>
                   <div className="mt-1 text-sm font-semibold leading-relaxed text-slate-500">{notificaciones[0].mensaje}</div>
-                  <a href={buildTabHref("perfil")} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-xs font-black text-white">Ver avisos <ChevronRight className="h-4 w-4" /></a>
+                  <Link href={buildTabHref("perfil")} scroll={false} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-xs font-black text-white">Ver avisos <ChevronRight className="h-4 w-4" /></Link>
                 </div>
               )}
             </SectionCard>
@@ -1850,18 +1852,18 @@ export default async function ClientePremiosPage({
 
             <SectionCard accent={accent} title="Tus ventajas" subtitle="El nivel y los puntos trabajan juntos" icon={<Sparkles className="h-5 w-5" />}>
               <div className="grid gap-3 sm:grid-cols-2">
-                <a href={buildTabHref("premios")} className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-sm transition active:scale-[.98]">
+                <Link href={buildTabHref("premios")} scroll={false} className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-sm transition active:scale-[.98]">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl text-white" style={{ background: `linear-gradient(135deg, ${accent}, #0f172a)` }}><Gift className="h-6 w-6" /></div>
                   <div className="mt-4 text-lg font-black tracking-[-.04em] text-slate-950">Premios</div>
                   <div className="mt-1 text-sm font-semibold text-slate-500">Usa tus {puntos} puntos en recompensas.</div>
                   <div className="mt-4 inline-flex items-center gap-1 text-xs font-black" style={{ color: accent }}>Ver premios <ChevronRight className="h-4 w-4" /></div>
-                </a>
-                <a href={buildTabHref("cupones")} className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-sm transition active:scale-[.98]">
+                </Link>
+                <Link href={buildTabHref("cupones")} scroll={false} className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-sm transition active:scale-[.98]">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700"><TicketPercent className="h-6 w-6" /></div>
                   <div className="mt-4 text-lg font-black tracking-[-.04em] text-slate-950">Ventajas privadas</div>
                   <div className="mt-1 text-sm font-semibold text-slate-500">Cupones y promociones para volver.</div>
                   <div className="mt-4 inline-flex items-center gap-1 text-xs font-black text-amber-700">Ver ventajas <ChevronRight className="h-4 w-4" /></div>
-                </a>
+                </Link>
               </div>
             </SectionCard>
           </div>
@@ -1870,7 +1872,7 @@ export default async function ClientePremiosPage({
         {currentTab === "reservas" ? (
           <div className="space-y-5">
             {sp.cambiar ? (
-              <SectionCard accent={accent} title="Cambiar hora" subtitle="Selecciona una nueva hora disponible" icon={<RefreshCw className="h-5 w-5" />} right={<a href={buildTabHref("reservas")} className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-500">Cerrar</a>}>
+              <SectionCard accent={accent} title="Cambiar hora" subtitle="Selecciona una nueva hora disponible" icon={<RefreshCw className="h-5 w-5" />} right={<Link href={buildTabHref("reservas")} scroll={false} className="rounded-full bg-slate-100 px-3 py-1 text-[11px] font-black text-slate-500">Cerrar</Link>}>
                 {!reservaSeleccionadaCambio ? (
                   <div className="rounded-[24px] border border-red-200 bg-red-50 p-4 text-sm font-bold text-red-800">No se encontró esta reserva o ya no se puede modificar.</div>
                 ) : horasCambio?.ok === false ? (
@@ -1885,7 +1887,7 @@ export default async function ClientePremiosPage({
 
                     <div className="grid grid-cols-3 gap-2">
                       {(horasCambio?.horas ?? []).length === 0 ? <div className="col-span-3 rounded-2xl bg-slate-50 p-4 text-center text-sm font-bold text-slate-500">Sin horas disponibles.</div> : (horasCambio?.horas ?? []).map((h) => (
-                        <a key={h} href={`/c/${token}?tab=reservas&cambiar=${reservaSeleccionadaCambio.id}&hora=${encodeURIComponent(h)}`} className={clsx("rounded-2xl px-3 py-3 text-center text-sm font-black", horaSeleccionadaCambio === h ? "text-white" : "bg-slate-100 text-slate-700")} style={horaSeleccionadaCambio === h ? { backgroundColor: accent } : undefined}>{h}</a>
+                        <Link key={h} href={`/c/${token}?tab=reservas&cambiar=${reservaSeleccionadaCambio.id}&hora=${encodeURIComponent(h)}`} scroll={false} className={clsx("rounded-2xl px-3 py-3 text-center text-sm font-black", horaSeleccionadaCambio === h ? "text-white" : "bg-slate-100 text-slate-700")} style={horaSeleccionadaCambio === h ? { backgroundColor: accent } : undefined}>{h}</Link>
                       ))}
                     </div>
 
