@@ -1542,7 +1542,7 @@ export default async function ClientePremiosPage({
   const clientLevel = visitasCliente >= levelThresholds.master
     ? { label: "Maestro", text: "Estás en el nivel más exclusivo del club" }
     : visitasCliente >= levelThresholds.diamond
-      ? { label: "Diamante", text: "Formas parte de los clientes VIP" }
+      ? { label: "VIP", text: "Estás entre los clientes más fieles" }
       : visitasCliente >= levelThresholds.gold
         ? { label: "Oro", text: "Tu fidelidad ya destaca" }
         : visitasCliente >= levelThresholds.silver

@@ -33,7 +33,7 @@ function buildLevels(thresholds: ClientLevelThresholds): LevelDefinition[] {
     { key: "bronze", label: "Bronce", threshold: 0, gradient: "linear-gradient(135deg,#7c2d12,#f59e0b)", glow: "rgba(245,158,11,.34)", text: "Tu primera etapa en el club" },
     { key: "silver", label: "Plata", threshold: thresholds.silver, gradient: "linear-gradient(135deg,#64748b,#f8fafc 52%,#94a3b8)", glow: "rgba(148,163,184,.38)", text: "Ya eres cliente frecuente" },
     { key: "gold", label: "Oro", threshold: thresholds.gold, gradient: "linear-gradient(135deg,#a16207,#fde68a 50%,#f59e0b)", glow: "rgba(251,191,36,.42)", text: "Tu fidelidad ya destaca" },
-    { key: "diamond", label: "Diamante", threshold: thresholds.diamond, gradient: "linear-gradient(135deg,#1d4ed8,#67e8f9 50%,#8b5cf6)", glow: "rgba(34,211,238,.42)", text: "Estás entre los clientes VIP" },
+    { key: "diamond", label: "VIP", threshold: thresholds.diamond, gradient: "linear-gradient(135deg,#1d4ed8,#67e8f9 50%,#8b5cf6)", glow: "rgba(34,211,238,.42)", text: "Estás entre los clientes más fieles" },
     { key: "master", label: "Maestro", threshold: thresholds.master, gradient: "linear-gradient(135deg,#4c1d95,#fbbf24 48%,#7c3aed)", glow: "rgba(168,85,247,.44)", text: "El nivel más exclusivo del club" },
   ];
 }
