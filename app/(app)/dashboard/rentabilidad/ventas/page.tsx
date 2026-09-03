@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -50,6 +50,8 @@ type VentaPlato = {
     categoria: string | null;
   } | null;
 };
+
+type CampoTotalVenta = "ingreso_total" | "coste_total" | "beneficio_total";
 
 
 function clsx(...a: Array<string | false | null | undefined>) {
@@ -207,7 +209,7 @@ export default function VentasPlatosPage() {
   } = getThemeClasses(dark);
 
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
+  const restauranteId = restauranteActual?.id ? String(restauranteActual.id) : null;
   const [platos, setPlatos] = useState<PlatoRentabilidad[]>([]);
   const [ventas, setVentas] = useState<VentaPlato[]>([]);
   const [loading, setLoading] = useState(true);
@@ -225,7 +227,7 @@ export default function VentasPlatosPage() {
     if (okMessage) setOkMessage(null);
   };
 
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -277,11 +279,12 @@ export default function VentasPlatosPage() {
 
     setVentas((ventasData as VentaPlato[]) ?? []);
     setLoading(false);
-  };
+  }, [loadingRestaurante, restauranteId]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [restauranteId, loadingRestaurante]);
+    const timer = window.setTimeout(() => void cargarDatos(), 0);
+    return () => window.clearTimeout(timer);
+  }, [cargarDatos]);
 
   const platoSeleccionado = useMemo(() => {
     return platos.find((p) => p.id === platoId) ?? null;
@@ -330,8 +333,8 @@ export default function VentasPlatosPage() {
       (v) => v.fecha >= prevMonthStart && v.fecha < monthStart
     );
 
-    const sum = (arr: VentaPlato[], key: keyof VentaPlato) =>
-      arr.reduce((acc, item) => acc + toNumber(item[key] as any), 0);
+    const sum = (arr: VentaPlato[], key: CampoTotalVenta) =>
+      arr.reduce((acc, item) => acc + toNumber(item[key]), 0);
 
     const unidadesMes = ventasMes.reduce(
       (acc, item) => acc + toNumber(item.cantidad),

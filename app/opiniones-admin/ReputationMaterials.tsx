@@ -21,6 +21,7 @@ import {
   Type,
 } from "lucide-react";
 import QRCode from "qrcode";
+import NextImage from "next/image";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { OpinionConfig, OriginKey, Restaurant } from "./reputation";
 
@@ -596,7 +597,7 @@ function MaterialPreview({
           className="relative w-full overflow-hidden rounded-[1.8rem] bg-white shadow-[0_38px_100px_rgba(6,43,92,.27)]"
           style={{ maxWidth, aspectRatio: `${material.widthMm}/${material.heightMm}` }}
         >
-          {previewUrl ? <img src={previewUrl} alt={`Diseño ${material.label}`} className="h-full w-full object-contain" /> : <PreviewLoader />}
+          {previewUrl ? <NextImage src={previewUrl} alt={`Diseño ${material.label}`} fill unoptimized className="object-contain" /> : <PreviewLoader />}
         </div>
       </div>
     );
@@ -616,7 +617,7 @@ function MaterialPreview({
           className="relative w-full overflow-hidden rounded-[1.6rem] bg-white shadow-[0_40px_90px_rgba(0,0,0,.45)]"
           style={{ aspectRatio: `${material.widthMm}/${material.heightMm}` }}
         >
-          {previewUrl ? <img src={previewUrl} alt={`Mockup ${material.label}`} className="h-full w-full object-contain" /> : <PreviewLoader />}
+          {previewUrl ? <NextImage src={previewUrl} alt={`Mockup ${material.label}`} fill unoptimized className="object-contain" /> : <PreviewLoader />}
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-white/25 via-transparent to-black/[.06]" />
         </div>
         {material.category === "mesa" && <div className="mx-auto h-12 w-[28%] rounded-b-2xl bg-white/90 shadow-xl" />}

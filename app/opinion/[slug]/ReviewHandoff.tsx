@@ -6,13 +6,12 @@ import {
   ClipboardCheck,
   ClipboardCopy,
   ExternalLink,
-  Loader2,
   RotateCcw,
   ShieldCheck,
   Star,
   X,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { CopyState, PublicConfig } from "@/lib/opiniones/public-review";
 
 export default function ReviewHandoff({
@@ -39,12 +38,9 @@ export default function ReviewHandoff({
   const needsCopy = hasComment && copyState !== "copied";
   const threshold = Math.max(1, Math.min(5, config.low_rating_threshold ?? 3));
   const canOfferGoogle = rating > threshold;
-  const [showGoogleNotice, setShowGoogleNotice] = useState(false);
-
-  useEffect(() => {
-    if (!canOfferGoogle || hasOpenedGoogle) return;
-    setShowGoogleNotice(true);
-  }, [canOfferGoogle, hasOpenedGoogle]);
+  const [showGoogleNotice, setShowGoogleNotice] = useState(
+    () => canOfferGoogle && !hasOpenedGoogle,
+  );
 
   async function continueToGoogle() {
     if (needsCopy) await onCopy();

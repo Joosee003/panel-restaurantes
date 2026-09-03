@@ -10,7 +10,6 @@ import {
   ClipboardCheck,
   Download,
   ExternalLink,
-  Eye,
   Filter,
   Flame,
   Gauge,

@@ -73,7 +73,7 @@ export default function DashboardChart({ restauranteId }: Props) {
         Reservas de la semana
       </h2>
 
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="day" />

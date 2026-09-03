@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BarChart3,
@@ -201,7 +201,7 @@ export default function PlatosPage() {
   } = getThemeClasses(dark);
 
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
+  const restauranteId = restauranteActual?.id ? String(restauranteActual.id) : null;
   const [platos, setPlatos] = useState<Plato[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -215,7 +215,7 @@ export default function PlatosPage() {
     if (okMessage) setOkMessage(null);
   };
 
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -242,11 +242,12 @@ export default function PlatosPage() {
 
     setPlatos((data as Plato[]) ?? []);
     setLoading(false);
-  };
+  }, [loadingRestaurante, restauranteId]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [restauranteId, loadingRestaurante]);
+    const timer = window.setTimeout(() => void cargarDatos(), 0);
+    return () => window.clearTimeout(timer);
+  }, [cargarDatos]);
 
   const platosFiltrados = useMemo(() => {
     const texto = busqueda.trim().toLowerCase();

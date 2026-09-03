@@ -1,7 +1,7 @@
 "use client";
 
 import { Check } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 
 const defaults = {
@@ -27,10 +27,6 @@ export default function AspectLabelsEditor({
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLabels({ ...defaults, ...(initialLabels ?? {}) });
-  }, [initialLabels]);
 
   async function save() {
     const cleaned = Object.fromEntries(
