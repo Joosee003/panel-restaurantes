@@ -41,6 +41,8 @@ type Cliente = {
   puntos_totales: number | null;
   ultima_visita: string | null;
   ya_dejo_resena: boolean | null;
+  permite_whatsapp: boolean | null;
+  review_whatsapp?: boolean;
 };
 
 type Reserva = {
@@ -65,6 +67,7 @@ type CandidatoResena = {
   telefono: string;
   estado: "pendiente" | "pedida" | "conseguida";
   consumo: number;
+  permisoWhatsApp: boolean;
 };
 
 type Tab = "pedir" | "resenas" | "respondidas";
@@ -193,7 +196,7 @@ export default function ResenasPage() {
       return;
     }
 
-    const [resenasRes, clientesRes, reservasRes, restauranteRes] = await Promise.all([
+    const [resenasRes, clientesRes, reservasRes, restauranteRes, consentimientosRes] = await Promise.all([
       supabase
         .from("resenas")
         .select("id,google_review_id,nombre_cliente,rating,comentario,responded,respuesta_texto,fecha_reseña,created_at")
@@ -201,7 +204,7 @@ export default function ResenasPage() {
         .order("fecha_reseña", { ascending: false, nullsFirst: false }),
       supabase
         .from("clientes")
-        .select("id,nombre,telefono,email,visitas_totales,puntos_totales,ultima_visita,ya_dejo_resena")
+        .select("id,nombre,telefono,email,visitas_totales,puntos_totales,ultima_visita,ya_dejo_resena,permite_whatsapp")
         .eq("restaurante_id", restauranteId)
         .order("ultima_visita", { ascending: false, nullsFirst: false })
         .limit(200),
@@ -217,15 +220,32 @@ export default function ResenasPage() {
         .select("google_review_url")
         .eq("id", restauranteId)
         .maybeSingle(),
+      supabase
+        .from("cliente_comunicaciones_consentimiento")
+        .select("cliente_id,review_whatsapp,revoked_at")
+        .eq("restaurante_id", restauranteId)
+        .is("revoked_at", null),
     ]);
 
     if (resenasRes.error) setErrorMsg(resenasRes.error.message);
     if (clientesRes.error) setErrorMsg(clientesRes.error.message);
     if (reservasRes.error) setErrorMsg(reservasRes.error.message);
     if (restauranteRes.error) setErrorMsg(restauranteRes.error.message);
+    if (consentimientosRes.error) setErrorMsg("No se pudieron comprobar los permisos de contacto.");
 
     setResenas((resenasRes.data as unknown as Resena[]) ?? []);
-    setClientes((clientesRes.data as Cliente[]) ?? []);
+    const permisosResena = new Map(
+      (consentimientosRes.data || []).map((item) => [
+        String(item.cliente_id),
+        item.review_whatsapp === true,
+      ]),
+    );
+    setClientes(
+      ((clientesRes.data as Cliente[]) ?? []).map((cliente) => ({
+        ...cliente,
+        review_whatsapp: permisosResena.get(cliente.id) ?? false,
+      })),
+    );
     setReservas((reservasRes.data as Reserva[]) ?? []);
     const savedReviewUrl = String(restauranteRes.data?.google_review_url || "").trim();
     setGoogleReviewUrl(savedReviewUrl);
@@ -272,6 +292,9 @@ export default function ResenasPage() {
           telefono,
           estado,
           consumo: Number(reserva.consumo_total || 0),
+          permisoWhatsApp:
+            cliente?.permite_whatsapp === true &&
+            cliente?.review_whatsapp === true,
         };
       });
   }, [reservas, clientesById, clientesByTelefono]);
@@ -311,6 +334,10 @@ export default function ResenasPage() {
   }, [resenas, candidatos]);
 
   const copiarMensaje = async (candidato: CandidatoResena) => {
+    if (!candidato.permisoWhatsApp) {
+      window.alert("No consta permiso para pedir la reseña por WhatsApp.");
+      return;
+    }
     if (!esEnlaceWebValido(googleReviewUrl)) {
       window.alert("Configura primero el enlace de reseñas de Google.");
       return;
@@ -326,6 +353,10 @@ export default function ResenasPage() {
   };
 
   const abrirWhatsApp = (candidato: CandidatoResena) => {
+    if (!candidato.permisoWhatsApp) {
+      window.alert("No consta permiso para pedir la reseña por WhatsApp.");
+      return;
+    }
     if (!esEnlaceWebValido(googleReviewUrl)) {
       window.alert("Configura primero el enlace de reseñas de Google.");
       return;
@@ -506,6 +537,7 @@ export default function ResenasPage() {
                   const telefono = telefonoWhatsApp(candidato.telefono);
                   const saving = savingId === candidato.reserva.id;
                   const reviewReady = esEnlaceWebValido(googleReviewUrl);
+                  const contactAllowed = candidato.permisoWhatsApp;
                   return (
                     <div key={candidato.reserva.id} className={clsx("rounded-3xl border p-4", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-white")}>
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -520,26 +552,27 @@ export default function ResenasPage() {
                             <span>{candidato.reserva.personas || 0} personas</span>
                             <span>{formatEuro(candidato.consumo)}</span>
                             <span>{telefono ? `WhatsApp ${telefono}` : "Sin teléfono"}</span>
+                            {!contactAllowed && <span className="text-amber-700">Sin permiso para pedir reseña</span>}
                           </div>
                         </div>
 
                         <div className="flex flex-wrap gap-2 lg:justify-end">
                           <button
                             onClick={() => copiarMensaje(candidato)}
-                            disabled={!reviewReady}
-                            className={clsx(t.secondary, !reviewReady && "cursor-not-allowed opacity-50")}
+                            disabled={!reviewReady || !contactAllowed}
+                            className={clsx(t.secondary, (!reviewReady || !contactAllowed) && "cursor-not-allowed opacity-50")}
                           >
                             <Copy className="h-4 w-4" /> {copiadoId === candidato.reserva.id ? "Copiado" : "Copiar"}
                           </button>
                           <button
                             onClick={() => abrirWhatsApp(candidato)}
-                            disabled={!reviewReady || !telefono}
-                            className={clsx(t.green, (!reviewReady || !telefono) && "cursor-not-allowed opacity-50")}
+                            disabled={!reviewReady || !telefono || !contactAllowed}
+                            className={clsx(t.green, (!reviewReady || !telefono || !contactAllowed) && "cursor-not-allowed opacity-50")}
                           >
                             <MessageCircle className="h-4 w-4" /> WhatsApp
                           </button>
                           {candidato.estado === "pendiente" && (
-                            <button onClick={() => marcarPedida(candidato)} disabled={saving} className={t.blue}>
+                            <button onClick={() => marcarPedida(candidato)} disabled={saving || !contactAllowed} className={clsx(t.blue, !contactAllowed && "cursor-not-allowed opacity-50")}>
                               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Marcar pedida
                             </button>
                           )}

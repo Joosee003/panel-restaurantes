@@ -170,6 +170,15 @@ function money(n: number) {
   return new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(Number(n || 0));
 }
 
+function mensajeErrorMesa(message: string | undefined) {
+  const value = message || "";
+  if (value.includes("TABLE_TIME_CONFLICT")) return "Esa mesa ya está ocupada en ese horario.";
+  if (value.includes("TABLE_CAPACITY_EXCEEDED")) return "La mesa no tiene plazas suficientes.";
+  if (value.includes("TABLE_NOT_AVAILABLE")) return "La mesa está bloqueada o desactivada.";
+  if (value.includes("DEMO_READ_ONLY")) return "La demostración es de solo lectura.";
+  return "No se pudo actualizar la mesa.";
+}
+
 function estadoLabel(reserva: Reserva) {
   if (reserva.estado === "cancelada") return "Cancelada";
   if (reserva.consumo_registrado_en) return "Consumo registrado";
@@ -257,6 +266,7 @@ function ReservaCard({
   onEstado,
   onNoShow,
   onRegistrarConsumo,
+  fidelizacionActiva,
   onMesa,
   onCopiar,
 }: {
@@ -265,13 +275,13 @@ function ReservaCard({
   onEstado: (reserva: Reserva, estado: EstadoReserva) => void;
   onNoShow: (reserva: Reserva, valor: boolean | null) => void;
   onRegistrarConsumo: (reserva: Reserva) => void;
+  fidelizacionActiva: boolean;
   onMesa: (reserva: Reserva, mesaId: string | null) => void;
   onCopiar: (texto: string) => void;
 }) {
   const riesgo = Number(reserva.cliente?.no_show_total || 0) + Number(reserva.cliente?.cancelaciones_totales || 0);
   const linkConfirmar = buildWhatsAppLink(reserva, "confirmar");
   const linkRecordar = buildWhatsAppLink(reserva, "recordar");
-  const linkResena = buildWhatsAppLink(reserva, "resena");
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -291,7 +301,7 @@ function ReservaCard({
             <span>{reserva.origen || "origen no indicado"}</span>
           </div>
           {reserva.notas ? <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{reserva.notas}</p> : null}
-          {reserva.consumo_registrado_en ? (
+          {fidelizacionActiva && reserva.consumo_registrado_en ? (
             <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800">
               <ReceiptText size={16} />
               Consumo registrado · {money(Number(reserva.consumo_total || 0))} · {Number(reserva.puntos_generados || 0)} pts
@@ -308,7 +318,11 @@ function ReservaCard({
           >
             <option value="">Sin mesa</option>
             {mesas.map((m) => (
-              <option key={m.id} value={m.id}>
+              <option
+                key={m.id}
+                value={m.id}
+                disabled={m.bloqueada === true || Number(m.capacidad || 0) < reserva.personas}
+              >
                 {m.nombre}{m.capacidad ? ` · ${m.capacidad}p` : ""}{m.bloqueada ? " · bloqueada" : ""}
               </option>
             ))}
@@ -327,7 +341,8 @@ function ReservaCard({
             <X size={16} /> Cancelar
           </button>
         ) : null}
-        {(reserva.estado === "confirmada" || reserva.estado === "ha venido" || reserva.atendida === true) &&
+        {fidelizacionActiva &&
+        (reserva.estado === "confirmada" || reserva.estado === "ha venido" || reserva.atendida === true) &&
         reserva.atendida !== false &&
         !reserva.consumo_registrado_en ? (
           <button onClick={() => onRegistrarConsumo(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100">
@@ -350,11 +365,6 @@ function ReservaCard({
         {linkRecordar ? (
           <a href={linkRecordar} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
             <MessageCircle size={14} /> Recordatorio
-          </a>
-        ) : null}
-        {linkResena && reserva.atendida === true && !reserva.resena_solicitada ? (
-          <a href={linkResena} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
-            <MessageCircle size={14} /> Pedir reseña
           </a>
         ) : null}
         <button onClick={() => onCopiar(buildWhatsAppText(reserva, "recordar"))} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
@@ -386,6 +396,7 @@ export default function ReservasPage() {
     ...BLOQUEO_INICIAL,
   });
   const [consumoModal, setConsumoModal] = useState<ConsumoModalState | null>(null);
+  const [fidelizacionActiva, setFidelizacionActiva] = useState(false);
 
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoRefreshPausadoRef = useRef(false);
@@ -413,7 +424,7 @@ export default function ReservasPage() {
     const hasta = addDays(new Date(), 120);
 
     try {
-      const [reservasRes, mesasRes, bloqueosRes] = await Promise.all([
+      const [reservasRes, mesasRes, bloqueosRes, modulosRes] = await Promise.all([
         supabase
           .from("reservas")
           .select(
@@ -435,6 +446,11 @@ export default function ReservasPage() {
           .eq("restaurante_id", restauranteId)
           .order("fecha", { ascending: true })
           .order("hora_inicio", { ascending: true }),
+        supabase
+          .from("restaurante_modulos")
+          .select("fidelizacion")
+          .eq("restaurante_id", restauranteId)
+          .maybeSingle(),
       ]);
 
       if (reservasRes.error) throw reservasRes.error;
@@ -452,6 +468,7 @@ export default function ReservasPage() {
       );
       setMesas(((mesasRes.data || []) as Mesa[]).filter((m) => m.activa !== false));
       setBloqueos((bloqueosRes.data || []) as Bloqueo[]);
+      setFidelizacionActiva(modulosRes.data?.fidelizacion === true);
     } catch (err) {
       console.error("ERROR RESERVAS PRO", err);
       setError("No se pudieron cargar las reservas.");
@@ -556,8 +573,8 @@ export default function ReservasPage() {
   const cambiarEstado = async (reserva: Reserva, estado: EstadoReserva) => {
     if (!restauranteId) return;
     setSaving(reserva.id);
-    const payload: Pick<Reserva, "estado"> & { atendida?: boolean | null } =
-      estado === "cancelada" ? { estado, atendida: null } : { estado };
+    const payload: Pick<Reserva, "estado"> & { atendida?: boolean | null; mesa_id?: null } =
+      estado === "cancelada" ? { estado, atendida: null, mesa_id: null } : { estado };
     const { error } = await supabase.from("reservas").update(payload).eq("id", reserva.id).eq("restaurante_id", restauranteId);
     if (!error) {
       setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, ...payload } : r)));
@@ -604,12 +621,12 @@ export default function ReservasPage() {
   };
 
   const abrirConsumo = (reserva: Reserva) => {
-    if (reserva.estado === "cancelada" || reserva.consumo_registrado_en) return;
+    if (!fidelizacionActiva || reserva.estado === "cancelada" || reserva.consumo_registrado_en) return;
     setConsumoModal({ reserva, gasto: "", metodo_pago: "tarjeta", notas: "" });
   };
 
   const registrarConsumo = async () => {
-    if (!restauranteId || !consumoModal) return;
+    if (!restauranteId || !consumoModal || !fidelizacionActiva) return;
     const gasto = Number(consumoModal.gasto.replace(",", "."));
     if (!Number.isFinite(gasto) || gasto <= 0) {
       setError("Introduce un importe válido para registrar el consumo.");
@@ -651,8 +668,17 @@ export default function ReservasPage() {
   const cambiarMesa = async (reserva: Reserva, mesaId: string | null) => {
     if (!restauranteId) return;
     setSaving(reserva.id);
-    const { error } = await supabase.from("reservas").update({ mesa_id: mesaId }).eq("id", reserva.id).eq("restaurante_id", restauranteId);
-    if (!error) setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, mesa_id: mesaId } : r)));
+    setError(null);
+    const { error } = await supabase.rpc("gestionar_mesa_reserva", {
+      p_reserva_id: reserva.id,
+      p_mesa_id: mesaId,
+    });
+    if (!error) {
+      setReservas((prev) => prev.map((r) => (r.id === reserva.id ? { ...r, mesa_id: mesaId } : r)));
+    } else {
+      setError(mensajeErrorMesa(error.message));
+      await cargarTodo({ silent: true });
+    }
     setSaving(null);
   };
 
@@ -958,7 +984,7 @@ export default function ReservasPage() {
                   <Badge className="border-slate-200 bg-slate-50 text-slate-600">{items.length} reserva{items.length === 1 ? "" : "s"}</Badge>
                 </div>
                 <div className="space-y-3">
-                  {items.map((r) => <ReservaCard key={r.id} reserva={r} mesas={mesas} onEstado={cambiarEstado} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} />)}
+                  {items.map((r) => <ReservaCard key={r.id} reserva={r} mesas={mesas} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} />)}
                 </div>
               </section>
             )) : (
@@ -1018,7 +1044,7 @@ export default function ReservasPage() {
             <p className="text-sm text-slate-500">{reservasFiltradas.length} reservas visibles con los filtros actuales.</p>
           </div>
           <div className="divide-y divide-slate-100">
-            {reservasFiltradas.map((r) => <div key={r.id} className="p-4"><ReservaCard reserva={r} mesas={mesas} onEstado={cambiarEstado} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} /></div>)}
+            {reservasFiltradas.map((r) => <div key={r.id} className="p-4"><ReservaCard reserva={r} mesas={mesas} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} /></div>)}
             {!reservasFiltradas.length ? <div className="p-10 text-center text-sm font-semibold text-slate-500">No hay reservas con estos filtros.</div> : null}
           </div>
         </div>
@@ -1075,7 +1101,7 @@ export default function ReservasPage() {
         </div>
       ) : null}
 
-      {consumoModal ? (
+      {consumoModal && fidelizacionActiva ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-4 sm:items-center">
           <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">

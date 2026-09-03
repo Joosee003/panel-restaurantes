@@ -10,8 +10,11 @@ permissions:
   contents: read
 
 jobs:
-  lint-audit:
+  quality:
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-key
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,24 +28,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint audit
-        id: lint
-        continue-on-error: true
-        run: npm run lint > lint-report.txt 2>&1
+      - name: Lint
+        run: npm run lint
 
-      - name: Upload lint report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: lint-report
-          path: lint-report.txt
-          if-no-files-found: error
+      - name: Production dependency audit
+        run: npm audit --omit=dev --audit-level=high
 
-      - name: Publish lint status
-        if: always()
-        run: |
-          if [ "${{ steps.lint.outcome }}" = "failure" ]; then
-            echo "::warning::El repositorio tiene deuda de lint registrada. Consulta el artefacto lint-report."
-          else
-            echo "Lint completado sin errores."
-          fi
+      - name: Production build
+        run: npm run build

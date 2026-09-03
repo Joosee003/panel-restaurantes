@@ -99,6 +99,11 @@ type Notificacion = {
   created_at: string | null;
 };
 
+type ConsentimientoContacto = {
+  review_whatsapp: boolean;
+  loyalty_whatsapp: boolean;
+};
+
 type TipoMensaje = "resena" | "recuperar" | "cumple" | "vip" | "maestro" | "cupon";
 
 const etiquetasBase = ["Maestro", "VIP", "Habitual", "Frecuente", "Dormido", "Cumpleaños", "Sin reseña", "Riesgo", "Promoción", "Preferente"];
@@ -156,6 +161,7 @@ function diasHastaCumple(fechaNacimiento: string | null | undefined) {
 function segmentosCliente(
   cliente: Cliente,
   nivelesConfig: CustomerLevelsConfig = DEFAULT_CUSTOMER_LEVELS,
+  incluirNivel = true,
 ) {
   const nivel = getCustomerLevel(cliente, nivelesConfig);
   const nivelLabel = buildCustomerLevels(nivelesConfig)[nivel].label;
@@ -165,7 +171,7 @@ function segmentosCliente(
   const cumple = diasHastaCumple(cliente.fecha_nacimiento);
 
   const segmentos: string[] = [];
-  segmentos.push(nivelLabel);
+  if (incluirNivel) segmentos.push(nivelLabel);
 
   if (diasUltima >= 30 && diasUltima !== 9999) segmentos.push("Dormido");
   if (cumple !== null && cumple <= 30) segmentos.push("Cumpleaños próximo");
@@ -227,7 +233,12 @@ export default function ClienteFichaPage() {
   const [guardando, setGuardando] = useState(false);
   const [copiado, setCopiado] = useState<string | null>(null);
   const [guardandoAccion, setGuardandoAccion] = useState<string | null>(null);
+  const [fidelizacionActiva, setFidelizacionActiva] = useState(false);
   const [nivelesConfig, setNivelesConfig] = useState<CustomerLevelsConfig>(DEFAULT_CUSTOMER_LEVELS);
+  const [consentimiento, setConsentimiento] = useState<ConsentimientoContacto>({
+    review_whatsapp: false,
+    loyalty_whatsapp: false,
+  });
 
   useEffect(() => {
     const cargarRestaurante = async () => {
@@ -276,7 +287,7 @@ export default function ClienteFichaPage() {
     if (telefonoSin34) filtrosReserva.push(`telefono.ilike.%${telefonoSin34}%`);
     if (clienteFinal.email) filtrosReserva.push(`email.eq.${clienteFinal.email}`);
 
-    const [reservasRes, puntosRes, notificacionesRes, nivelesRes] = await Promise.all([
+    const [reservasRes, puntosRes, notificacionesRes, nivelesRes, consentimientoRes, modulosRes] = await Promise.all([
       supabase
         .from("reservas")
         .select("id, fecha_hora_reserva, personas, estado, turno, origen, notas, atendida, resena_solicitada")
@@ -303,12 +314,34 @@ export default function ClienteFichaPage() {
         .select("nivel_frecuente_desde,nivel_habitual_desde,nivel_vip_desde,nivel_maestro_desde")
         .eq("restaurante_id", restauranteId)
         .maybeSingle(),
+      supabase
+        .from("cliente_comunicaciones_consentimiento")
+        .select("review_whatsapp,loyalty_whatsapp,revoked_at")
+        .eq("restaurante_id", restauranteId)
+        .eq("cliente_id", id)
+        .is("revoked_at", null)
+        .maybeSingle(),
+      supabase
+        .from("restaurante_modulos")
+        .select("fidelizacion")
+        .eq("restaurante_id", restauranteId)
+        .maybeSingle(),
     ]);
 
+    const fidelizacionDisponible = modulosRes.data?.fidelizacion === true;
+    setFidelizacionActiva(fidelizacionDisponible);
     setReservas((reservasRes.data || []) as Reserva[]);
-    setMovimientos((puntosRes.data || []) as Movimiento[]);
+    setMovimientos(fidelizacionDisponible ? ((puntosRes.data || []) as Movimiento[]) : []);
     setNotificaciones((notificacionesRes.data || []) as Notificacion[]);
-    setNivelesConfig(normalizeCustomerLevels(nivelesRes.data || DEFAULT_CUSTOMER_LEVELS));
+    setNivelesConfig(
+      fidelizacionDisponible
+        ? normalizeCustomerLevels(nivelesRes.data || DEFAULT_CUSTOMER_LEVELS)
+        : DEFAULT_CUSTOMER_LEVELS,
+    );
+    setConsentimiento({
+      review_whatsapp: consentimientoRes.data?.review_whatsapp === true,
+      loyalty_whatsapp: consentimientoRes.data?.loyalty_whatsapp === true,
+    });
     setCargando(false);
   }, [id, restauranteId]);
 
@@ -323,8 +356,14 @@ export default function ClienteFichaPage() {
     };
   }, [cargarFicha]);
 
-  const segmentos = useMemo(() => (cliente ? segmentosCliente(cliente, nivelesConfig) : []), [cliente, nivelesConfig]);
-  const accion = useMemo(() => (cliente ? accionRecomendada(cliente, nivelesConfig) : null), [cliente, nivelesConfig]);
+  const segmentos = useMemo(
+    () => (cliente ? segmentosCliente(cliente, nivelesConfig, fidelizacionActiva) : []),
+    [cliente, fidelizacionActiva, nivelesConfig],
+  );
+  const accion = useMemo(
+    () => (cliente && fidelizacionActiva ? accionRecomendada(cliente, nivelesConfig) : null),
+    [cliente, fidelizacionActiva, nivelesConfig],
+  );
   const cumple = cliente ? diasHastaCumple(cliente.fecha_nacimiento) : null;
 
   async function guardarFicha() {
@@ -356,6 +395,10 @@ export default function ClienteFichaPage() {
 
   async function copiarMensaje(tipo: TipoMensaje) {
     if (!cliente) return;
+    if (!tienePermisoWhatsApp(tipo)) {
+      alert("No consta permiso para enviar este tipo de mensaje por WhatsApp.");
+      return;
+    }
     const mensaje = mensajeCliente(cliente, tipo);
     try {
       await navigator.clipboard.writeText(mensaje);
@@ -368,6 +411,10 @@ export default function ClienteFichaPage() {
 
   function abrirWhatsApp(tipo: TipoMensaje) {
     if (!cliente) return;
+    if (!tienePermisoWhatsApp(tipo)) {
+      alert("No consta permiso para enviar este tipo de mensaje por WhatsApp.");
+      return;
+    }
     const telefono = telefonoParaWhatsApp(cliente.telefono);
     if (!telefono) {
       copiarMensaje(tipo);
@@ -376,8 +423,16 @@ export default function ClienteFichaPage() {
     window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensajeCliente(cliente, tipo))}`, "_blank");
   }
 
+  function tienePermisoWhatsApp(tipo: TipoMensaje) {
+    if (cliente?.permite_whatsapp !== true) return false;
+    return tipo === "resena"
+      ? consentimiento.review_whatsapp
+      : fidelizacionActiva && consentimiento.loyalty_whatsapp;
+  }
+
   async function registrarAccion(tipo: TipoMensaje) {
     if (!cliente || !restauranteId) return;
+    if (tipo !== "resena" && !fidelizacionActiva) return;
     setGuardandoAccion(tipo);
 
     const titulos: Record<TipoMensaje, string> = {
@@ -441,7 +496,7 @@ export default function ClienteFichaPage() {
                 <div>
                   <h1 className="text-3xl font-black tracking-tight text-slate-950">{cliente.nombre || "Cliente sin nombre"}</h1>
                   <p className="mt-1 text-sm font-semibold text-slate-500">
-                    Ficha inteligente de cliente{cliente.ranking_posicion ? ` · Nº ${cliente.ranking_posicion} del ranking` : ""}
+                    Ficha de cliente{fidelizacionActiva && cliente.ranking_posicion ? ` · Nº ${cliente.ranking_posicion} del ranking` : ""}
                   </p>
                 </div>
               </div>
@@ -453,20 +508,20 @@ export default function ClienteFichaPage() {
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
-              <button onClick={() => abrirWhatsApp(accion?.tipo || "cupon")} className="rounded-2xl bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700">
+            {fidelizacionActiva && accion ? <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
+              <button onClick={() => abrirWhatsApp(accion?.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion?.tipo || "cupon")} className="rounded-2xl bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
                 <MessageCircle className="mr-2 inline h-4 w-4" /> WhatsApp
               </button>
-              <button onClick={() => copiarMensaje(accion?.tipo || "cupon")} className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
+              <button onClick={() => copiarMensaje(accion?.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion?.tipo || "cupon")} className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
                 <Copy className="mr-2 inline h-4 w-4" /> {copiado ? "Copiado" : "Copiar mensaje"}
               </button>
-            </div>
+            </div> : null}
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <section className={`grid gap-4 md:grid-cols-2 ${fidelizacionActiva ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
           <Kpi icon={Star} label="Visitas" value={getCustomerVisits(cliente)} help="Reservas e historial unificados" />
-          <Kpi icon={Crown} label="Puntos" value={getCustomerPoints(cliente)} help="Saldo actual" />
+          {fidelizacionActiva ? <Kpi icon={Crown} label="Puntos" value={getCustomerPoints(cliente)} help="Saldo actual" /> : null}
           <Kpi icon={Clock3} label="Última visita" value={diasDesde(cliente.ultima_visita_real || cliente.ultima_visita) === 9999 ? "-" : `${diasDesde(cliente.ultima_visita_real || cliente.ultima_visita)}d`} help={formatFecha(cliente.ultima_visita_real || cliente.ultima_visita)} />
           <Kpi icon={Cake} label="Cumpleaños" value={cumple === null ? "-" : `${cumple}d`} help={formatFecha(cliente.fecha_nacimiento)} />
           <Kpi icon={CheckCircle2} label="Reservas" value={numero(cliente.total_reservas)} help={`${numero(cliente.total_atendidas)} atendidas`} />
@@ -474,7 +529,7 @@ export default function ClienteFichaPage() {
 
         <section className="grid gap-6 xl:grid-cols-[1fr_420px]">
           <div className="space-y-6">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            {fidelizacionActiva && accion ? <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
               <div className="flex items-start gap-4">
                 <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><SparkIcon /></div>
                 <div className="flex-1">
@@ -486,16 +541,22 @@ export default function ClienteFichaPage() {
                     {mensajeCliente(cliente, accion?.tipo || "cupon")}
                   </div>
 
+                  {!tienePermisoWhatsApp(accion?.tipo || "cupon") && (
+                    <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800 ring-1 ring-amber-100">
+                      WhatsApp bloqueado: no consta permiso para esta finalidad.
+                    </p>
+                  )}
+
                   <div className="mt-4 flex flex-wrap gap-2">
-                    <button onClick={() => copiarMensaje(accion?.tipo || "cupon")} className="rounded-xl bg-white px-4 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200">Copiar</button>
-                    <button onClick={() => abrirWhatsApp(accion?.tipo || "cupon")} className="rounded-xl bg-green-600 px-4 py-2 text-xs font-black text-white">WhatsApp</button>
+                    <button onClick={() => copiarMensaje(accion?.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion?.tipo || "cupon")} className="rounded-xl bg-white px-4 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Copiar</button>
+                    <button onClick={() => abrirWhatsApp(accion?.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion?.tipo || "cupon")} className="rounded-xl bg-green-600 px-4 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">WhatsApp</button>
                     <button onClick={() => registrarAccion(accion?.tipo || "cupon")} disabled={guardandoAccion === (accion?.tipo || "cupon")} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">
                       {guardandoAccion === (accion?.tipo || "cupon") ? <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 inline h-3.5 w-3.5" />} Guardar acción
                     </button>
                   </div>
                 </div>
               </div>
-            </div>
+            </div> : null}
 
             <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
               <div className="mb-5 flex items-center justify-between gap-4">
@@ -527,8 +588,8 @@ export default function ClienteFichaPage() {
               </div>
             </div>
 
-            <div className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className={`grid gap-6 ${fidelizacionActiva ? "xl:grid-cols-2" : "grid-cols-1"}`}>
+              {fidelizacionActiva ? <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="font-black text-slate-950">Puntos</h2>
                 <div className="mt-4 space-y-3">
                   {movimientos.length === 0 && <p className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-400">Sin movimientos de puntos.</p>}
@@ -542,7 +603,7 @@ export default function ClienteFichaPage() {
                     </div>
                   ))}
                 </div>
-              </div>
+              </div> : null}
 
               <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
                 <h2 className="font-black text-slate-950">Acciones guardadas</h2>
@@ -585,7 +646,11 @@ export default function ClienteFichaPage() {
               </div>
 
               <div className="mt-4 grid grid-cols-2 gap-2">
-                {etiquetasBase.filter((e) => !etiquetas.includes(e)).slice(0, 8).map((tag) => (
+                {etiquetasBase
+                  .filter((tag) => fidelizacionActiva || !["Maestro", "VIP", "Habitual", "Frecuente", "Promoción", "Preferente"].includes(tag))
+                  .filter((tag) => !etiquetas.includes(tag))
+                  .slice(0, 8)
+                  .map((tag) => (
                   <button key={tag} onClick={() => añadirEtiqueta(tag)} className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-100 hover:bg-slate-100">+ {tag}</button>
                 ))}
               </div>

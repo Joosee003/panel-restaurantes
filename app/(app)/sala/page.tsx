@@ -30,6 +30,8 @@ type ReservaSala = {
   telefono: string | null;
   personas: number | null;
   fecha_hora_reserva: string;
+  inicio_at: string | null;
+  fin_at: string | null;
   estado: string | null;
   origen: string | null;
   notas: string | null;
@@ -255,18 +257,53 @@ function reservaDentroTurno(reserva: ReservaSala, turno: TurnoConfig) {
   return min >= turno.inicioMin && min < turno.finMin;
 }
 
-const DURACION_RESERVA_MINUTOS = 90;
-
 function reservaInicioMinutos(reserva: ReservaSala) {
   const fecha = parseFechaLocal(reserva.fecha_hora_reserva);
   return minutosDelDia(fecha);
 }
 
-function reservaDentroFranja(reserva: ReservaSala, franja: FranjaConfig) {
+function duracionReserva(reserva: ReservaSala, duracionPredeterminada: number) {
+  if (reserva.inicio_at && reserva.fin_at) {
+    const diferencia =
+      (new Date(reserva.fin_at).getTime() - new Date(reserva.inicio_at).getTime()) /
+      60_000;
+    if (Number.isFinite(diferencia) && diferencia > 0) return diferencia;
+  }
+  return duracionPredeterminada;
+}
+
+function reservaDentroFranja(
+  reserva: ReservaSala,
+  franja: FranjaConfig,
+  duracionPredeterminada: number,
+) {
   const inicio = reservaInicioMinutos(reserva);
-  const fin = inicio + DURACION_RESERVA_MINUTOS;
+  const fin = inicio + duracionReserva(reserva, duracionPredeterminada);
 
   return inicio < franja.finMin && fin > franja.inicioMin;
+}
+
+function reservasSeSolapan(
+  primera: ReservaSala,
+  segunda: ReservaSala,
+  duracionPredeterminada: number,
+) {
+  const inicioPrimera = parseFechaLocal(primera.fecha_hora_reserva).getTime();
+  const inicioSegunda = parseFechaLocal(segunda.fecha_hora_reserva).getTime();
+  const finPrimera =
+    inicioPrimera + duracionReserva(primera, duracionPredeterminada) * 60_000;
+  const finSegunda =
+    inicioSegunda + duracionReserva(segunda, duracionPredeterminada) * 60_000;
+  return inicioPrimera < finSegunda && inicioSegunda < finPrimera;
+}
+
+function mensajeErrorMesa(message: string | undefined) {
+  const value = message || "";
+  if (value.includes("TABLE_TIME_CONFLICT")) return "Esa mesa ya está ocupada en ese horario.";
+  if (value.includes("TABLE_CAPACITY_EXCEEDED")) return "La mesa no tiene plazas suficientes.";
+  if (value.includes("TABLE_NOT_AVAILABLE")) return "La mesa está bloqueada o desactivada.";
+  if (value.includes("DEMO_READ_ONLY")) return "La demostración es de solo lectura.";
+  return "No se pudo actualizar la mesa.";
 }
 
 function indiceFranjaReserva(turno: TurnoConfig | null | undefined, reserva: ReservaSala) {
@@ -376,6 +413,7 @@ export default function SalaPage() {
   const [zonas, setZonas] = useState<Zona[]>([]);
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const [reservasDia, setReservasDia] = useState<ReservaSala[]>([]);
+  const [duracionReservaMinutos, setDuracionReservaMinutos] = useState(90);
   const [turnos, setTurnos] = useState<TurnoConfig[]>([]);
   const [turnoSeleccionado, setTurnoSeleccionado] = useState<"comida" | "cena" | null>(null);
   const [franjaSeleccionada, setFranjaSeleccionada] = useState(0);
@@ -447,15 +485,25 @@ export default function SalaPage() {
     const finDia = dateFromInput(fechaKey);
     finDia.setHours(23, 59, 59, 999);
 
-    const { data: reservasData, error: reservasError } = await supabase
-      .from("reservas")
-      .select(
-        "id, mesa_id, nombre_cliente, telefono, personas, fecha_hora_reserva, estado, origen, notas, atendida, consumo_total, puntos_generados"
-      )
-      .eq("restaurante_id", rid)
-      .gte("fecha_hora_reserva", toSqlDateTimeLocal(inicioDia))
-      .lte("fecha_hora_reserva", toSqlDateTimeLocal(finDia))
-      .order("fecha_hora_reserva", { ascending: true });
+    const [reservasResult, configResult] = await Promise.all([
+      supabase
+        .from("reservas")
+        .select(
+          "id, mesa_id, nombre_cliente, telefono, personas, fecha_hora_reserva, inicio_at, fin_at, estado, origen, notas, atendida, consumo_total, puntos_generados"
+        )
+        .eq("restaurante_id", rid)
+        .gte("fecha_hora_reserva", toSqlDateTimeLocal(inicioDia))
+        .lte("fecha_hora_reserva", toSqlDateTimeLocal(finDia))
+        .order("fecha_hora_reserva", { ascending: true }),
+      supabase
+        .from("reservas_config")
+        .select("duracion_minutos")
+        .eq("restaurante_id", rid)
+        .maybeSingle(),
+    ]);
+
+    const { data: reservasData, error: reservasError } = reservasResult;
+    const duracionConfigurada = Number(configResult.data?.duracion_minutos || 90);
 
     if (zonasError || mesasError || reservasError) {
       setMensaje("No se pudo cargar la sala completa. Revisa permisos o conexión.");
@@ -471,6 +519,11 @@ export default function SalaPage() {
     setZonas((zonasData ?? []) as Zona[]);
     setMesas((mesasData ?? []) as Mesa[]);
     setReservasDia(reservasValidas);
+    setDuracionReservaMinutos(
+      Number.isFinite(duracionConfigurada) && duracionConfigurada > 0
+        ? duracionConfigurada
+        : 90,
+    );
 
     setTurnoSeleccionado((prev) => {
       if (prev && nuevosTurnos.some((t) => t.key === prev)) return prev;
@@ -535,8 +588,10 @@ export default function SalaPage() {
 
   const reservasFranja = useMemo(() => {
     if (!franjaVisible) return [];
-    return reservasDia.filter((r) => reservaDentroFranja(r, franjaVisible));
-  }, [reservasDia, franjaVisible]);
+    return reservasDia.filter((r) =>
+      reservaDentroFranja(r, franjaVisible, duracionReservaMinutos),
+    );
+  }, [reservasDia, franjaVisible, duracionReservaMinutos]);
 
   const reservasAsignadasFranja = useMemo(
     () => reservasFranja.filter((r) => !!r.mesa_id),
@@ -584,8 +639,13 @@ export default function SalaPage() {
   }, [mesasVisibles, reservasAsignadasFranja]);
 
   const mesasDisponiblesParaReserva = (reserva: ReservaSala) => {
-    const mesasOcupadasEnFranja = reservasAsignadasFranja
-      .filter((r) => r.mesa_id)
+    const mesasOcupadasEnFranja = reservasDia
+      .filter(
+        (r) =>
+          r.id !== reserva.id &&
+          r.mesa_id &&
+          reservasSeSolapan(r, reserva, duracionReservaMinutos),
+      )
       .map((r) => r.mesa_id);
 
     return mesasVisibles.filter((mesa) => {
@@ -600,8 +660,13 @@ export default function SalaPage() {
   };
 
   const mesasDisponiblesParaCambio = (reserva: ReservaSala) => {
-    const mesasOcupadasEnFranja = reservasAsignadasFranja
-      .filter((r) => r.mesa_id && r.id !== reserva.id)
+    const mesasOcupadasEnFranja = reservasDia
+      .filter(
+        (r) =>
+          r.mesa_id &&
+          r.id !== reserva.id &&
+          reservasSeSolapan(r, reserva, duracionReservaMinutos),
+      )
       .map((r) => r.mesa_id);
 
     return mesasVisibles.filter((mesa) => {
@@ -620,15 +685,16 @@ export default function SalaPage() {
     setGuardandoMesaId(mesaId);
     setMensaje(null);
 
-    const { error } = await supabase
-      .from("reservas")
-      .update({ mesa_id: mesaId })
-      .eq("id", reservaId);
+    const { error } = await supabase.rpc("gestionar_mesa_reserva", {
+      p_reserva_id: reservaId,
+      p_mesa_id: mesaId,
+    });
 
     setGuardandoMesaId(null);
 
     if (error) {
-      alert("No se pudo asignar la mesa");
+      alert(mensajeErrorMesa(error.message));
+      await cargarSala(true);
       return;
     }
 
@@ -642,15 +708,16 @@ export default function SalaPage() {
     setGuardandoAccion(true);
     setMensaje(null);
 
-    const { error } = await supabase
-      .from("reservas")
-      .update({ mesa_id: mesaId })
-      .eq("id", reservaId);
+    const { error } = await supabase.rpc("gestionar_mesa_reserva", {
+      p_reserva_id: reservaId,
+      p_mesa_id: mesaId,
+    });
 
     setGuardandoAccion(false);
 
     if (error) {
-      alert("No se pudo cambiar la mesa");
+      alert(mensajeErrorMesa(error.message));
+      await cargarSala(true);
       return;
     }
 
@@ -664,15 +731,15 @@ export default function SalaPage() {
     setGuardandoAccion(true);
     setMensaje(null);
 
-    const { error } = await supabase
-      .from("reservas")
-      .update({ mesa_id: null })
-      .eq("id", reservaId);
+    const { error } = await supabase.rpc("gestionar_mesa_reserva", {
+      p_reserva_id: reservaId,
+      p_mesa_id: null,
+    });
 
     setGuardandoAccion(false);
 
     if (error) {
-      alert("No se pudo liberar la mesa");
+      alert(mensajeErrorMesa(error.message));
       return;
     }
 

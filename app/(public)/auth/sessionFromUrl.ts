@@ -8,6 +8,17 @@ type AuthUrlOptions = {
   requireUrlPayload?: boolean;
 };
 
+function clearAuthPayloadFromUrl() {
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete("code");
+  cleanUrl.searchParams.delete("token_hash");
+  cleanUrl.searchParams.delete("type");
+  cleanUrl.hash = "";
+
+  const nextUrl = `${cleanUrl.pathname}${cleanUrl.search}`;
+  window.history.replaceState(window.history.state, document.title, nextUrl);
+}
+
 export async function getSessionFromAuthUrl({
   expectedType,
   requireUrlPayload = true,
@@ -51,6 +62,10 @@ export async function getSessionFromAuthUrl({
       refresh_token: refreshToken,
     });
     if (error) throw error;
+  }
+
+  if (hasAuthPayload) {
+    clearAuthPayloadFromUrl();
   }
 
   const {
