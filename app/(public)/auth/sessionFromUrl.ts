@@ -8,6 +8,17 @@ type AuthUrlOptions = {
   requireUrlPayload?: boolean;
 };
 
+function clearAuthPayloadFromUrl() {
+  const cleanUrl = new URL(window.location.href);
+  cleanUrl.searchParams.delete("code");
+  cleanUrl.searchParams.delete("token_hash");
+  cleanUrl.searchParams.delete("type");
+  cleanUrl.hash = "";
+
+  const nextUrl = `${cleanUrl.pathname}${cleanUrl.search}`;
+  window.history.replaceState(window.history.state, document.title, nextUrl);
+}
+
 export async function getSessionFromAuthUrl({
   expectedType,
   requireUrlPayload = true,
@@ -53,6 +64,10 @@ export async function getSessionFromAuthUrl({
     if (error) throw error;
   }
 
+  if (hasAuthPayload) {
+    clearAuthPayloadFromUrl();
+  }
+
   const {
     data: { session },
     error: sessionError,
@@ -66,8 +81,24 @@ export async function getSessionFromAuthUrl({
 }
 
 export function validateNewPassword(password: string, repeatedPassword: string) {
-  if (password.length < 10) {
-    return "La contraseña debe tener al menos 10 caracteres.";
+  if (password.length < 12) {
+    return "La contraseña debe tener al menos 12 caracteres.";
+  }
+
+  if (!/[a-z]/.test(password)) {
+    return "Añade al menos una letra minúscula.";
+  }
+
+  if (!/[A-Z]/.test(password)) {
+    return "Añade al menos una letra mayúscula.";
+  }
+
+  if (!/\d/.test(password)) {
+    return "Añade al menos un número.";
+  }
+
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return "Añade al menos un símbolo.";
   }
 
   if (password !== repeatedPassword) {

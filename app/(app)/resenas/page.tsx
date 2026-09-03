@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   Copy,
@@ -41,6 +41,8 @@ type Cliente = {
   puntos_totales: number | null;
   ultima_visita: string | null;
   ya_dejo_resena: boolean | null;
+  permite_whatsapp: boolean | null;
+  review_whatsapp?: boolean;
 };
 
 type Reserva = {
@@ -65,6 +67,7 @@ type CandidatoResena = {
   telefono: string;
   estado: "pendiente" | "pedida" | "conseguida";
   consumo: number;
+  permisoWhatsApp: boolean;
 };
 
 type Tab = "pedir" | "resenas" | "respondidas";
@@ -108,9 +111,18 @@ function clampRating(value: number | null | undefined) {
   return Math.max(0, Math.min(5, Math.round(n)));
 }
 
-function mensajeResena(candidato: CandidatoResena) {
+function mensajeResena(candidato: CandidatoResena, googleReviewUrl: string) {
   const nombre = candidato.nombre?.split(" ")?.[0] || "";
-  return `Hola${nombre ? ` ${nombre}` : ""}, muchas gracias por venir 😊\n\nNos ayudaría muchísimo que nos dejaras una reseña en Google. Solo te llevará 20 segundos y para nosotros significa mucho.\n\nTe dejamos el enlace aquí:\n[ENLACE DE RESEÑA GOOGLE]\n\n¡Gracias de verdad!`;
+  return `Hola${nombre ? ` ${nombre}` : ""}, muchas gracias por venir 😊\n\nNos ayudaría muchísimo que nos dejaras una reseña en Google. Solo te llevará 20 segundos y para nosotros significa mucho.\n\nTe dejamos el enlace aquí:\n${googleReviewUrl}\n\n¡Gracias de verdad!`;
+}
+
+function esEnlaceWebValido(value: string) {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
 }
 
 function getTheme(dark: boolean) {
@@ -155,9 +167,7 @@ export default function ResenasPage() {
   const { dark } = useTheme();
   const t = getTheme(dark);
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
-  const restauranteNombre = (restauranteActual as any)?.nombre ? String((restauranteActual as any).nombre) : "tu restaurante";
-  const db = supabase as any;
+  const restauranteId = restauranteActual?.id ? String(restauranteActual.id) : null;
 
   const [resenas, setResenas] = useState<Resena[]>([]);
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -167,11 +177,14 @@ export default function ResenasPage() {
   const [query, setQuery] = useState("");
   const [tab, setTab] = useState<Tab>("pedir");
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
-  const [openModal, setOpenModal] = useState(false);
-  const [resenaSeleccionada, setResenaSeleccionada] = useState<string | null>(null);
+  const [resenaSeleccionada, setResenaSeleccionada] = useState<Resena | null>(null);
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [googleReviewUrl, setGoogleReviewUrl] = useState("");
+  const [googleReviewDraft, setGoogleReviewDraft] = useState("");
+  const [savingReviewUrl, setSavingReviewUrl] = useState(false);
+  const [reviewUrlSaved, setReviewUrlSaved] = useState(false);
 
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setErrorMsg(null);
     setLoading(true);
 
@@ -183,40 +196,66 @@ export default function ResenasPage() {
       return;
     }
 
-    const [resenasRes, clientesRes, reservasRes] = await Promise.all([
-      db
+    const [resenasRes, clientesRes, reservasRes, restauranteRes, consentimientosRes] = await Promise.all([
+      supabase
         .from("resenas")
         .select("id,google_review_id,nombre_cliente,rating,comentario,responded,respuesta_texto,fecha_reseña,created_at")
         .eq("restaurante_id", restauranteId)
         .order("fecha_reseña", { ascending: false, nullsFirst: false }),
-      db
+      supabase
         .from("clientes")
-        .select("id,nombre,telefono,email,visitas_totales,puntos_totales,ultima_visita,ya_dejo_resena")
+        .select("id,nombre,telefono,email,visitas_totales,puntos_totales,ultima_visita,ya_dejo_resena,permite_whatsapp")
         .eq("restaurante_id", restauranteId)
         .order("ultima_visita", { ascending: false, nullsFirst: false })
         .limit(200),
-      db
+      supabase
         .from("reservas")
         .select("id,cliente_id,nombre_cliente,telefono,email,personas,fecha_hora_reserva,estado,atendida,resena_solicitada,consumo_total,consumo_registrado_en")
         .eq("restaurante_id", restauranteId)
         .eq("atendida", true)
         .order("fecha_hora_reserva", { ascending: false })
         .limit(100),
+      supabase
+        .from("restaurantes")
+        .select("google_review_url")
+        .eq("id", restauranteId)
+        .maybeSingle(),
+      supabase
+        .from("cliente_comunicaciones_consentimiento")
+        .select("cliente_id,review_whatsapp,revoked_at")
+        .eq("restaurante_id", restauranteId)
+        .is("revoked_at", null),
     ]);
 
     if (resenasRes.error) setErrorMsg(resenasRes.error.message);
     if (clientesRes.error) setErrorMsg(clientesRes.error.message);
     if (reservasRes.error) setErrorMsg(reservasRes.error.message);
+    if (restauranteRes.error) setErrorMsg(restauranteRes.error.message);
+    if (consentimientosRes.error) setErrorMsg("No se pudieron comprobar los permisos de contacto.");
 
-    setResenas((resenasRes.data as Resena[]) ?? []);
-    setClientes((clientesRes.data as Cliente[]) ?? []);
+    setResenas((resenasRes.data as unknown as Resena[]) ?? []);
+    const permisosResena = new Map(
+      (consentimientosRes.data || []).map((item) => [
+        String(item.cliente_id),
+        item.review_whatsapp === true,
+      ]),
+    );
+    setClientes(
+      ((clientesRes.data as Cliente[]) ?? []).map((cliente) => ({
+        ...cliente,
+        review_whatsapp: permisosResena.get(cliente.id) ?? false,
+      })),
+    );
     setReservas((reservasRes.data as Reserva[]) ?? []);
+    const savedReviewUrl = String(restauranteRes.data?.google_review_url || "").trim();
+    setGoogleReviewUrl(savedReviewUrl);
+    setGoogleReviewDraft(savedReviewUrl);
     setLoading(false);
-  };
+  }, [loadingRestaurante, restauranteId]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [restauranteId, loadingRestaurante]);
+    void cargarDatos();
+  }, [cargarDatos]);
 
   const clientesById = useMemo(() => {
     const map = new Map<string, Cliente>();
@@ -235,6 +274,7 @@ export default function ResenasPage() {
 
   const candidatos = useMemo<CandidatoResena[]>(() => {
     return reservas
+      .filter((r) => Boolean(r.consumo_registrado_en))
       .filter((r) => String(r.estado || "").toLowerCase() !== "cancelada")
       .map((reserva) => {
         const clientePorId = reserva.cliente_id ? clientesById.get(reserva.cliente_id) ?? null : null;
@@ -252,6 +292,9 @@ export default function ResenasPage() {
           telefono,
           estado,
           consumo: Number(reserva.consumo_total || 0),
+          permisoWhatsApp:
+            cliente?.permite_whatsapp === true &&
+            cliente?.review_whatsapp === true,
         };
       });
   }, [reservas, clientesById, clientesByTelefono]);
@@ -291,7 +334,15 @@ export default function ResenasPage() {
   }, [resenas, candidatos]);
 
   const copiarMensaje = async (candidato: CandidatoResena) => {
-    const texto = mensajeResena(candidato);
+    if (!candidato.permisoWhatsApp) {
+      window.alert("No consta permiso para pedir la reseña por WhatsApp.");
+      return;
+    }
+    if (!esEnlaceWebValido(googleReviewUrl)) {
+      window.alert("Configura primero el enlace de reseñas de Google.");
+      return;
+    }
+    const texto = mensajeResena(candidato, googleReviewUrl);
     try {
       await navigator.clipboard.writeText(texto);
       setCopiadoId(candidato.reserva.id);
@@ -302,17 +353,55 @@ export default function ResenasPage() {
   };
 
   const abrirWhatsApp = (candidato: CandidatoResena) => {
+    if (!candidato.permisoWhatsApp) {
+      window.alert("No consta permiso para pedir la reseña por WhatsApp.");
+      return;
+    }
+    if (!esEnlaceWebValido(googleReviewUrl)) {
+      window.alert("Configura primero el enlace de reseñas de Google.");
+      return;
+    }
     const telefono = telefonoWhatsApp(candidato.telefono);
     if (!telefono) {
       window.alert("Este cliente no tiene teléfono válido.");
       return;
     }
-    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensajeResena(candidato))}`, "_blank", "noopener,noreferrer");
+    window.open(`https://wa.me/${telefono}?text=${encodeURIComponent(mensajeResena(candidato, googleReviewUrl))}`, "_blank", "noopener,noreferrer");
+  };
+
+  const guardarEnlaceGoogle = async () => {
+    if (!restauranteId) return;
+    const enlace = googleReviewDraft.trim();
+    if (enlace && !esEnlaceWebValido(enlace)) {
+      setErrorMsg("El enlace de reseñas debe empezar por https:// o http://.");
+      return;
+    }
+
+    setSavingReviewUrl(true);
+    setReviewUrlSaved(false);
+    setErrorMsg(null);
+    const { error } = await supabase
+      .from("restaurantes")
+      .update({ google_review_url: enlace || null })
+      .eq("id", restauranteId);
+
+    if (error) {
+      setErrorMsg(error.message);
+    } else {
+      setGoogleReviewUrl(enlace);
+      setGoogleReviewDraft(enlace);
+      setReviewUrlSaved(true);
+    }
+    setSavingReviewUrl(false);
   };
 
   const marcarPedida = async (candidato: CandidatoResena) => {
     setSavingId(candidato.reserva.id);
-    const { error } = await db.from("reservas").update({ resena_solicitada: true }).eq("id", candidato.reserva.id);
+    const { error } = await supabase
+      .from("reservas")
+      .update({ resena_solicitada: true })
+      .eq("id", candidato.reserva.id)
+      .eq("restaurante_id", restauranteId);
     if (error) window.alert(error.message);
     await cargarDatos();
     setSavingId(null);
@@ -321,14 +410,22 @@ export default function ResenasPage() {
   const marcarConseguida = async (candidato: CandidatoResena) => {
     setSavingId(candidato.reserva.id);
 
-    const updates: Array<Promise<any>> = [db.from("reservas").update({ resena_solicitada: true }).eq("id", candidato.reserva.id)];
+    const reservaResult = await supabase
+      .from("reservas")
+      .update({ resena_solicitada: true })
+      .eq("id", candidato.reserva.id)
+      .eq("restaurante_id", restauranteId);
+    let firstError = reservaResult.error;
 
     if (candidato.cliente?.id) {
-      updates.push(db.from("clientes").update({ ya_dejo_resena: true }).eq("id", candidato.cliente.id));
+      const clienteResult = await supabase
+        .from("clientes")
+        .update({ ya_dejo_resena: true })
+        .eq("id", candidato.cliente.id)
+        .eq("restaurante_id", restauranteId);
+      firstError ||= clienteResult.error;
     }
 
-    const results = await Promise.all(updates);
-    const firstError = results.find((r) => r?.error)?.error;
     if (firstError) window.alert(firstError.message);
 
     await cargarDatos();
@@ -439,6 +536,8 @@ export default function ResenasPage() {
                 candidatosFiltrados.map((candidato) => {
                   const telefono = telefonoWhatsApp(candidato.telefono);
                   const saving = savingId === candidato.reserva.id;
+                  const reviewReady = esEnlaceWebValido(googleReviewUrl);
+                  const contactAllowed = candidato.permisoWhatsApp;
                   return (
                     <div key={candidato.reserva.id} className={clsx("rounded-3xl border p-4", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-white")}>
                       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -453,18 +552,27 @@ export default function ResenasPage() {
                             <span>{candidato.reserva.personas || 0} personas</span>
                             <span>{formatEuro(candidato.consumo)}</span>
                             <span>{telefono ? `WhatsApp ${telefono}` : "Sin teléfono"}</span>
+                            {!contactAllowed && <span className="text-amber-700">Sin permiso para pedir reseña</span>}
                           </div>
                         </div>
 
                         <div className="flex flex-wrap gap-2 lg:justify-end">
-                          <button onClick={() => copiarMensaje(candidato)} className={t.secondary}>
+                          <button
+                            onClick={() => copiarMensaje(candidato)}
+                            disabled={!reviewReady || !contactAllowed}
+                            className={clsx(t.secondary, (!reviewReady || !contactAllowed) && "cursor-not-allowed opacity-50")}
+                          >
                             <Copy className="h-4 w-4" /> {copiadoId === candidato.reserva.id ? "Copiado" : "Copiar"}
                           </button>
-                          <button onClick={() => abrirWhatsApp(candidato)} className={t.green}>
+                          <button
+                            onClick={() => abrirWhatsApp(candidato)}
+                            disabled={!reviewReady || !telefono || !contactAllowed}
+                            className={clsx(t.green, (!reviewReady || !telefono || !contactAllowed) && "cursor-not-allowed opacity-50")}
+                          >
                             <MessageCircle className="h-4 w-4" /> WhatsApp
                           </button>
                           {candidato.estado === "pendiente" && (
-                            <button onClick={() => marcarPedida(candidato)} disabled={saving} className={t.blue}>
+                            <button onClick={() => marcarPedida(candidato)} disabled={saving || !contactAllowed} className={clsx(t.blue, !contactAllowed && "cursor-not-allowed opacity-50")}>
                               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Marcar pedida
                             </button>
                           )}
@@ -481,7 +589,39 @@ export default function ResenasPage() {
           </div>
 
           <aside className={t.card}>
-            <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4">
+              <label className="text-xs font-black uppercase tracking-[0.14em] text-blue-800">
+                Enlace para reseñar en Google
+              </label>
+              <input
+                type="url"
+                value={googleReviewDraft}
+                onChange={(event) => {
+                  setGoogleReviewDraft(event.target.value);
+                  setReviewUrlSaved(false);
+                }}
+                placeholder="https://..."
+                className="mt-3 w-full rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-sm font-semibold text-slate-900 outline-none focus:border-blue-500"
+              />
+              <button
+                type="button"
+                onClick={guardarEnlaceGoogle}
+                disabled={savingReviewUrl}
+                className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-blue-700 px-4 py-2.5 text-sm font-black text-white transition hover:bg-blue-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {savingReviewUrl ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                Guardar enlace
+              </button>
+              <p className="mt-2 text-xs font-bold leading-5 text-blue-800">
+                {reviewUrlSaved
+                  ? "Enlace guardado. Los mensajes ya lo incluyen."
+                  : googleReviewUrl
+                    ? "Este enlace se incluye en Copiar y WhatsApp."
+                    : "Configúralo para activar Copiar y WhatsApp."}
+              </p>
+            </div>
+
+            <div className="mt-5 flex items-center gap-3">
               <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700"><Sparkles className="h-5 w-5" /></div>
               <div>
                 <h3 className={clsx("font-black", t.title)}>Cómo usarlo</h3>
@@ -534,7 +674,7 @@ export default function ResenasPage() {
                         <p className={clsx("mt-2 text-xs font-bold", t.muted)}>{formatFecha(resena.fecha_reseña || resena.created_at)}</p>
                         {resena.respuesta_texto && (
                           <div className={clsx("mt-3 rounded-2xl border p-3 text-sm font-semibold", dark ? "border-slate-800 bg-slate-900 text-slate-300" : "border-slate-200 bg-slate-50 text-slate-700")}>
-                            <span className="font-black">Respuesta: </span>{resena.respuesta_texto}
+                            <span className="font-black">{resena.responded ? "Respuesta registrada: " : "Borrador: "}</span>{resena.respuesta_texto}
                           </div>
                         )}
                       </div>
@@ -543,12 +683,11 @@ export default function ResenasPage() {
                         {!resena.responded && (
                           <button
                             onClick={() => {
-                              setResenaSeleccionada(resena.id);
-                              setOpenModal(true);
+                              setResenaSeleccionada(resena);
                             }}
                             className={t.primary}
                           >
-                            Responder
+                            {resena.respuesta_texto ? "Editar borrador" : "Preparar respuesta"}
                           </button>
                         )}
                         {resena.google_review_id && (
@@ -566,9 +705,11 @@ export default function ResenasPage() {
 
       {resenaSeleccionada && (
         <ResponderResenaModal
-          open={openModal}
-          resenaId={resenaSeleccionada}
-          onClose={() => setOpenModal(false)}
+          open
+          resenaId={resenaSeleccionada.id}
+          restauranteId={restauranteId || ""}
+          initialText={resenaSeleccionada.respuesta_texto || ""}
+          onClose={() => setResenaSeleccionada(null)}
           onSaved={cargarDatos}
         />
       )}

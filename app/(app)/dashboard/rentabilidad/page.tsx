@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   BarChart3,
@@ -134,7 +134,7 @@ export default function RentabilidadPage() {
   const { dark } = useTheme();
   const t = getTheme(dark);
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
+  const restauranteId = restauranteActual?.id ? String(restauranteActual.id) : null;
 
   const [platos, setPlatos] = useState<PlatoRentabilidad[]>([]);
   const [ventas, setVentas] = useState<VentaPlato[]>([]);
@@ -145,7 +145,7 @@ export default function RentabilidadPage() {
   const [categoriaFiltro, setCategoriaFiltro] = useState("todas");
   const [estadoFiltro, setEstadoFiltro] = useState("todos");
 
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
 
@@ -187,11 +187,12 @@ export default function RentabilidadPage() {
     setPlatos((platosRes.data as PlatoRentabilidad[]) ?? []);
     setVentas((ventasRes.data as VentaPlato[]) ?? []);
     setLoading(false);
-  };
+  }, [loadingRestaurante, restauranteId]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [restauranteId, loadingRestaurante]);
+    const timer = window.setTimeout(() => void cargarDatos(), 0);
+    return () => window.clearTimeout(timer);
+  }, [cargarDatos]);
 
   const platosPreparados = useMemo(() => {
     return platos.map((p) => {

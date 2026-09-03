@@ -34,6 +34,7 @@ const WRITE_LABELS = [
   "nuevo plato",
   "nuevo ingrediente",
   "confirmar reserva",
+  "conseguida",
   "cancelar reserva",
   "enviar mensaje",
   "activar",

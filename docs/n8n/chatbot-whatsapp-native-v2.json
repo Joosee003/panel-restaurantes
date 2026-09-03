@@ -1,0 +1,117 @@
+{
+  "name": "Chatbot WhatsApp · Motor nativo v2 · BORRADOR",
+  "nodes": [
+    {
+      "parameters": {
+        "workflowInputs": {
+          "values": [
+            { "name": "restaurantId" },
+            { "name": "messageId" },
+            { "name": "from" },
+            { "name": "name" },
+            { "name": "text" },
+            { "name": "mode" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [-560, 0],
+      "id": "a32dd1d3-8d2c-48d0-bbf9-2d117f6f4a7f",
+      "name": "Entrada desde router"
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $json || {};\nconst required = ['restaurantId', 'messageId', 'from', 'text'];\nconst missing = required.filter((key) => !String(input[key] ?? '').trim());\nif (missing.length) {\n  throw new Error(`CHATBOT_INPUT_MISSING:${missing.join(',')}`);\n}\nconst phone = String(input.from).replace(/[^0-9]/g, '');\nif (phone.length < 7 || phone.length > 15) {\n  throw new Error('CHATBOT_PHONE_INVALID');\n}\nreturn [{\n  json: {\n    restaurantId: String(input.restaurantId).trim(),\n    messageId: String(input.messageId).trim().slice(0, 190),\n    from: phone,\n    name: String(input.name ?? '').trim().slice(0, 120),\n    text: String(input.text).trim().slice(0, 2000),\n    mode: input.mode === 'test' || input.mode === 'pilot' ? input.mode : 'live'\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-320, 0],
+      "id": "6d247fd7-5f83-4f56-a772-44d2ace21cd2",
+      "name": "Validar y limitar entrada"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://panel.gastrohelp.es/api/chatbot/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json }}",
+        "options": {
+          "timeout": 15000,
+          "response": {
+            "response": {
+              "fullResponse": true,
+              "neverError": true,
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-80, 0],
+      "id": "64d3faf7-f3de-4f2d-ae58-2f65481aa6e4",
+      "name": "Consultar motor GastroHelp"
+    },
+    {
+      "parameters": {
+        "jsCode": "const envelope = $json || {};\nconst statusCode = Number(envelope.statusCode ?? 200);\nconst body = envelope.body && typeof envelope.body === 'object' ? envelope.body : envelope;\nif (body?.duplicate === true || body?.suppressDelivery === true) {\n  return [{ json: { route: 'ignore', reason: body.duplicate ? 'duplicate' : 'suppressed', backend: body } }];\n}\nif (statusCode === 409 && body?.error === 'CHATBOT_BUSY') {\n  return [{ json: { route: 'retry', retryAfterMs: Number(body.retryAfterMs || 1500), backend: body } }];\n}\nif (statusCode < 200 || statusCode >= 300 || body?.ok !== true) {\n  return [{ json: { route: 'error', statusCode, error: String(body?.error || 'CHATBOT_BACKEND_FAILED') } }];\n}\nif (body.handoff === true) {\n  return [{ json: { route: 'handoff', reply: String(body.reply || ''), action: body.action || null } }];\n}\nreturn [{ json: { route: 'reply', reply: String(body.reply || ''), action: body.action || null } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [160, 0],
+      "id": "72c9752d-d5b7-4e95-9cd3-3f09368c1a93",
+      "name": "Clasificar resultado"
+    }
+  ],
+  "connections": {
+    "Entrada desde router": {
+      "main": [
+        [
+          {
+            "node": "Validar y limitar entrada",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar y limitar entrada": {
+      "main": [
+        [
+          {
+            "node": "Consultar motor GastroHelp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Consultar motor GastroHelp": {
+      "main": [
+        [
+          {
+            "node": "Clasificar resultado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "active": false,
+  "versionId": "4b35eff3-5af2-4c18-8684-1d092339a90d",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "tags": []
+}

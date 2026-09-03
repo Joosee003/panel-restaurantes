@@ -29,6 +29,8 @@ export type PublicRestaurant = {
   seoTitle: string;
   seoDescription: string;
   customDomain: string;
+  legalBasePath?: string;
+  publicUrlOverride?: string;
   legal: {
     owner: string;
     taxId: string;
@@ -40,6 +42,7 @@ export type PublicRestaurant = {
     updatedAt: string;
   };
   menu: {
+    enabled: boolean;
     publicPath: string;
     sections: Array<{
       title: string;
@@ -172,6 +175,7 @@ const pilotFallback: PublicRestaurant = {
     updatedAt: "",
   },
   menu: {
+    enabled: true,
     publicPath: "",
     sections: [],
   },
@@ -216,6 +220,7 @@ export function isPlatformDomain(value: string) {
 }
 
 export function publicRestaurantUrl(restaurant: PublicRestaurant) {
+  if (restaurant.publicUrlOverride) return restaurant.publicUrlOverride;
   if (restaurant.customDomain) return `https://${restaurant.customDomain}`;
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || "https://panel.gastrohelp.es").replace(/\/$/, "");
   return `${siteUrl}/restaurante/${restaurant.slug}`;
@@ -254,53 +259,74 @@ export async function getPublicRestaurant(
 
     if (bookingError) throw bookingError;
 
-    const { data: digitalMenu, error: menuError } = await supabase
-      .from("cartas_digitales")
-      .select("id,public_token")
+    const { data: modules, error: modulesError } = await supabase
+      .from("restaurante_modulos")
+      .select("menu_digital")
       .eq("restaurante_id", web.restaurante_id)
-      .eq("estado", "activa")
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle<{ id: string; public_token: string }>();
+      .maybeSingle<{ menu_digital: boolean | null }>();
 
-    if (menuError) throw menuError;
+    if (modulesError) {
+      console.error("No se ha podido comprobar el módulo Carta QR", modulesError);
+    }
 
+    const menuEnabled = modules?.menu_digital === true;
+    let digitalMenu: { id: string; public_token: string } | null = null;
     let menuSections: PublicRestaurant["menu"]["sections"] = [];
-    if (digitalMenu) {
-      const [{ data: categories, error: categoriesError }, { data: products, error: productsError }] =
-        await Promise.all([
-          supabase
-            .from("carta_categorias")
-            .select("id,nombre,orden")
-            .eq("carta_id", digitalMenu.id)
-            .eq("activa", true)
-            .order("orden", { ascending: true }),
-          supabase
-            .from("carta_productos")
-            .select("categoria_id,nombre,descripcion,precio,imagen_url,recomendado,orden")
-            .eq("carta_id", digitalMenu.id)
-            .eq("activo", true)
-            .order("orden", { ascending: true }),
-        ]);
+    if (menuEnabled) {
+      try {
+        const { data, error: menuError } = await supabase
+          .from("cartas_digitales")
+          .select("id,public_token")
+          .eq("restaurante_id", web.restaurante_id)
+          .in("estado", ["activa", "publicada"])
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle<{ id: string; public_token: string }>();
 
-      if (categoriesError) throw categoriesError;
-      if (productsError) throw productsError;
+        if (menuError) throw menuError;
+        digitalMenu = data;
 
-      const typedProducts = (products || []) as MenuProductRow[];
-      menuSections = ((categories || []) as MenuCategoryRow[])
-        .map((category) => ({
-          title: category.nombre,
-          items: typedProducts
-            .filter((product) => product.categoria_id === category.id)
-            .map((product) => ({
-              name: product.nombre,
-              description: product.descripcion || "",
-              price: product.precio == null ? null : Number(product.precio),
-              imageUrl: product.imagen_url || "",
-              recommended: product.recomendado === true,
-            })),
-        }))
-        .filter((section) => section.items.length > 0);
+        if (digitalMenu) {
+          const [
+            { data: categories, error: categoriesError },
+            { data: products, error: productsError },
+          ] = await Promise.all([
+            supabase
+              .from("carta_categorias")
+              .select("id,nombre,orden")
+              .eq("carta_id", digitalMenu.id)
+              .eq("activa", true)
+              .order("orden", { ascending: true }),
+            supabase
+              .from("carta_productos")
+              .select("categoria_id,nombre,descripcion,precio,imagen_url,recomendado,orden")
+              .eq("carta_id", digitalMenu.id)
+              .eq("activo", true)
+              .order("orden", { ascending: true }),
+          ]);
+
+          if (categoriesError) throw categoriesError;
+          if (productsError) throw productsError;
+
+          const typedProducts = (products || []) as MenuProductRow[];
+          menuSections = ((categories || []) as MenuCategoryRow[])
+            .map((category) => ({
+              title: category.nombre,
+              items: typedProducts
+                .filter((product) => product.categoria_id === category.id)
+                .map((product) => ({
+                  name: product.nombre,
+                  description: product.descripcion || "",
+                  price: product.precio == null ? null : Number(product.precio),
+                  imageUrl: product.imagen_url || "",
+                  recommended: product.recomendado === true,
+                })),
+            }))
+            .filter((section) => section.items.length > 0);
+        }
+      } catch (error) {
+        console.error("No se ha podido cargar la Carta QR pública", error);
+      }
     }
 
     return {
@@ -341,8 +367,9 @@ export async function getPublicRestaurant(
         updatedAt: web.legal_actualizado_en || "",
       },
       menu: {
+        enabled: menuEnabled,
         publicPath:
-          digitalMenu && web.slug !== pilotFallback.slug
+          menuEnabled && digitalMenu && web.slug !== pilotFallback.slug
             ? `/carta/${digitalMenu.public_token}`
             : "",
         sections: web.slug === pilotFallback.slug ? [] : menuSections,

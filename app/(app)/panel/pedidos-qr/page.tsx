@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BellRing,
   ChefHat,
@@ -45,6 +45,16 @@ type PedidoQR = {
   created_at: string;
   updated_at?: string | null;
   items?: PedidoItem[];
+};
+
+type PedidoQRRow = Omit<PedidoQR, "estado" | "total" | "items"> & {
+  estado: string | null;
+  total: number | string | null;
+  pedido_qr_items?: PedidoItem[] | null;
+};
+
+type WindowWithWebkitAudio = Window & {
+  webkitAudioContext?: typeof AudioContext;
 };
 
 type TabVista = "cocina" | "mesas" | "historial";
@@ -129,6 +139,10 @@ function minutosDesde(fecha: string | null | undefined, ahora: number) {
   const inicio = new Date(fecha).getTime();
   if (!Number.isFinite(inicio)) return 0;
   return Math.max(0, Math.floor((ahora - inicio) / 60000));
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function escaparHtml(valor: string | null | undefined) {
@@ -288,18 +302,20 @@ export default function PedidosQRPage() {
     ? "rounded-[2rem] border border-white/10 bg-white/[0.03] p-4 shadow-sm"
     : "rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm";
 
-  function getAudioContext() {
+  const getAudioContext = useCallback(() => {
     if (typeof window === "undefined") return null;
 
     if (!audioContextRef.current) {
-      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioContextClass =
+        window.AudioContext || (window as WindowWithWebkitAudio).webkitAudioContext;
+      if (!AudioContextClass) return null;
       audioContextRef.current = new AudioContextClass();
     }
 
     return audioContextRef.current;
-  }
+  }, []);
 
-  function reproducirSonidoNuevoPedido(forzar = false) {
+  const reproducirSonidoNuevoPedido = useCallback((forzar = false) => {
     if (!sonidoActivo && !forzar) return;
 
     try {
@@ -329,7 +345,7 @@ export default function PedidosQRPage() {
     } catch (error) {
       console.log("No se pudo reproducir sonido", error);
     }
-  }
+  }, [getAudioContext, sonidoActivo]);
 
   function activarSonido() {
     const nuevoValor = !sonidoActivo;
@@ -379,7 +395,7 @@ export default function PedidosQRPage() {
     return { descuento, propina, metodoPago, totalFinal };
   }
 
-  async function cargarPedidos(silencioso = false) {
+  const cargarPedidos = useCallback(async (silencioso = false) => {
     if (!silencioso) setCargando(true);
     setError(null);
 
@@ -404,7 +420,7 @@ export default function PedidosQRPage() {
 
       if (error) throw error;
 
-      const pedidosFormateados = (data || []).map((pedido: any) => ({
+      const pedidosFormateados = ((data || []) as PedidoQRRow[]).map((pedido) => ({
         ...pedido,
         estado: normalizarEstado(pedido.estado),
         total: Number(pedido.total || 0),
@@ -427,13 +443,13 @@ export default function PedidosQRPage() {
       pedidosIdsRef.current = idsActuales;
       primeraCargaRef.current = false;
       setPedidos(pedidosFormateados);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "No se pudieron cargar los pedidos");
+      setError(errorMessage(err, "No se pudieron cargar los pedidos"));
     } finally {
       if (!silencioso) setCargando(false);
     }
-  }
+  }, [reproducirSonidoNuevoPedido]);
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: string) {
     setActualizandoId(pedidoId);
@@ -456,9 +472,9 @@ export default function PedidosQRPage() {
       );
 
       setTimeout(() => cargarPedidos(true), 250);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "No se pudo cambiar el estado del pedido");
+      setError(errorMessage(err, "No se pudo cambiar el estado del pedido"));
     } finally {
       setActualizandoId(null);
     }
@@ -525,19 +541,25 @@ export default function PedidosQRPage() {
 
       setVista("historial");
       setTimeout(() => cargarPedidos(true), 250);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "No se pudo cerrar la mesa");
+      setError(errorMessage(err, "No se pudo cerrar la mesa"));
     } finally {
       setActualizandoId(null);
     }
   }
 
   useEffect(() => {
-    cargarPedidos();
-    const interval = setInterval(() => cargarPedidos(true), 3000);
-    return () => clearInterval(interval);
-  }, [sonidoActivo]);
+    let activo = true;
+    queueMicrotask(() => {
+      if (activo) void cargarPedidos();
+    });
+    const interval = setInterval(() => void cargarPedidos(true), 3000);
+    return () => {
+      activo = false;
+      clearInterval(interval);
+    };
+  }, [cargarPedidos]);
 
   function getEstadoClass(estado: string) {
     const normalizado = normalizarEstado(estado);

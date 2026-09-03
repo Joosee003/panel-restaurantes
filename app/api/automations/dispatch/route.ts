@@ -65,27 +65,24 @@ function deliveryErrorMessage(error: unknown) {
 }
 
 async function webhookFor(eventType: string) {
+  const endpointKey =
+    eventType === "visit.review_request"
+      ? "review_webhook"
+      : "native_booking_webhook";
   const envUrl =
     eventType === "visit.review_request"
       ? process.env.N8N_REVIEW_WEBHOOK_URL
       : process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL;
 
-  let configuredUrl = envUrl?.trim() || "";
-  if (!configuredUrl) {
-    const endpointKey =
-      eventType === "visit.review_request"
-        ? "review_webhook"
-        : "native_booking_webhook";
-    const { data, error } = await getSupabaseAdmin()
-      .from("private_integration_endpoints")
-      .select("url")
-      .eq("key", endpointKey)
-      .eq("active", true)
-      .maybeSingle<{ url: string }>();
+  const { data, error } = await getSupabaseAdmin()
+    .from("private_integration_endpoints")
+    .select("url")
+    .eq("key", endpointKey)
+    .eq("active", true)
+    .maybeSingle<{ url: string }>();
 
-    if (error) throw error;
-    configuredUrl = data?.url?.trim() || "";
-  }
+  if (error) throw error;
+  const configuredUrl = data?.url?.trim() || envUrl?.trim() || "";
 
   if (!configuredUrl) throw new Error("AUTOMATION_WEBHOOK_NOT_CONFIGURED");
 

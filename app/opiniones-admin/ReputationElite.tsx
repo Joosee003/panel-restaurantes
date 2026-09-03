@@ -25,6 +25,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { useRouter } from "next/navigation";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 import AspectLabelsEditor from "./AspectLabelsEditor";
 import ReputationMaterials from "./ReputationMaterials";
@@ -37,7 +38,6 @@ import {
   statusLabels,
   type FollowUpStatus,
   type Opinion,
-  type OpinionAlert,
   type OpinionConfig,
   type OpinionEvent,
   type OpinionStatus,
@@ -61,6 +61,7 @@ const tabs: Array<{ id: Tab; label: string; icon: ReactNode }> = [
 ];
 
 export default function ReputationElite() {
+  const router = useRouter();
   const supabase = useMemo(() => getOpinionesBrowserClient(), []);
   const [ready, setReady] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -69,7 +70,6 @@ export default function ReputationElite() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [opinions, setOpinions] = useState<Opinion[]>([]);
   const [events, setEvents] = useState<OpinionEvent[]>([]);
-  const [alerts, setAlerts] = useState<OpinionAlert[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Opinion | null>(null);
@@ -78,10 +78,10 @@ export default function ReputationElite() {
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) window.location.href = "/reputacion/acceso";
+      if (!data.session) router.replace("/reputacion/acceso");
       else setReady(true);
     });
-  }, [supabase]);
+  }, [router, supabase]);
 
   const load = useCallback(async () => {
     if (!ready) return;
@@ -109,7 +109,7 @@ export default function ReputationElite() {
 
     const restaurantId = selectedConfig.restaurante_id as string;
     window.localStorage.setItem(REPUTATION_RESTAURANT_KEY, restaurantId);
-    const [restaurantResult, opinionsResult, eventsResult, alertsResult] = await Promise.all([
+    const [restaurantResult, opinionsResult, eventsResult] = await Promise.all([
       supabase.from("restaurantes").select("id,nombre").eq("id", restaurantId).single(),
       supabase
         .from("opiniones_qr")
@@ -117,21 +117,22 @@ export default function ReputationElite() {
         .eq("restaurante_id", restaurantId)
         .order("created_at", { ascending: false }),
       supabase.from("opinion_eventos").select("id,restaurante_id,submission_token,event_type,origen,rating,created_at").eq("restaurante_id", restaurantId).order("created_at", { ascending: false }),
-      supabase.from("opinion_alertas").select("id,restaurante_id,opinion_id,tipo,estado,destino_email,destino_whatsapp,payload,created_at,sent_at,dismissed_at").eq("restaurante_id", restaurantId).order("created_at", { ascending: false }),
     ]);
-    const firstError = restaurantResult.error || opinionsResult.error || eventsResult.error || alertsResult.error;
+    const firstError = restaurantResult.error || opinionsResult.error || eventsResult.error;
     if (firstError) setError(firstError.message);
     else {
       setConfig(selectedConfig as OpinionConfig);
       setRestaurant(restaurantResult.data as Restaurant);
       setOpinions((opinionsResult.data ?? []) as Opinion[]);
       setEvents((eventsResult.data ?? []) as OpinionEvent[]);
-      setAlerts((alertsResult.data ?? []) as OpinionAlert[]);
     }
     setLoading(false);
   }, [ready, supabase]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => void load(), 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const metrics = useMemo(
     () => calculateEliteMetrics(opinions, events, config?.low_rating_threshold ?? 3),
@@ -273,20 +274,27 @@ function OpinionsList({ opinions, query, setQuery, openOpinion, exportCsv }: { o
 
 function GoogleReviewBoard({ opinions, googleUrl, openOpinion, move }: { opinions: Opinion[]; googleUrl: string; openOpinion: (opinion: Opinion) => void; move: (opinion: Opinion, status: FollowUpStatus) => void; }) {
   const [recentlyAnswered, setRecentlyAnswered] = useState<Record<string, number>>({});
+  const [nowMs, setNowMs] = useState(0);
   const googleOpinions = opinions.filter((item) => item.google_abierto);
   useEffect(() => {
-    const interval = window.setInterval(() => {
+    const tick = () => {
       const now = Date.now();
+      setNowMs(now);
       setRecentlyAnswered((current) => {
         const active = Object.fromEntries(Object.entries(current).filter(([, expiresAt]) => expiresAt > now));
         return Object.keys(active).length === Object.keys(current).length ? current : active;
       });
-    }, 1000);
-    return () => window.clearInterval(interval);
+    };
+    const initialTimer = window.setTimeout(tick, 0);
+    const interval = window.setInterval(tick, 1000);
+    return () => {
+      window.clearTimeout(initialTimer);
+      window.clearInterval(interval);
+    };
   }, []);
   const pendingCheck = googleOpinions.filter((item) => item.seguimiento === "pendiente");
   const pendingReply = googleOpinions.filter((item) => item.seguimiento === "en_revision" || Boolean(recentlyAnswered[item.id]));
-  const answeredCutoff = Date.now() - 15 * 24 * 60 * 60 * 1000;
+  const answeredCutoff = nowMs - 15 * 24 * 60 * 60 * 1000;
   const answered = googleOpinions.filter((item) => {
     if (item.seguimiento !== "resuelto" || recentlyAnswered[item.id] || !item.resuelto_at) return false;
     const resolvedAt = new Date(item.resuelto_at).getTime();
@@ -303,7 +311,7 @@ function GoogleReviewBoard({ opinions, googleUrl, openOpinion, move }: { opinion
         {!pendingCheck.length && <Empty text="Nada pendiente" />}
       </ReviewColumn>
       <ReviewColumn title="Publicadas · por responder" subtitle="Requieren una respuesta" count={pendingReply.length}>
-        {pendingReply.map((opinion) => { const active = Boolean(recentlyAnswered[opinion.id]); const seconds = active ? Math.max(1, Math.ceil((recentlyAnswered[opinion.id] - Date.now()) / 1000)) : 0; return <ReviewCard key={opinion.id} opinion={opinion} openOpinion={openOpinion}>{active ? <div className="w-full rounded-xl bg-emerald-50 p-3"><p className="flex items-center gap-2 text-xs font-black text-emerald-800"><CheckCircle2 className="h-4 w-4" /> Marcada como respondida</p><div className="mt-2 flex justify-between"><span className="text-[10px] font-bold text-emerald-700">Se archivará en {seconds}s</span><button onClick={() => undo(opinion)} className="rounded-lg bg-white px-3 py-1 text-[10px] font-black">Deshacer</button></div></div> : <><a href={googleUrl} target="_blank" rel="noreferrer" className="flex flex-1 items-center justify-center gap-2 rounded-xl border p-2 text-[10px] font-black">Ver en Maps <ExternalLink className="h-3 w-3" /></a><button onClick={() => markAnswered(opinion)} className="flex-1 rounded-xl bg-emerald-600 p-2 text-[10px] font-black text-white">Marcar respondida</button></>}</ReviewCard>; })}
+        {pendingReply.map((opinion) => { const active = Boolean(recentlyAnswered[opinion.id]); const seconds = active ? Math.max(1, Math.ceil((recentlyAnswered[opinion.id] - nowMs) / 1000)) : 0; return <ReviewCard key={opinion.id} opinion={opinion} openOpinion={openOpinion}>{active ? <div className="w-full rounded-xl bg-emerald-50 p-3"><p className="flex items-center gap-2 text-xs font-black text-emerald-800"><CheckCircle2 className="h-4 w-4" /> Marcada como respondida</p><div className="mt-2 flex justify-between"><span className="text-[10px] font-bold text-emerald-700">Se archivará en {seconds}s</span><button onClick={() => undo(opinion)} className="rounded-lg bg-white px-3 py-1 text-[10px] font-black">Deshacer</button></div></div> : <><a href={googleUrl} target="_blank" rel="noreferrer" className="flex flex-1 items-center justify-center gap-2 rounded-xl border p-2 text-[10px] font-black">Ver en Maps <ExternalLink className="h-3 w-3" /></a><button onClick={() => markAnswered(opinion)} className="flex-1 rounded-xl bg-emerald-600 p-2 text-[10px] font-black text-white">Marcar respondida</button></>}</ReviewCard>; })}
         {!pendingReply.length && <Empty text="No hay reseñas esperando respuesta" />}
       </ReviewColumn>
       <ReviewColumn title="Respondidas" subtitle="Visibles durante 15 días" count={answered.length}>
@@ -319,7 +327,7 @@ function ReviewCard({ opinion, openOpinion, children }: { opinion: Opinion; open
 
 function InsightsPanel({ insights, metrics }: { insights: ReturnType<typeof buildEliteInsights>; metrics: ReturnType<typeof calculateEliteMetrics>; }) { return <div className="space-y-5"><section className="rounded-[2rem] bg-slate-950 p-7 text-white"><p className="text-xs font-black uppercase text-blue-300">Motor de insights automático</p><h2 className="mt-4 text-3xl font-black">{insights.headline}</h2><p className="mt-4 text-sm text-slate-300">{insights.summary}</p></section><div className="grid gap-5 xl:grid-cols-3"><Insight title="Qué está funcionando" text={insights.strength} /><Insight title="Qué necesita atención" text={insights.opportunity} /><Insight title="Próxima acción" text={insights.nextAction} /></div><Card title="Lectura ejecutiva" eyebrow="Resumen"><div className="grid grid-cols-2 gap-3"><Mini title="Satisfacción" value={`${metrics.averageRating.toFixed(1)}/5`} /><Mini title="Google" value={`${metrics.googleRate}%`} /></div></Card></div>; }
 
-function SettingsPanel({ config, saving, save }: { config: OpinionConfig; saving: boolean; save: (config: OpinionConfig) => void; }) { const [draft, setDraft] = useState(config); return <div className="space-y-5"><div className="grid gap-5 xl:grid-cols-2"><Card title="Experiencia del cliente" eyebrow="Personalización"><Field label="Titular"><input className={inputClass} value={draft.headline} onChange={(e) => setDraft({ ...draft, headline: e.target.value })} /></Field><Field label="Texto de apoyo"><textarea className={`${inputClass} min-h-24`} value={draft.subheadline} onChange={(e) => setDraft({ ...draft, subheadline: e.target.value })} /></Field><Field label="Umbral de alerta"><select className={inputClass} value={draft.low_rating_threshold} onChange={(e) => setDraft({ ...draft, low_rating_threshold: Number(e.target.value) })}><option value={1}>1 estrella</option><option value={2}>2 estrellas o menos</option><option value={3}>3 estrellas o menos</option></select></Field><Toggle checked={draft.auto_open_google} change={(value) => setDraft({ ...draft, auto_open_google: value })} title="Abrir Google automáticamente" /></Card><div><Card title="Notificaciones" eyebrow="Canales de aviso"><Field label="Email de alertas"><input className={inputClass} value={draft.feedback_email ?? ""} onChange={(e) => setDraft({ ...draft, feedback_email: e.target.value })} /></Field><Field label="WhatsApp de alertas"><input className={inputClass} value={draft.feedback_whatsapp ?? ""} onChange={(e) => setDraft({ ...draft, feedback_whatsapp: e.target.value })} /></Field></Card><button disabled={saving} onClick={() => save(draft)} className="mt-5 w-full rounded-2xl bg-blue-700 p-4 text-sm font-black text-white">{saving ? "Guardando…" : "Guardar todos los cambios"}</button></div></div><AspectLabelsEditor configId={config.id} initialLabels={config.aspect_labels} /></div>; }
+function SettingsPanel({ config, saving, save }: { config: OpinionConfig; saving: boolean; save: (config: OpinionConfig) => void; }) { const [draft, setDraft] = useState(config); return <div className="space-y-5"><div className="grid gap-5 xl:grid-cols-2"><Card title="Experiencia del cliente" eyebrow="Personalización"><Field label="Titular"><input className={inputClass} value={draft.headline} onChange={(e) => setDraft({ ...draft, headline: e.target.value })} /></Field><Field label="Texto de apoyo"><textarea className={`${inputClass} min-h-24`} value={draft.subheadline} onChange={(e) => setDraft({ ...draft, subheadline: e.target.value })} /></Field><Field label="Umbral de alerta"><select className={inputClass} value={draft.low_rating_threshold} onChange={(e) => setDraft({ ...draft, low_rating_threshold: Number(e.target.value) })}><option value={1}>1 estrella</option><option value={2}>2 estrellas o menos</option><option value={3}>3 estrellas o menos</option></select></Field><Toggle checked={draft.auto_open_google} change={(value) => setDraft({ ...draft, auto_open_google: value })} title="Abrir Google automáticamente" /></Card><div><Card title="Notificaciones" eyebrow="Canales de aviso"><Field label="Email de alertas"><input className={inputClass} value={draft.feedback_email ?? ""} onChange={(e) => setDraft({ ...draft, feedback_email: e.target.value })} /></Field><Field label="WhatsApp de alertas"><input className={inputClass} value={draft.feedback_whatsapp ?? ""} onChange={(e) => setDraft({ ...draft, feedback_whatsapp: e.target.value })} /></Field></Card><button disabled={saving} onClick={() => save(draft)} className="mt-5 w-full rounded-2xl bg-blue-700 p-4 text-sm font-black text-white">{saving ? "Guardando…" : "Guardar todos los cambios"}</button></div></div><AspectLabelsEditor key={config.id} configId={config.id} initialLabels={config.aspect_labels} /></div>; }
 
 function OpinionDrawer({ opinion, note, setNote, saving, close, patch }: { opinion: Opinion; note: string; setNote: (value: string) => void; saving: boolean; close: () => void; patch: (patch: Partial<Opinion>) => void; }) { return <div className="fixed inset-0 z-50 bg-slate-950/40 backdrop-blur-sm"><aside className="ml-auto h-full w-full max-w-xl overflow-y-auto bg-white shadow-2xl"><div className="sticky top-0 flex justify-between border-b bg-white p-5"><div><p className="text-xs font-black uppercase text-blue-700">Ficha de opinión</p><h2 className="text-xl font-black">{opinion.nombre_cliente || "Cliente anónimo"}</h2></div><button onClick={close}><X /></button></div><div className="space-y-4 p-6"><div className="flex justify-between rounded-2xl bg-slate-950 p-4 text-white"><b className="text-3xl">{opinion.rating}/5</b><Rating rating={opinion.rating} /></div><Block title="Comentario" text={opinion.comentario || "Sin comentario"} /><div className="grid grid-cols-2 gap-3"><Block title="Origen" text={originLabels[opinion.origen]} /><Block title="Fecha" text={formatDateTime(opinion.created_at)} /></div><Field label="Estado"><select className={inputClass} value={opinion.estado} onChange={(e) => patch({ estado: e.target.value as OpinionStatus })}>{Object.entries(statusLabels).map(([key, value]) => <option key={key} value={key}>{value}</option>)}</select></Field><Field label="Nota interna"><textarea className={`${inputClass} min-h-32`} value={note} onChange={(e) => setNote(e.target.value)} /></Field><button disabled={saving} onClick={() => patch({ nota_interna: note.trim() || null })} className="w-full rounded-2xl bg-blue-700 p-4 text-sm font-black text-white">{saving ? "Guardando…" : "Guardar nota"}</button></div></aside></div>; }
 

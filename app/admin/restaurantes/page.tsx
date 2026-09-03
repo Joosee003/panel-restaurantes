@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -53,6 +53,7 @@ type RestauranteModulo = {
   resenas: boolean | null;
   fidelizacion: boolean | null;
   metricas: boolean | null;
+  rentabilidad: boolean | null;
   chatbot: boolean | null;
   camarero_digital: boolean | null;
   menu_digital: boolean | null;
@@ -198,6 +199,7 @@ const modulos = [
   { key: "resenas", label: "Reseñas", icon: BadgeCheck },
   { key: "fidelizacion", label: "Fidelización", icon: Gift },
   { key: "metricas", label: "Métricas", icon: BarChart3 },
+  { key: "rentabilidad", label: "Rentabilidad", icon: BarChart3 },
   { key: "chatbot", label: "Chatbot", icon: Sparkles },
   { key: "camarero_digital", label: "Camarero", icon: ChefHat },
   { key: "menu_digital", label: "Carta QR", icon: QrCode },
@@ -664,6 +666,7 @@ export default function AdminRestaurantesPage() {
           resenas,
           fidelizacion,
           metricas,
+          rentabilidad,
           chatbot,
           camarero_digital,
           menu_digital,
@@ -756,7 +759,7 @@ export default function AdminRestaurantesPage() {
   );
   const origin = getOrigin();
 
-  function statsRestaurante(restauranteId: string): RestauranteStats {
+  const statsRestaurante = useCallback((restauranteId: string): RestauranteStats => {
     const cartasR = cartas.filter(
       (c) =>
         c.restaurante_id === restauranteId &&
@@ -789,9 +792,6 @@ export default function AdminRestaurantesPage() {
     const ventasMes = cierresR
       .filter((c) => monthKey(c.creado_en) === mesActual)
       .reduce((acc, c) => acc + Number(c.total_cobrado || 0), 0);
-
-    const moduloRestaurante =
-      restaurantes.find((r) => r.restaurante_id === restauranteId) || null;
 
     const lastActivity = [
       ...reservasR.map((r) => r.fecha_hora_reserva || r.created_at),
@@ -924,7 +924,7 @@ export default function AdminRestaurantesPage() {
       porcentaje,
       problemas,
     };
-  }
+  }, [cartas, cierres, clientes, cupones, hoy, mesActual, mesas, pedidos, pedidosCerrados, premios, productos, resenas, reservas, restaurantes]);
 
   const restaurantesFiltrados = useMemo(() => {
     const q = busqueda.toLowerCase().trim();
@@ -983,7 +983,7 @@ export default function AdminRestaurantesPage() {
         0,
       ),
     };
-  }, [restaurantes, reservas, pedidos, cierres, hoy, mesActual]);
+  }, [restaurantes, reservas, pedidos, cierres, hoy, mesActual, statsRestaurante]);
 
   async function cambiarModulo(restaurante: RestauranteModulo, key: ModuloKey) {
     const current = Boolean(restaurante[key]);
@@ -1168,8 +1168,8 @@ export default function AdminRestaurantesPage() {
           visitas_totales: 3,
           origen_principal: "demo",
           canal_contacto: "app_cliente",
-          permite_whatsapp: true,
-          permite_email: true,
+          permite_whatsapp: false,
+          permite_email: false,
           etiquetas: ["demo", "app-cliente"],
           created_at: now,
           updated_at: now,

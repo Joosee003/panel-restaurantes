@@ -4,9 +4,15 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import type { EventInput } from "@fullcalendar/core";
+
+type ReservaEventProps = {
+  estado?: "confirmada" | "pendiente" | "cancelada";
+  atendida?: boolean | null;
+};
 
 type Props = {
-  events: any[];
+  events: EventInput[];
   onEventClick: (id: string) => void;
 };
 
@@ -36,16 +42,7 @@ export default function ReservasCalendar({ events, onEventClick }: Props) {
       allDaySlot={false}
       eventClick={(info) => onEventClick(info.event.id)}
       eventClassNames={(arg) => {
-        const estado = (arg.event.extendedProps as any)?.estado as
-          | "confirmada"
-          | "pendiente"
-          | "cancelada"
-          | undefined;
-
-        const atendida = (arg.event.extendedProps as any)?.atendida as
-          | boolean
-          | null
-          | undefined;
+        const { estado, atendida } = arg.event.extendedProps as ReservaEventProps;
 
         const classes = ["rounded-md", "border", "text-xs", "px-1", "py-0.5"];
 

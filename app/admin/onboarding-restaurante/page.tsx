@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
@@ -47,6 +48,7 @@ type Modulos = {
   resenas: boolean | null;
   fidelizacion: boolean | null;
   metricas: boolean | null;
+  rentabilidad: boolean | null;
   chatbot: boolean | null;
   camarero_digital: boolean | null;
   menu_digital: boolean | null;
@@ -207,6 +209,7 @@ function PasoCard({ paso }: { paso: Paso }) {
 }
 
 export default function OnboardingRestaurantePage() {
+  const router = useRouter();
   const [restaurantes, setRestaurantes] = useState<Restaurante[]>([]);
   const [restauranteId, setRestauranteId] = useState<string>("");
   const [restaurante, setRestaurante] = useState<Restaurante | null>(null);
@@ -231,35 +234,20 @@ export default function OnboardingRestaurantePage() {
     email: "",
     capacidad: "40",
     mesas: "8",
-    plan: "premium",
+    plan: "basico",
     cartaNombre: "Carta principal",
     activarReservas: true,
     activarClientes: true,
     activarResenas: true,
-    activarFidelizacion: true,
+    activarFidelizacion: false,
     activarMetricas: true,
-    activarCamarero: true,
-    activarMenuDigital: true,
+    activarCamarero: false,
+    activarMenuDigital: false,
     activarChatbot: false,
     activarAutomatizaciones: false,
   });
 
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setPublicOrigin(window.location.origin);
-    }, 0);
-    void cargarInicial();
-
-    return () => window.clearTimeout(timer);
-  }, []);
-
-  useEffect(() => {
-    if (restauranteId) {
-      cargarRestaurante(restauranteId);
-    }
-  }, [restauranteId]);
-
-  async function cargarInicial() {
+  const cargarInicial = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -308,9 +296,9 @@ export default function OnboardingRestaurantePage() {
     if (!inicial) {
       setLoading(false);
     }
-  }
+  }, []);
 
-  async function cargarRestaurante(id: string) {
+  const cargarRestaurante = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
 
@@ -339,7 +327,27 @@ export default function OnboardingRestaurantePage() {
     setMenus((menusRes.data || []) as MenuDia[]);
     setPedidos((pedidosRes.data || []) as Pedido[]);
     setLoading(false);
-  }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPublicOrigin(window.location.origin);
+      void cargarInicial();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [cargarInicial]);
+
+  useEffect(() => {
+    let activo = true;
+    queueMicrotask(() => {
+      if (activo && restauranteId) void cargarRestaurante(restauranteId);
+    });
+
+    return () => {
+      activo = false;
+    };
+  }, [cargarRestaurante, restauranteId]);
 
   function seleccionarRestaurante(id: string) {
     setRestauranteId(id);
@@ -360,7 +368,7 @@ export default function OnboardingRestaurantePage() {
 
     if (typeof window !== "undefined") {
       window.setTimeout(() => {
-        window.location.assign("/dashboard");
+        router.push("/dashboard");
       }, 80);
     }
   }
@@ -465,6 +473,7 @@ export default function OnboardingRestaurantePage() {
       resenas: true,
       fidelizacion: true,
       metricas: true,
+      rentabilidad: true,
       chatbot: true,
       camarero_digital: true,
       menu_digital: true,

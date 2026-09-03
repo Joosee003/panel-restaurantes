@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -188,7 +188,7 @@ export default function PlatoDetallePage() {
     if (okMessage) setOkMessage(null);
   };
 
-  const cargarDatos = async () => {
+  const cargarDatos = useCallback(async () => {
     if (!platoId) return;
 
     setLoading(true);
@@ -268,11 +268,12 @@ export default function PlatoDetallePage() {
     }
 
     setLoading(false);
-  };
+  }, [platoId]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [platoId]);
+    const timer = window.setTimeout(() => void cargarDatos(), 0);
+    return () => window.clearTimeout(timer);
+  }, [cargarDatos]);
 
   const relacionesConIngrediente = useMemo(() => {
     return relaciones.map((rel) => {

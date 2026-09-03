@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
+  CalendarDays,
   Clock3,
   Copy,
   Crown,
@@ -18,6 +19,7 @@ import {
   Star,
   Trophy,
   Users,
+  type LucideIcon,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
@@ -56,6 +58,8 @@ type ClienteResumen = {
   ya_dejo_resena?: boolean | null;
   permite_whatsapp?: boolean | null;
   permite_email?: boolean | null;
+  review_whatsapp?: boolean;
+  loyalty_whatsapp?: boolean;
   no_show_total?: number | null;
   cancelaciones_totales?: number | null;
   total_reservas: number | null;
@@ -92,6 +96,13 @@ function telefonoParaWhatsApp(telefono: string | null | undefined) {
   if (limpio.startsWith("34")) return limpio;
   if (limpio.length === 9) return `34${limpio}`;
   return limpio;
+}
+
+function puedeEnviarWhatsApp(cliente: ClienteResumen, tipo: TipoMensaje) {
+  if (cliente.permite_whatsapp !== true) return false;
+  return tipo === "resena"
+    ? cliente.review_whatsapp === true
+    : cliente.loyalty_whatsapp === true;
 }
 
 function visitasCliente(cliente: ClienteResumen) {
@@ -211,22 +222,30 @@ export default function ClientesPage() {
   const [modalRanking, setModalRanking] = useState(false);
   const [modalNiveles, setModalNiveles] = useState(false);
   const [guardandoNiveles, setGuardandoNiveles] = useState(false);
+  const [fidelizacionActiva, setFidelizacionActiva] = useState(false);
   const [nivelesConfig, setNivelesConfig] = useState<NivelesClienteConfig>(DEFAULT_NIVELES_CONFIG);
   const [nivelesForm, setNivelesForm] = useState<NivelesClienteConfig>(DEFAULT_NIVELES_CONFIG);
   const [nuevoCliente, setNuevoCliente] = useState({ nombre: "", telefono: "", email: "" });
 
   const nivelesActuales = useMemo(() => construirNiveles(nivelesConfig), [nivelesConfig]);
 
-  const filtrosActivos = useMemo<Array<{ key: Filtro; label: string; ayuda: string }>>(() => [
-    { key: "todos", label: "Todos", ayuda: "Base completa" },
-    { key: "nuevo", label: "Nuevos", ayuda: nivelesActuales.nuevo.range },
-    { key: "frecuente", label: "Frecuentes", ayuda: nivelesActuales.frecuente.range },
-    { key: "habitual", label: "Habituales", ayuda: nivelesActuales.habitual.range },
-    { key: "vip", label: "VIP", ayuda: nivelesActuales.vip.range },
-    { key: "maestro", label: "Maestros", ayuda: nivelesActuales.maestro.range },
-    { key: "recuperar", label: "Dormidos", ayuda: "+30 días" },
-    { key: "resena", label: "Sin reseña", ayuda: "Pedir valoración" },
-  ], [nivelesActuales]);
+  const filtrosActivos = useMemo<Array<{ key: Filtro; label: string; ayuda: string }>>(() => {
+    const basicos: Array<{ key: Filtro; label: string; ayuda: string }> = [
+      { key: "todos", label: "Todos", ayuda: "Base completa" },
+      { key: "recuperar", label: "Sin visita reciente", ayuda: "+30 días" },
+      { key: "resena", label: "Sin reseña", ayuda: "Pendientes" },
+    ];
+    if (!fidelizacionActiva) return basicos;
+    return [
+      basicos[0],
+      { key: "nuevo", label: "Nuevos", ayuda: nivelesActuales.nuevo.range },
+      { key: "frecuente", label: "Frecuentes", ayuda: nivelesActuales.frecuente.range },
+      { key: "habitual", label: "Habituales", ayuda: nivelesActuales.habitual.range },
+      { key: "vip", label: "VIP", ayuda: nivelesActuales.vip.range },
+      { key: "maestro", label: "Maestros", ayuda: nivelesActuales.maestro.range },
+      ...basicos.slice(1),
+    ];
+  }, [fidelizacionActiva, nivelesActuales]);
 
   useEffect(() => {
     const cargarRestaurante = async () => {
@@ -247,6 +266,8 @@ export default function ClientesPage() {
       .eq("restaurante_id", restauranteId)
       .order("ultima_visita", { ascending: false });
 
+    let clientesCargados: ClienteResumen[] = [];
+
     if (error) {
       const fallback = await supabase
         .from("clientes")
@@ -257,18 +278,65 @@ export default function ClientesPage() {
       if (fallback.error) {
         setError(fallback.error.message || error.message || "No se pudieron cargar los clientes");
         setClientes([]);
+        setCargando(false);
+        return;
       } else {
-        setClientes((fallback.data || []) as ClienteResumen[]);
+        clientesCargados = (fallback.data || []) as ClienteResumen[];
       }
     } else {
-      setClientes((data || []) as ClienteResumen[]);
+      clientesCargados = (data || []) as ClienteResumen[];
     }
+
+    const { data: consentimientos, error: consentimientosError } = await supabase
+      .from("cliente_comunicaciones_consentimiento")
+      .select("cliente_id,review_whatsapp,loyalty_whatsapp,revoked_at")
+      .eq("restaurante_id", restauranteId)
+      .is("revoked_at", null);
+
+    if (consentimientosError) {
+      setError("No se pudieron comprobar los permisos de contacto.");
+    }
+
+    const permisos = new Map(
+      (consentimientos || []).map((item) => [
+        String(item.cliente_id),
+        {
+          review_whatsapp: item.review_whatsapp === true,
+          loyalty_whatsapp: item.loyalty_whatsapp === true,
+        },
+      ]),
+    );
+
+    setClientes(
+      clientesCargados.map((cliente) => ({
+        ...cliente,
+        review_whatsapp: permisos.get(cliente.id)?.review_whatsapp ?? false,
+        loyalty_whatsapp: permisos.get(cliente.id)?.loyalty_whatsapp ?? false,
+      })),
+    );
 
     setCargando(false);
   }, [restauranteId]);
 
   const cargarConfigNiveles = useCallback(async () => {
     if (!restauranteId) return;
+
+    const { data: modulos } = await supabase
+      .from("restaurante_modulos")
+      .select("fidelizacion")
+      .eq("restaurante_id", restauranteId)
+      .maybeSingle();
+
+    const activa = modulos?.fidelizacion === true;
+    setFidelizacionActiva(activa);
+    if (!activa) {
+      setNivelesConfig(DEFAULT_NIVELES_CONFIG);
+      setNivelesForm(DEFAULT_NIVELES_CONFIG);
+      setFiltro((actual) =>
+        ["todos", "recuperar", "resena"].includes(actual) ? actual : "todos",
+      );
+      return;
+    }
 
     const { data } = await supabase
       .from("fidelizacion_config")
@@ -282,7 +350,7 @@ export default function ClientesPage() {
   }, [restauranteId]);
 
   async function guardarNiveles() {
-    if (!restauranteId) return;
+    if (!restauranteId || !fidelizacionActiva) return;
 
     const config = normalizarNivelesConfig(nivelesForm);
     if (
@@ -329,8 +397,16 @@ export default function ClientesPage() {
   }
 
   useEffect(() => {
-    cargarClientes();
-    cargarConfigNiveles();
+    let activo = true;
+    queueMicrotask(() => {
+      if (!activo) return;
+      void cargarClientes();
+      void cargarConfigNiveles();
+    });
+
+    return () => {
+      activo = false;
+    };
   }, [cargarClientes, cargarConfigNiveles]);
 
   useEffect(() => {
@@ -364,8 +440,9 @@ export default function ClientesPage() {
     const vip = clientes.filter((c) => nivelCliente(c, nivelesConfig) === "vip").length;
     const maestro = clientes.filter((c) => nivelCliente(c, nivelesConfig) === "maestro").length;
     const dormidos = clientes.filter((c) => estadosCliente(c).includes("Dormido")).length;
+    const sinResena = clientes.filter((c) => estadosCliente(c).includes("Sin reseña")).length;
 
-    return { total, nuevo, frecuente, habitual, vip, maestro, dormidos };
+    return { total, nuevo, frecuente, habitual, vip, maestro, dormidos, sinResena };
   }, [clientes, nivelesConfig]);
 
   const rankingClientes = useMemo(() => {
@@ -405,28 +482,34 @@ export default function ClientesPage() {
           String(cliente.nombre || "").toLowerCase().includes(term) ||
           String(cliente.telefono || "").toLowerCase().includes(term) ||
           String(cliente.email || "").toLowerCase().includes(term) ||
-          nivel.toLowerCase().includes(term) ||
+          (fidelizacionActiva && nivel.toLowerCase().includes(term)) ||
           estados.join(" ").toLowerCase().includes(term) ||
           telefono.includes(term.replace(/\D/g, ""));
 
         return matchFiltro && matchBusqueda;
       })
       .sort((a, b) => {
+        if (!fidelizacionActiva) return visitasCliente(b) - visitasCliente(a);
         const peso: Record<NivelCliente, number> = { maestro: 5, vip: 4, habitual: 3, frecuente: 2, nuevo: 1 };
         const porNivel = peso[nivelCliente(b, nivelesConfig)] - peso[nivelCliente(a, nivelesConfig)];
         if (porNivel !== 0) return porNivel;
         return visitasCliente(b) - visitasCliente(a);
       });
-  }, [clientes, filtro, busqueda, nivelesConfig]);
+  }, [clientes, filtro, busqueda, fidelizacionActiva, nivelesConfig]);
 
   const acciones = useMemo(() => {
+    if (!fidelizacionActiva) return [];
     return clientes
       .map((cliente) => ({ cliente, accion: accionPrioritaria(cliente, nivelesConfig), estados: estadosCliente(cliente), nivel: nivelCliente(cliente, nivelesConfig) }))
       .filter((item) => item.estados.includes("Dormido") || item.estados.includes("Sin reseña") || item.nivel === "habitual" || item.nivel === "vip" || item.nivel === "maestro")
       .slice(0, 4);
-  }, [clientes, nivelesConfig]);
+  }, [clientes, fidelizacionActiva, nivelesConfig]);
 
   async function copiarMensaje(cliente: ClienteResumen, tipo: TipoMensaje) {
+    if (!puedeEnviarWhatsApp(cliente, tipo)) {
+      alert("No consta permiso para enviar este tipo de mensaje por WhatsApp.");
+      return;
+    }
     const mensaje = mensajeCliente(cliente, tipo);
     try {
       await navigator.clipboard.writeText(mensaje);
@@ -438,6 +521,10 @@ export default function ClientesPage() {
   }
 
   function abrirWhatsApp(cliente: ClienteResumen, tipo: TipoMensaje) {
+    if (!puedeEnviarWhatsApp(cliente, tipo)) {
+      alert("No consta permiso para enviar este tipo de mensaje por WhatsApp.");
+      return;
+    }
     const telefono = telefonoParaWhatsApp(cliente.telefono);
     if (!telefono) {
       copiarMensaje(cliente, tipo);
@@ -458,8 +545,8 @@ export default function ClientesPage() {
       email: nuevoCliente.email.trim() || null,
       visitas_totales: 0,
       puntos_totales: 0,
-      permite_whatsapp: Boolean(nuevoCliente.telefono.trim()),
-      permite_email: Boolean(nuevoCliente.email.trim()),
+      permite_whatsapp: false,
+      permite_email: false,
     });
 
     if (error) {
@@ -479,11 +566,13 @@ export default function ClientesPage() {
           <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-blue-700 ring-1 ring-blue-100">
-                <Users className="h-4 w-4" /> Clientes y niveles
+                <Users className="h-4 w-4" /> {fidelizacionActiva ? "Clientes y niveles" : "Base de clientes"}
               </div>
               <h1 className="mt-4 text-3xl font-black tracking-tight !text-slate-950">Clientes</h1>
               <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
-                Una vista unificada de reservas, visitas, gasto y puntos. Del primer contacto hasta Maestro.
+                {fidelizacionActiva
+                  ? "Reservas, visitas, gasto, puntos y niveles de cada cliente."
+                  : "Contactos, reservas, visitas y seguimiento básico de cada cliente."}
               </p>
             </div>
 
@@ -497,21 +586,25 @@ export default function ClientesPage() {
                   className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none ring-blue-100 transition focus:border-blue-300 focus:ring-4"
                 />
               </div>
-              <button
-                onClick={() => setModalRanking(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-black text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
-              >
-                <Trophy className="h-4 w-4" /> Ranking clientes
-              </button>
-              <button
-                onClick={() => {
-                  setNivelesForm(nivelesConfig);
-                  setModalNiveles(true);
-                }}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
-              >
-                <SlidersHorizontal className="h-4 w-4" /> Niveles
-              </button>
+              {fidelizacionActiva ? (
+                <>
+                  <button
+                    onClick={() => setModalRanking(true)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-black text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
+                  >
+                    <Trophy className="h-4 w-4" /> Ranking clientes
+                  </button>
+                  <button
+                    onClick={() => {
+                      setNivelesForm(nivelesConfig);
+                      setModalNiveles(true);
+                    }}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" /> Niveles
+                  </button>
+                </>
+              ) : null}
               <button
                 onClick={() => setModalNuevo(true)}
                 className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800"
@@ -522,13 +615,22 @@ export default function ClientesPage() {
           </div>
         </section>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-7">
+        <section className={`grid gap-4 md:grid-cols-2 ${fidelizacionActiva ? "xl:grid-cols-7" : "xl:grid-cols-4"}`}>
           <KpiCard icon={Users} label="Clientes" value={resumen.total} help="Base total" />
-          <KpiCard icon={Star} label="Nuevos" value={resumen.nuevo} help={nivelesActuales.nuevo.range} />
-          <KpiCard icon={MessageCircle} label="Frecuentes" value={resumen.frecuente} help={nivelesActuales.frecuente.range} />
-          <KpiCard icon={Sparkles} label="Habituales" value={resumen.habitual} help={nivelesActuales.habitual.range} />
-          <KpiCard icon={Crown} label="VIP" value={resumen.vip} help={nivelesActuales.vip.range} />
-          <KpiCard icon={Trophy} label="Maestros" value={resumen.maestro} help={nivelesActuales.maestro.range} />
+          {fidelizacionActiva ? (
+            <>
+              <KpiCard icon={Star} label="Nuevos" value={resumen.nuevo} help={nivelesActuales.nuevo.range} />
+              <KpiCard icon={MessageCircle} label="Frecuentes" value={resumen.frecuente} help={nivelesActuales.frecuente.range} />
+              <KpiCard icon={Sparkles} label="Habituales" value={resumen.habitual} help={nivelesActuales.habitual.range} />
+              <KpiCard icon={Crown} label="VIP" value={resumen.vip} help={nivelesActuales.vip.range} />
+              <KpiCard icon={Trophy} label="Maestros" value={resumen.maestro} help={nivelesActuales.maestro.range} />
+            </>
+          ) : (
+            <>
+              <KpiCard icon={CalendarDays} label="Visitas" value={totalVisitas} help="Visitas registradas" />
+              <KpiCard icon={MessageCircle} label="Sin reseña" value={resumen.sinResena} help="Pendientes" />
+            </>
+          )}
           <KpiCard icon={Clock3} label="Dormidos" value={resumen.dormidos} help="+30 días" />
         </section>
 
@@ -585,7 +687,7 @@ export default function ClientesPage() {
                             <Link href={`/clientes/${cliente.id}`} className="text-lg font-black text-slate-950 hover:text-blue-700">
                               {cliente.nombre || "Cliente sin nombre"}
                             </Link>
-                            <span className={`rounded-full border px-3 py-1 text-xs font-black ${badgeNivel(nivel)}`}>{config.label}</span>
+                            {fidelizacionActiva ? <span className={`rounded-full border px-3 py-1 text-xs font-black ${badgeNivel(nivel)}`}>{config.label}</span> : null}
                             {estados.slice(0, 2).map((estado) => (
                               <span key={estado} className={`rounded-full border px-2.5 py-1 text-xs font-black ${badgeEstado(estado)}`}>
                                 {estado}
@@ -597,31 +699,41 @@ export default function ClientesPage() {
                             <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {cliente.telefono || "Sin teléfono"}</span>
                             <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {cliente.email || "Sin email"}</span>
                             <span>{visitasCliente(cliente)} visitas</span>
-                            <span>{getCustomerPoints(cliente)} puntos</span>
+                            {fidelizacionActiva ? <span>{getCustomerPoints(cliente)} puntos</span> : null}
                             <span>Última: {formatUltimaVisita(cliente.ultima_visita_real || cliente.ultima_visita)}</span>
                           </div>
 
-                          <div className="mt-4 max-w-3xl rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
-                            <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em] text-slate-400">
-                              <span>{textoSiguienteNivel(cliente, nivelesConfig)}</span>
-                              <span>{config.range}</span>
+                          {fidelizacionActiva ? (
+                            <div className="mt-4 max-w-3xl rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
+                              <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em] text-slate-400">
+                                <span>{textoSiguienteNivel(cliente, nivelesConfig)}</span>
+                                <span>{config.range}</span>
+                              </div>
+                              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                                <div className="h-full rounded-full bg-blue-600" style={{ width: `${progreso}%` }} />
+                              </div>
+                              <p className="mt-3 text-sm font-bold text-slate-700">
+                                {accion.titulo}: <span className="font-semibold text-slate-500">{accion.texto}</span>
+                              </p>
                             </div>
-                            <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                              <div className="h-full rounded-full bg-blue-600" style={{ width: `${progreso}%` }} />
+                          ) : (
+                            <div className="mt-4 max-w-3xl rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-600 ring-1 ring-slate-100">
+                              {numero(cliente.total_reservas)} reservas · {numero(cliente.total_atendidas)} atendidas · {numero(cliente.total_canceladas_reales)} canceladas
                             </div>
-                            <p className="mt-3 text-sm font-bold text-slate-700">
-                              {accion.titulo}: <span className="font-semibold text-slate-500">{accion.texto}</span>
-                            </p>
-                          </div>
+                          )}
                         </div>
 
                         <div className="flex flex-wrap gap-2 xl:justify-end">
-                          <button onClick={() => copiarMensaje(cliente, accion.tipo)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50">
-                            <Copy className="mr-1 inline h-3.5 w-3.5" /> {copiadoId === `${cliente.id}-${accion.tipo}` ? "Copiado" : "Copiar"}
-                          </button>
-                          <button onClick={() => abrirWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-green-600 px-3 py-2 text-xs font-black text-white hover:bg-green-700">
-                            <MessageCircle className="mr-1 inline h-3.5 w-3.5" /> {telefonoWhatsApp ? "WhatsApp" : "Mensaje"}
-                          </button>
+                          {fidelizacionActiva ? (
+                            <>
+                              <button onClick={() => copiarMensaje(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
+                                <Copy className="mr-1 inline h-3.5 w-3.5" /> {copiadoId === `${cliente.id}-${accion.tipo}` ? "Copiado" : "Copiar"}
+                              </button>
+                              <button onClick={() => abrirWhatsApp(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-green-600 px-3 py-2 text-xs font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                <MessageCircle className="mr-1 inline h-3.5 w-3.5" /> {telefonoWhatsApp ? "WhatsApp" : "Mensaje"}
+                              </button>
+                            </>
+                          ) : null}
                           <Link href={`/clientes/${cliente.id}`} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800">
                             Ficha
                           </Link>
@@ -635,7 +747,7 @@ export default function ClientesPage() {
           </div>
 
           <aside className="space-y-5">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+            {fidelizacionActiva ? <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Crown className="h-5 w-5" /></div>
                 <div>
@@ -659,9 +771,17 @@ export default function ClientesPage() {
                   );
                 })}
               </div>
-            </div>
+            </div> : (
+              <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+                <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Users className="h-5 w-5" /></div>
+                <h2 className="mt-4 font-black !text-slate-950">Clientes básico</h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                  Guarda contactos, consulta reservas y detecta clientes sin visita reciente. Los puntos, niveles, premios y cupones solo aparecen al contratar Fidelización.
+                </p>
+              </div>
+            )}
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+            {fidelizacionActiva ? <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Sparkles className="h-5 w-5" /></div>
                 <div>
@@ -685,18 +805,18 @@ export default function ClientesPage() {
                     </div>
                     <p className="mt-3 text-sm font-semibold text-slate-600">{accion.texto}</p>
                     <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button onClick={() => copiarMensaje(cliente, accion.tipo)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200">Copiar</button>
-                      <button onClick={() => abrirWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-green-600 px-3 py-2 text-xs font-black text-white">WhatsApp</button>
+                      <button onClick={() => copiarMensaje(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Copiar</button>
+                      <button onClick={() => abrirWhatsApp(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-green-600 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">WhatsApp</button>
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </div> : null}
           </aside>
         </section>
       </div>
 
-      {modalRanking && (
+      {modalRanking && fidelizacionActiva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
           <div className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] bg-slate-950 text-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-white/10 bg-slate-950/95 p-5 backdrop-blur sm:p-6">
@@ -755,7 +875,7 @@ export default function ClientesPage() {
         </div>
       )}
 
-      {modalNiveles && (
+      {modalNiveles && fidelizacionActiva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
           <div className="w-full max-w-xl rounded-[2rem] bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
@@ -852,7 +972,11 @@ export default function ClientesPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-xl font-black !text-slate-950">Nuevo cliente</h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">Empieza como cliente nuevo. Subirá de nivel según sus visitas.</p>
+                <p className="mt-1 text-sm font-semibold text-slate-500">
+                  {fidelizacionActiva
+                    ? "Empieza como cliente nuevo y subirá de nivel según sus visitas."
+                    : "Guarda sus datos para asociar reservas y visitas."}
+                </p>
               </div>
               <button onClick={() => setModalNuevo(false)} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-black text-slate-600">Cerrar</button>
             </div>
@@ -861,6 +985,9 @@ export default function ClientesPage() {
               <input value={nuevoCliente.nombre} onChange={(e) => setNuevoCliente((a) => ({ ...a, nombre: e.target.value }))} placeholder="Nombre" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
               <input value={nuevoCliente.telefono} onChange={(e) => setNuevoCliente((a) => ({ ...a, telefono: e.target.value }))} placeholder="Teléfono" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
               <input value={nuevoCliente.email} onChange={(e) => setNuevoCliente((a) => ({ ...a, email: e.target.value }))} placeholder="Email" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
+              <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800 ring-1 ring-amber-100">
+                Guardar un teléfono o email no autoriza mensajes comerciales. Las acciones de reseña o fidelización se bloquean hasta que exista un permiso registrado.
+              </p>
             </div>
 
             <button onClick={crearCliente} className="mt-5 w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700">
@@ -873,7 +1000,7 @@ export default function ClientesPage() {
   );
 }
 
-function KpiCard({ icon: Icon, label, value, help }: { icon: any; label: string; value: number; help: string }) {
+function KpiCard({ icon: Icon, label, value, help }: { icon: LucideIcon; label: string; value: number; help: string }) {
   return (
     <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between gap-3">

@@ -8,6 +8,7 @@ import ThemeProvider from "./components/ThemeProvider";
 import RequireLandscape from "./components/RequireLandscape";
 import AuthGuard from "./components/AuthGuard";
 import DemoModeGuard from "./components/DemoModeGuard";
+import ModuleRouteGuard from "./components/ModuleRouteGuard";
 
 const pageNames: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -69,7 +70,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
               <main className="flex min-h-screen min-w-0 flex-1 flex-col p-4 sm:p-6 lg:ml-64">
                 <DemoModeGuard />
-                <div className="w-full min-w-0 flex-1">{children}</div>
+                <div className="w-full min-w-0 flex-1">
+                  <ModuleRouteGuard>{children}</ModuleRouteGuard>
+                </div>
 
                 <div className="mt-10 flex justify-center py-6">
                   <span className="text-xs font-bold uppercase tracking-widest text-slate-400">

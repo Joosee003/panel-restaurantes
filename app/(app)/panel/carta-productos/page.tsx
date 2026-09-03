@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
   ChefHat,
@@ -150,8 +151,8 @@ function buttonBase(extra = "") {
 
 export default function CartaProductosPage() {
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id
-    ? String((restauranteActual as any).id)
+  const restauranteId = restauranteActual?.id
+    ? String(restauranteActual.id)
     : null;
 
   const [cartaActiva, setCartaActiva] = useState<Carta | null>(null);
@@ -205,7 +206,7 @@ export default function CartaProductosPage() {
     return { activos, recomendados, conAlergenos, traducidos };
   }, [productos, idiomaActivo]);
 
-  async function cargarDatos() {
+  const cargarDatos = useCallback(async () => {
     setLoading(true);
     setErrorMsg(null);
 
@@ -222,7 +223,7 @@ export default function CartaProductosPage() {
       return;
     }
 
-    const cartasRes = await (supabase as any)
+    const cartasRes = await supabase
       .from("cartas_digitales")
       .select("id, restaurante_id, nombre, public_token, created_at")
       .eq("restaurante_id", restauranteId)
@@ -245,13 +246,13 @@ export default function CartaProductosPage() {
     }
 
     const [categoriasRes, productosRes] = await Promise.all([
-      (supabase as any)
+      supabase
         .from("carta_categorias")
         .select("*")
         .eq("restaurante_id", restauranteId)
         .eq("carta_id", carta.id)
         .order("orden", { ascending: true }),
-      (supabase as any)
+      supabase
         .from("carta_productos")
         .select("*")
         .eq("restaurante_id", restauranteId)
@@ -265,11 +266,12 @@ export default function CartaProductosPage() {
     setCategorias((categoriasRes.data || []) as Categoria[]);
     setProductos((productosRes.data || []) as Producto[]);
     setLoading(false);
-  }
+  }, [loadingRestaurante, restauranteId]);
 
   useEffect(() => {
-    cargarDatos();
-  }, [restauranteId, loadingRestaurante]);
+    const timer = window.setTimeout(() => void cargarDatos(), 0);
+    return () => window.clearTimeout(timer);
+  }, [cargarDatos]);
 
   function actualizarProductoLocal(productoActualizado: Producto) {
     setProductos((actual) =>
@@ -289,7 +291,7 @@ export default function CartaProductosPage() {
     setErrorMsg(null);
     if (!silent) setOkMsg(null);
 
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from("carta_productos")
       .update({
         nombre: producto.nombre,
@@ -336,7 +338,7 @@ export default function CartaProductosPage() {
       0
     );
 
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from("carta_productos")
       .insert({
         carta_id: cartaActiva.id,
@@ -378,7 +380,7 @@ export default function CartaProductosPage() {
     const extension = file.name.split(".").pop() || "jpg";
     const nombreArchivo = `productos/${restauranteId}/${producto.id}-${Date.now()}.${extension}`;
 
-    const uploadRes = await (supabase as any).storage.from("menus").upload(nombreArchivo, file, {
+    const uploadRes = await supabase.storage.from("menus").upload(nombreArchivo, file, {
       cacheControl: "3600",
       upsert: true,
     });
@@ -389,7 +391,7 @@ export default function CartaProductosPage() {
       return;
     }
 
-    const { data } = (supabase as any).storage.from("menus").getPublicUrl(nombreArchivo);
+    const { data } = supabase.storage.from("menus").getPublicUrl(nombreArchivo);
     const imagenUrl = data.publicUrl as string;
     const actualizado = { ...producto, imagen_url: imagenUrl };
 
@@ -622,9 +624,12 @@ export default function CartaProductosPage() {
                   >
                     <div className="h-20 w-20 overflow-hidden rounded-2xl bg-slate-100">
                       {producto.imagen_url ? (
-                        <img
+                        <Image
                           src={producto.imagen_url}
                           alt={producto.nombre}
+                          width={80}
+                          height={80}
+                          unoptimized
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -808,9 +813,12 @@ export default function CartaProductosPage() {
                   <div className="grid gap-4 sm:grid-cols-[120px_1fr] sm:items-center">
                     <div className="h-28 w-28 overflow-hidden rounded-3xl bg-white ring-1 ring-slate-200">
                       {productoEditando.imagen_url ? (
-                        <img
+                        <Image
                           src={productoEditando.imagen_url}
                           alt={productoEditando.nombre}
+                          width={112}
+                          height={112}
+                          unoptimized
                           className="h-full w-full object-cover"
                         />
                       ) : (

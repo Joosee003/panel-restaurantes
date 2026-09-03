@@ -128,7 +128,7 @@ export default function AcceptInvitePage() {
           Activa tu acceso
         </h1>
         <p className="mt-2 text-center text-sm font-semibold text-slate-500">
-          Crea la contraseña privada de tu restaurante.
+          Usa 12 caracteres o más, con mayúscula, minúscula, número y símbolo.
         </p>
 
         {email ? (
@@ -153,7 +153,7 @@ export default function AcceptInvitePage() {
                   onChange={(event) => setPassword(event.target.value)}
                   disabled={saving || !email}
                   className="w-full rounded-2xl border border-slate-200 py-3.5 pl-12 pr-4 text-sm font-bold outline-none focus:border-blue-600 focus:ring-4 focus:ring-blue-100"
-                  placeholder="Mínimo 10 caracteres"
+                  placeholder="Contraseña segura"
                 />
               </div>
             </label>

@@ -5,11 +5,12 @@ import {
   type CSSProperties,
   type ReactNode,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
 
-const navigation = [
+const restaurantNavigation = [
   ["inicio", "Inicio"],
   ["quienes-somos", "Quiénes somos"],
   ["carta", "Carta"],
@@ -21,15 +22,24 @@ export function RestaurantHeader({
   logoUrl,
   primaryColor,
   accentColor,
+  menuEnabled,
 }: {
   name: string;
   logoUrl: string;
   primaryColor: string;
   accentColor: string;
+  menuEnabled: boolean;
 }) {
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState("inicio");
+  const navigation = useMemo(
+    () =>
+      menuEnabled
+        ? restaurantNavigation
+        : restaurantNavigation.filter(([id]) => id !== "carta"),
+    [menuEnabled],
+  );
 
   useEffect(() => {
     const update = () => setScrolled(window.scrollY > 28);
@@ -55,7 +65,7 @@ export function RestaurantHeader({
 
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();
-  }, []);
+  }, [navigation]);
 
   useEffect(() => {
     document.body.style.overflow = open ? "hidden" : "";
@@ -172,16 +182,28 @@ export function RestaurantHeader({
   );
 }
 
-export function MobileActionBar({ menuPath }: { menuPath: string }) {
+export function MobileActionBar({
+  menuPath,
+  menuEnabled,
+}: {
+  menuPath: string;
+  menuEnabled: boolean;
+}) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-50 border-t border-black/10 bg-[#f8f5ef]/95 p-2.5 shadow-[0_-14px_36px_rgba(15,23,42,0.14)] backdrop-blur-xl md:hidden">
-      <div className="mx-auto grid max-w-lg grid-cols-2 gap-2">
-        <a
-          href={menuPath || "#carta"}
-          className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white text-xs font-black text-slate-950"
-        >
-          <UtensilsCrossed className="h-4 w-4" /> Carta
-        </a>
+      <div
+        className={`mx-auto grid max-w-lg gap-2 ${
+          menuEnabled ? "grid-cols-2" : "grid-cols-1"
+        }`}
+      >
+        {menuEnabled ? (
+          <a
+            href={menuPath || "#carta"}
+            className="inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white text-xs font-black text-slate-950"
+          >
+            <UtensilsCrossed className="h-4 w-4" /> Carta
+          </a>
+        ) : null}
         <a
           href="#reservar"
           className="inline-flex h-12 items-center justify-center gap-2 rounded-xl text-xs font-black text-white shadow-lg"

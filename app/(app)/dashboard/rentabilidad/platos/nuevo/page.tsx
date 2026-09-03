@@ -105,7 +105,7 @@ export default function NuevoPlatoPage() {
   const router = useRouter();
   const { dark } = useTheme();
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
+  const restauranteId = restauranteActual?.id ? String(restauranteActual.id) : null;
 
   const {
     pageClass,

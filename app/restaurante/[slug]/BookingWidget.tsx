@@ -105,6 +105,14 @@ export default function BookingWidget({
   const [submitError, setSubmitError] = useState("");
   const [result, setResult] = useState<BookingResult | null>(null);
 
+  function changeBookingDate(nextDate: string) {
+    if (!isBookingDateAllowed(nextDate, timezone, maxAdvanceDays)) return;
+    setDate(nextDate);
+    setSelectedSlot(null);
+    setIdempotencyKey("");
+    setSubmitError("");
+  }
+
   useEffect(() => {
     if (!isBookingDateAllowed(date, timezone, maxAdvanceDays)) {
       setSlots([]);
@@ -300,13 +308,8 @@ export default function BookingWidget({
               value={date}
               min={today}
               max={maxDate}
-              onChange={(event) => {
-                const nextDate = event.target.value;
-                if (isBookingDateAllowed(nextDate, timezone, maxAdvanceDays)) {
-                  setDate(nextDate);
-                  setSubmitError("");
-                }
-              }}
+              onInput={(event) => changeBookingDate(event.currentTarget.value)}
+              onChange={(event) => changeBookingDate(event.currentTarget.value)}
               className="h-12 w-full rounded-xl border-slate-200 bg-slate-50 px-4 text-sm font-bold outline-none focus:border-slate-500"
               style={{ colorScheme: "light" }}
             />

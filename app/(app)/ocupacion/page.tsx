@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { calcularOcupacion } from "../lib/ocupacion";
+import { calcularOcupacion, type TramoOcupacion } from "../lib/ocupacion";
 import { supabase } from "../lib/supabaseClient";
 
 export default function OcupacionPage() {
@@ -13,8 +13,8 @@ export default function OcupacionPage() {
   const [ocupacionCena, setOcupacionCena] = useState(0);
 
   // detalle por tramos
-  const [tramosComida, setTramosComida] = useState<any[]>([]);
-  const [tramosCena, setTramosCena] = useState<any[]>([]);
+  const [tramosComida, setTramosComida] = useState<TramoOcupacion[]>([]);
+  const [tramosCena, setTramosCena] = useState<TramoOcupacion[]>([]);
 
   /* ===== OBTENER RESTAURANTE ===== */
   useEffect(() => {
@@ -97,7 +97,7 @@ export default function OcupacionPage() {
         <div className="space-y-4">
           {turnos.map((turno) => {
             const maxHoy = Math.max(
-              ...turno.tramos.map((t: any) => t.pct),
+              ...turno.tramos.map((t) => t.pct),
               0
             );
 
@@ -134,7 +134,7 @@ export default function OcupacionPage() {
 
                 {/* TRAMOS */}
                 <div className="space-y-2">
-                  {turno.tramos.map((t: any, i: number) => {
+                  {turno.tramos.map((t, i) => {
                     const esActual =
                       minAhora >= t.start && minAhora < t.end;
 

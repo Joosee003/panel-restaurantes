@@ -9,6 +9,7 @@ import {
   BarChart3,
   CalendarDays,
   ChefHat,
+  MessageSquare,
   Minus,
   RefreshCw,
   ShoppingCart,
@@ -265,6 +266,7 @@ export default function EstadisticasPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [restauranteNombre, setRestauranteNombre] = useState("Restaurante");
+  const [camareroDigitalActivo, setCamareroDigitalActivo] = useState(false);
 
   const [reservas, setReservas] = useState<ReservaRow[]>([]);
   const [clientes, setClientes] = useState<ClienteRow[]>([]);
@@ -289,6 +291,19 @@ export default function EstadisticasPage() {
         setError("No se ha encontrado restaurante para este usuario.");
         return;
       }
+
+      const modulesResult = await withTimeout(
+        supabase
+          .from("restaurante_modulos")
+          .select("camarero_digital")
+          .eq("restaurante_id", rid)
+          .maybeSingle(),
+        9000,
+      );
+
+      if (modulesResult.error) throw modulesResult.error;
+      const waiterActive = Boolean(modulesResult.data?.camarero_digital);
+      setCamareroDigitalActivo(waiterActive);
 
       const [restauranteResult, reservasResult, clientesResult, resenasResult, pedidosResult, cierresResult] = await Promise.allSettled([
         withTimeout(supabase.from("restaurantes").select("nombre").eq("id", rid).maybeSingle(), 9000),
@@ -325,7 +340,7 @@ export default function EstadisticasPage() {
             .range(0, 4999),
           9000
         ),
-        withTimeout(
+        waiterActive ? withTimeout(
           supabase
             .from("pedidos_qr")
             .select("id,mesa,estado,total,created_at")
@@ -335,8 +350,8 @@ export default function EstadisticasPage() {
             .order("created_at", { ascending: true })
             .range(0, 4999),
           9000
-        ),
-        withTimeout(
+        ) : Promise.resolve({ data: [], error: null }),
+        waiterActive ? withTimeout(
           supabase
             .from("cierres_mesa_qr")
             .select("id,mesa,total_cobrado,metodo_pago,creado_en")
@@ -346,7 +361,7 @@ export default function EstadisticasPage() {
             .order("creado_en", { ascending: true })
             .range(0, 4999),
           9000
-        ),
+        ) : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (restauranteResult.status === "fulfilled") {
@@ -456,8 +471,10 @@ export default function EstadisticasPage() {
     const dReservas = delta(data.reservasActual.length, data.reservasAnterior.length);
     const dClientes = delta(data.clientesActual.length, data.clientesAnterior.length);
 
+    const dResenas = delta(data.resenasActual.length, data.resenasAnterior.length);
+
     return [
-      {
+      ...(camareroDigitalActivo ? [{
         id: "facturacion",
         label: "Facturación digital",
         value: fmtEuro(data.facturacionQRActual),
@@ -465,10 +482,9 @@ export default function EstadisticasPage() {
         diff: dFacturacion.diff,
         pct: dFacturacion.pct,
         icon: Wallet,
-        tone: "emerald",
+        tone: "emerald" as const,
         help: "Dinero cobrado desde mesas cerradas del camarero digital.",
-      },
-      {
+      }, {
         id: "pedidos",
         label: "Pedidos por QR",
         value: fmtInt(data.pedidosActual.length),
@@ -476,9 +492,9 @@ export default function EstadisticasPage() {
         diff: dPedidos.diff,
         pct: dPedidos.pct,
         icon: ShoppingCart,
-        tone: "blue",
+        tone: "blue" as const,
         help: "Comandas que han entrado desde la carta QR.",
-      },
+      }] : []),
       {
         id: "reservas",
         label: "Reservas captadas",
@@ -501,8 +517,19 @@ export default function EstadisticasPage() {
         tone: "violet",
         help: "Clientes guardados para poder fidelizar y hacer seguimiento.",
       },
+      {
+        id: "resenas",
+        label: "Reseñas nuevas",
+        value: fmtInt(data.resenasActual.length),
+        previous: `Mes anterior: ${fmtInt(data.resenasAnterior.length)}`,
+        diff: dResenas.diff,
+        pct: dResenas.pct,
+        icon: MessageSquare,
+        tone: "emerald",
+        help: `${fmtInt(data.resenasPendientes)} reseñas pendientes de respuesta este mes.`,
+      },
     ];
-  }, [data]);
+  }, [camareroDigitalActivo, data]);
 
   const impactMoney = useMemo(
     () => [
@@ -514,13 +541,17 @@ export default function EstadisticasPage() {
 
   const impactActivity = useMemo(
     () => [
-      { name: "Pedidos QR", actual: data.pedidosActual.length, anterior: data.pedidosAnterior.length },
-      { name: "Mesas cerradas", actual: data.cierresActual.length, anterior: data.cierresAnterior.length },
+      ...(camareroDigitalActivo
+        ? [
+            { name: "Pedidos QR", actual: data.pedidosActual.length, anterior: data.pedidosAnterior.length },
+            { name: "Mesas cerradas", actual: data.cierresActual.length, anterior: data.cierresAnterior.length },
+          ]
+        : []),
       { name: "Reservas", actual: data.reservasActual.length, anterior: data.reservasAnterior.length },
       { name: "Clientes", actual: data.clientesActual.length, anterior: data.clientesAnterior.length },
       { name: "Reseñas", actual: data.resenasActual.length, anterior: data.resenasAnterior.length },
     ],
-    [data]
+    [camareroDigitalActivo, data]
   );
 
   const tendencia30 = useMemo(() => {
@@ -568,15 +599,15 @@ export default function EstadisticasPage() {
   const insights = useMemo(() => {
     const items: string[] = [];
 
-    if (data.facturacionQRActual > data.facturacionQRAnterior && data.facturacionQRActual > 0) {
+    if (camareroDigitalActivo && data.facturacionQRActual > data.facturacionQRAnterior && data.facturacionQRActual > 0) {
       items.push("El camarero digital está generando más facturación que el mes anterior.");
     }
 
-    if (data.pedidosActual.length > 0 && data.cierresActual.length === 0) {
+    if (camareroDigitalActivo && data.pedidosActual.length > 0 && data.cierresActual.length === 0) {
       items.push("Hay pedidos QR, pero faltan cierres de mesa. Cerrar mesas permite enseñar facturación real.");
     }
 
-    if (data.conversionCobro > 0 && data.conversionCobro < 70) {
+    if (camareroDigitalActivo && data.conversionCobro > 0 && data.conversionCobro < 70) {
       items.push("La conversión pedido QR → mesa cobrada puede mejorar. Revisa pedidos abiertos o mesas sin cerrar.");
     }
 
@@ -585,11 +616,11 @@ export default function EstadisticasPage() {
     }
 
     if (items.length === 0) {
-      items.push("Cuando haya más pedidos, cierres y reservas reales, aquí aparecerán oportunidades claras para el restaurante.");
+      items.push("Cuando haya más reservas, clientes y reseñas reales, aquí aparecerán avisos claros para el restaurante.");
     }
 
     return items.slice(0, 3);
-  }, [data]);
+  }, [camareroDigitalActivo, data]);
 
   const pieColors = ["#2563eb", "#059669", "#7c3aed", "#f59e0b", "#64748b"];
 
@@ -611,7 +642,9 @@ export default function EstadisticasPage() {
               Métricas claras de {restauranteNombre}
             </h1>
             <p className={clsx("mt-2 max-w-3xl text-sm font-semibold leading-6", dark ? "text-slate-400" : "text-slate-600")}>
-              Vista pensada para enseñar impacto: dinero generado, pedidos por QR, reservas, clientes y gráficos limpios. Sin saturar al restaurante con datos técnicos.
+              {camareroDigitalActivo
+                ? "Vista con dinero cobrado, pedidos por QR, reservas, clientes y gráficos claros."
+                : "Vista con reservas, clientes y reseñas. Los datos del camarero digital solo aparecen cuando ese extra está activo."}
             </p>
           </div>
 
@@ -623,12 +656,14 @@ export default function EstadisticasPage() {
             >
               <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} /> Recargar
             </button>
-            <Link
-              href="/panel/pedidos-qr"
-              className={clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-5 py-3 text-sm font-black shadow-sm transition hover:-translate-y-0.5", dark ? "border-slate-800 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-900")}
-            >
-              <ChefHat size={16} /> Cocina
-            </Link>
+            {camareroDigitalActivo ? (
+              <Link
+                href="/panel/pedidos-qr"
+                className={clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-5 py-3 text-sm font-black shadow-sm transition hover:-translate-y-0.5", dark ? "border-slate-800 bg-slate-900 text-slate-100" : "border-slate-200 bg-white text-slate-900")}
+              >
+                <ChefHat size={16} /> Cocina
+              </Link>
+            ) : null}
           </div>
         </div>
       </section>
@@ -651,8 +686,8 @@ export default function EstadisticasPage() {
             ))}
           </section>
 
-          <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-            <ChartCard dark={dark} title="Embudo del camarero digital" subtitle="De pedido QR a dinero cobrado" className="xl:col-span-2">
+          <section className={`grid grid-cols-1 gap-5 ${camareroDigitalActivo ? "xl:grid-cols-3" : ""}`}>
+            {camareroDigitalActivo ? <ChartCard dark={dark} title="Embudo del camarero digital" subtitle="De pedido QR a dinero cobrado" className="xl:col-span-2">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
                 <div className={clsx("rounded-2xl p-5", dark ? "bg-slate-900" : "bg-blue-50")}>
                   <p className="text-xs font-black uppercase tracking-widest text-blue-700">1. Pedidos QR</p>
@@ -670,7 +705,7 @@ export default function EstadisticasPage() {
                   <p className={clsx("mt-2 text-sm font-bold", dark ? "text-slate-400" : "text-slate-600")}>Ticket medio: {fmtEuro(data.ticketMedioQR)}.</p>
                 </div>
               </div>
-            </ChartCard>
+            </ChartCard> : null}
 
             <ChartCard dark={dark} title="Avisos de impacto" subtitle="Solo lo que merece atención">
               <div className="space-y-3">
@@ -685,7 +720,7 @@ export default function EstadisticasPage() {
           </section>
 
           <section className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
-            <ChartCard dark={dark} title="Dinero generado por el sistema" subtitle="Mes actual vs mes anterior">
+            {camareroDigitalActivo ? <ChartCard dark={dark} title="Dinero generado por el sistema" subtitle="Mes actual vs mes anterior">
               <div className="h-[360px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={impactMoney}>
@@ -699,9 +734,9 @@ export default function EstadisticasPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </ChartCard>
+            </ChartCard> : null}
 
-            <ChartCard dark={dark} title="Actividad clave" subtitle="Pedidos, reservas, clientes y reseñas">
+            <ChartCard dark={dark} title="Actividad clave" subtitle={camareroDigitalActivo ? "Pedidos, reservas, clientes y reseñas" : "Reservas, clientes y reseñas"}>
               <div className="h-[360px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={impactActivity}>
@@ -717,7 +752,7 @@ export default function EstadisticasPage() {
               </div>
             </ChartCard>
 
-            <ChartCard dark={dark} title="Tendencia últimos 30 días" subtitle="Reservas y pedidos por QR">
+            <ChartCard dark={dark} title="Tendencia últimos 30 días" subtitle={camareroDigitalActivo ? "Reservas y pedidos por QR" : "Reservas registradas"}>
               <div className="h-[360px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={tendencia30}>
@@ -726,14 +761,14 @@ export default function EstadisticasPage() {
                     <YAxis stroke={chartText} tick={{ fontSize: 12 }} />
                     <Tooltip contentStyle={{ borderRadius: 14, border: "1px solid #e2e8f0" }} />
                     <Legend />
-                    <Line type="monotone" dataKey="pedidos" name="Pedidos QR" stroke="#2563eb" strokeWidth={3} dot={false} />
+                    {camareroDigitalActivo ? <Line type="monotone" dataKey="pedidos" name="Pedidos QR" stroke="#2563eb" strokeWidth={3} dot={false} /> : null}
                     <Line type="monotone" dataKey="reservas" name="Reservas" stroke="#7c3aed" strokeWidth={3} dot={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </ChartCard>
 
-            <ChartCard dark={dark} title="Facturación QR últimos 30 días" subtitle="Dinero cobrado desde cierres de mesa">
+            {camareroDigitalActivo ? <ChartCard dark={dark} title="Facturación QR últimos 30 días" subtitle="Dinero cobrado desde cierres de mesa">
               <div className="h-[360px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={tendencia30}>
@@ -745,11 +780,11 @@ export default function EstadisticasPage() {
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
-            </ChartCard>
+            </ChartCard> : null}
           </section>
 
-          <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
-            <ChartCard dark={dark} title="Métodos de pago" subtitle="Cómo se cobra lo generado por QR" className="xl:col-span-1">
+          <section className={`grid grid-cols-1 gap-5 ${camareroDigitalActivo ? "xl:grid-cols-3" : ""}`}>
+            {camareroDigitalActivo ? <ChartCard dark={dark} title="Métodos de pago" subtitle="Cómo se cobra lo generado por QR" className="xl:col-span-1">
               {metodosPago.length === 0 ? (
                 <EmptyChart dark={dark} text="Todavía no hay cierres con método de pago" />
               ) : (
@@ -767,9 +802,9 @@ export default function EstadisticasPage() {
                   </ResponsiveContainer>
                 </div>
               )}
-            </ChartCard>
+            </ChartCard> : null}
 
-            <section className={clsx("rounded-3xl border p-5 shadow-sm xl:col-span-2", dark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white")}>
+            <section className={clsx("rounded-3xl border p-5 shadow-sm", camareroDigitalActivo && "xl:col-span-2", dark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white")}>
               <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className={clsx("text-xl font-black", dark ? "text-white" : "text-slate-950")}>Resumen para enseñar al restaurante</h2>
@@ -782,8 +817,8 @@ export default function EstadisticasPage() {
                 </Link>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-                <div className={clsx("rounded-2xl p-4", dark ? "bg-slate-900" : "bg-emerald-50")}>
+              <div className={`grid grid-cols-1 gap-3 ${camareroDigitalActivo ? "md:grid-cols-3" : ""}`}>
+                {camareroDigitalActivo ? <><div className={clsx("rounded-2xl p-4", dark ? "bg-slate-900" : "bg-emerald-50")}>
                   <p className="text-xs font-black uppercase tracking-widest text-emerald-700">Dinero</p>
                   <p className={clsx("mt-2 text-sm font-bold leading-6", dark ? "text-slate-300" : "text-slate-700")}>
                     El camarero digital ha movido {fmtEuro(data.potencialQRActual)} en pedidos y ha dejado {fmtEuro(data.facturacionQRActual)} cobrado este mes.
@@ -794,7 +829,7 @@ export default function EstadisticasPage() {
                   <p className={clsx("mt-2 text-sm font-bold leading-6", dark ? "text-slate-300" : "text-slate-700")}>
                     Han entrado {fmtInt(data.pedidosActual.length)} pedidos por QR y {fmtInt(data.cierresActual.length)} mesas se han cerrado desde el sistema.
                   </p>
-                </div>
+                </div></> : null}
                 <div className={clsx("rounded-2xl p-4", dark ? "bg-slate-900" : "bg-violet-50")}>
                   <p className="text-xs font-black uppercase tracking-widest text-violet-700">Crecimiento</p>
                   <p className={clsx("mt-2 text-sm font-bold leading-6", dark ? "text-slate-300" : "text-slate-700")}>

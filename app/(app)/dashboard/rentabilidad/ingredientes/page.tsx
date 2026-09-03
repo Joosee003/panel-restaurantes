@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -209,7 +209,7 @@ export default function IngredientesPage() {
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
-  const restauranteId = (restauranteActual as any)?.id ? String((restauranteActual as any).id) : null;
+  const restauranteId = restauranteActual?.id ? String(restauranteActual.id) : null;
   const [busqueda, setBusqueda] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -243,7 +243,7 @@ export default function IngredientesPage() {
     if (okMessage) setOkMessage(null);
   };
 
-  const cargarRestauranteYDatos = async () => {
+  const cargarRestauranteYDatos = useCallback(async () => {
     setLoading(true);
     setError(null);
 
@@ -270,11 +270,12 @@ export default function IngredientesPage() {
 
     setIngredientes((data as Ingrediente[]) ?? []);
     setLoading(false);
-  };
+  }, [loadingRestaurante, restauranteId]);
 
   useEffect(() => {
-    cargarRestauranteYDatos();
-  }, [restauranteId, loadingRestaurante]);
+    const timer = window.setTimeout(() => void cargarRestauranteYDatos(), 0);
+    return () => window.clearTimeout(timer);
+  }, [cargarRestauranteYDatos]);
 
   const ingredientesFiltrados = useMemo(() => {
     const term = busqueda.trim().toLowerCase();
