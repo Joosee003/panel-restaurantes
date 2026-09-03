@@ -1,6 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Gift, Lock, RefreshCw, TicketPercent } from "lucide-react";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { getRestauranteUsuario } from "@/app/(app)/lib/getRestauranteUsuario";
@@ -49,16 +51,26 @@ function pickDate(row: { creado_en?: string | null }) {
   return row.creado_en ?? null;
 }
 
+function validationCode(id: string) {
+  return id.replaceAll("-", "").slice(0, 8).toUpperCase();
+}
+
 function nombreClienteVisible(cl: Cliente | undefined, clienteId: string) {
   const nombre = String(cl?.nombre ?? "").trim();
   if (nombre) return nombre;
   return clienteId;
 }
 
+function mensajeError(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
+
 export default function CanjesPage() {
   const { dark } = useTheme();
 
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
+  const [restauranteNombre, setRestauranteNombre] = useState("Restaurante");
+  const [moduloPermitido, setModuloPermitido] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -195,7 +207,7 @@ export default function CanjesPage() {
       if (clientesErr) throw clientesErr;
 
       const map: Record<string, Cliente> = {};
-      (clientesData ?? []).forEach((c: any) => {
+      (clientesData ?? []).forEach((c) => {
         map[c.id] = {
           id: c.id,
           nombre: c.nombre ?? null,
@@ -219,7 +231,7 @@ export default function CanjesPage() {
       if (premiosErr) throw premiosErr;
 
       const map: Record<string, Premio> = {};
-      (premiosData ?? []).forEach((p: any) => {
+      (premiosData ?? []).forEach((p) => {
         map[p.id] = {
           id: p.id,
           nombre: p.nombre,
@@ -243,7 +255,7 @@ export default function CanjesPage() {
       if (cuponesErr) throw cuponesErr;
 
       const map: Record<string, Cupon> = {};
-      (cuponesData ?? []).forEach((c: any) => {
+      (cuponesData ?? []).forEach((c) => {
         map[c.id] = {
           id: c.id,
           nombre: c.nombre,
@@ -270,7 +282,7 @@ export default function CanjesPage() {
       if (emailsErr) throw emailsErr;
 
       const map: Record<string, string> = {};
-      (emailsData ?? []).forEach((r: any) => {
+      (emailsData ?? []).forEach((r) => {
         if (!map[r.cliente_id] && r.email) map[r.cliente_id] = r.email;
       });
 
@@ -295,10 +307,28 @@ export default function CanjesPage() {
 
       setRestauranteId(rid);
 
+      const [moduloResult, restauranteResult] = await Promise.all([
+        supabase.from("restaurante_modulos").select("fidelizacion").eq("restaurante_id", rid).maybeSingle(),
+        supabase.from("restaurantes").select("nombre").eq("id", rid).maybeSingle(),
+      ]);
+      if (moduloResult.error) {
+        setModuloPermitido(false);
+        setErrorMsg(moduloResult.error.message);
+        setLoading(false);
+        return;
+      }
+      if (!moduloResult.data?.fidelizacion) {
+        setModuloPermitido(false);
+        setLoading(false);
+        return;
+      }
+      setModuloPermitido(true);
+      setRestauranteNombre(String(restauranteResult.data?.nombre ?? "Restaurante"));
+
       try {
         await cargarTodo(rid);
-      } catch (e: any) {
-        setErrorMsg(e?.message ?? "Error cargando canjes");
+      } catch (e: unknown) {
+        setErrorMsg(mensajeError(e, "Error cargando canjes"));
       } finally {
         setLoading(false);
       }
@@ -470,29 +500,49 @@ export default function CanjesPage() {
   const promosCanjeadas = canjesPromos.filter((c) => c.estado === "canjeado");
   const promosCaducadas = canjesPromos.filter((c) => c.estado === "caducado");
 
+  if (moduloPermitido === false) {
+    return (
+      <div className="mx-auto max-w-3xl p-6">
+        <div className={clsx(cardBase, "p-8 text-center")}>
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-red-50 text-red-600"><Lock size={24} /></div>
+          <h1 className="mt-5 text-2xl font-black">Módulo no contratado</h1>
+          <p className={clsx("mx-auto mt-2 max-w-md text-sm", dark ? "text-gray-400" : "text-slate-500")}>Este restaurante no tiene activada la fidelización.</p>
+          <Link href="/dashboard" className={clsx("mt-6 inline-flex", btnPrimary)}>Volver al dashboard</Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6">
-      <div className="flex items-start justify-between gap-4">
+    <div className="mx-auto max-w-7xl p-6">
+      <div className={clsx(cardBase, "flex flex-col gap-5 p-6 md:flex-row md:items-center md:justify-between")}>
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Canjes</h1>
-          <div className={clsx("mt-1 text-sm", dark ? "text-gray-400" : "text-gray-500")}>
-            Restaurante: {restauranteId ?? "—"}
-          </div>
+          <div className="text-xs font-black uppercase tracking-[0.16em] text-blue-600">Fidelización</div>
+          <h1 className="mt-2 text-3xl font-black tracking-tight">Validar ventajas</h1>
+          <div className={clsx("mt-1 text-sm font-semibold", dark ? "text-gray-400" : "text-gray-500")}>{restauranteNombre} · revisa primero las solicitudes pendientes</div>
         </div>
 
         <button
-          className={btn}
+          className={clsx(btn, "inline-flex items-center gap-2")}
           onClick={() =>
             restauranteId &&
-            cargarTodo(restauranteId).catch((e: any) =>
-              setErrorMsg(e?.message ?? "Error")
+            cargarTodo(restauranteId).catch((e: unknown) =>
+              setErrorMsg(mensajeError(e, "Error"))
             )
           }
           disabled={!restauranteId || loading}
         >
-          Recargar
+          <RefreshCw className="h-4 w-4" /> Recargar
         </button>
       </div>
+
+      {!loading ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className={clsx(cardBase, "p-4")}><Gift className="h-5 w-5 text-blue-600" /><div className="mt-3 text-2xl font-black">{pendientes.length}</div><div className="text-xs font-bold text-gray-500">Premios pendientes</div></div>
+          <div className={clsx(cardBase, "p-4")}><TicketPercent className="h-5 w-5 text-amber-600" /><div className="mt-3 text-2xl font-black">{promosPendientes.length}</div><div className="text-xs font-bold text-gray-500">Cupones por validar</div></div>
+          <div className={clsx(cardBase, "p-4")}><CheckCircle2 className="h-5 w-5 text-emerald-600" /><div className="mt-3 text-2xl font-black">{confirmados.length + promosCanjeadas.length}</div><div className="text-xs font-bold text-gray-500">Usados y confirmados</div></div>
+        </div>
+      ) : null}
 
       {errorMsg && (
         <div className="mt-6 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-700">
@@ -559,6 +609,7 @@ export default function CanjesPage() {
                           <div className={clsx("mt-1 text-xs", dark ? "text-gray-400" : "text-gray-500")}>
                             Creado: {new Date(c.creado_en).toLocaleString("es-ES")}
                           </div>
+                          <div className={clsx("mt-3 inline-flex rounded-xl px-3 py-2 font-mono text-sm font-black tracking-[0.16em]", dark ? "bg-gray-900 text-white" : "bg-slate-100 text-slate-950")}>Código {validationCode(c.id)}</div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">
@@ -739,6 +790,7 @@ export default function CanjesPage() {
                             Creado:{" "}
                             {fecha ? new Date(fecha).toLocaleString("es-ES") : "—"}
                           </div>
+                          <div className={clsx("mt-3 inline-flex rounded-xl px-3 py-2 font-mono text-sm font-black tracking-[0.16em]", dark ? "bg-gray-900 text-white" : "bg-slate-100 text-slate-950")}>Código {validationCode(c.id)}</div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-2">

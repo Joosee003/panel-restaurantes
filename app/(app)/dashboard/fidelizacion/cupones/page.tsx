@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
@@ -19,11 +20,21 @@ type ConfigFidelizacion = {
   nivel_maestro_desde: number;
 };
 
+type CondicionesCupon = {
+  tipo?: TipoCupon;
+  validez_dias?: number;
+  dias_antes?: number;
+  dias_semana?: number[];
+  hora_inicio?: string;
+  hora_fin?: string;
+  cada_x_visitas?: number;
+};
+
 type Cupon = {
   id: string;
   nombre: string;
   beneficio: string;
-  condiciones: any;
+  condiciones: CondicionesCupon | null;
   nivel_minimo: NivelCliente;
   activo: boolean;
   creado_en: string;
@@ -64,10 +75,14 @@ function nivelRank(nivel?: string | null) {
   return 1;
 }
 
-function tipoCuponLabel(condiciones: any) {
+function tipoCuponLabel(condiciones: CondicionesCupon | null) {
   if (condiciones?.tipo === "horas_valle") return "Horas valle";
   if (condiciones?.tipo === "cumpleanos") return "Cumpleaños";
   return "Automático";
+}
+
+function mensajeError(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
 }
 
 export default function CuponesPage() {
@@ -299,8 +314,8 @@ export default function CuponesPage() {
 
       try {
         await cargarTodo(rid);
-      } catch (e: any) {
-        setErrorMsg(e?.message ?? "Error cargando fidelización.");
+      } catch (e: unknown) {
+        setErrorMsg(mensajeError(e, "Error cargando fidelización."));
       } finally {
         setLoading(false);
       }
@@ -392,8 +407,8 @@ export default function CuponesPage() {
       resetCuponForm();
       setShowCuponForm(false);
       await cargarTodo(restauranteId);
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? "Error guardando cupón.");
+    } catch (e: unknown) {
+      setErrorMsg(mensajeError(e, "Error guardando cupón."));
     } finally {
       setSavingCupon(false);
     }
@@ -533,8 +548,8 @@ export default function CuponesPage() {
       resetPremioForm();
       setShowPremioForm(false);
       await cargarTodo(restauranteId);
-    } catch (e: any) {
-      setErrorMsg(e?.message ?? "Error guardando premio.");
+    } catch (e: unknown) {
+      setErrorMsg(mensajeError(e, "Error guardando premio."));
     } finally {
       setSavingPremio(false);
     }
@@ -592,9 +607,10 @@ export default function CuponesPage() {
   const estadisticas = useMemo(() => {
     const premiosActivos = premios.filter((p) => p.activo).length;
     const cuponesActivos = cupones.filter((c) => c.activo).length;
-    const ventajasVip = [...premios, ...cupones].filter((x: any) => x.nivel_minimo === "vip").length;
+    const ventajas = [...premios, ...cupones];
+    const ventajasVip = ventajas.filter((x) => x.nivel_minimo === "vip").length;
     const maxNivel = [...premios, ...cupones]
-      .map((x: any) => x.nivel_minimo as NivelCliente)
+      .map((x) => x.nivel_minimo)
       .sort((a, b) => nivelRank(b) - nivelRank(a))[0];
 
     return { premiosActivos, cuponesActivos, ventajasVip, maxNivel: maxNivel ?? "nuevo" };
@@ -668,6 +684,9 @@ export default function CuponesPage() {
             </Link>
             <Link href="/clientes" className={btnGhost}>
               Configurar niveles
+            </Link>
+            <Link href="/ajustes" className={btnGhost}>
+              Puntos por euro
             </Link>
             <button type="button" onClick={tab === "premios" ? abrirNuevoPremio : abrirNuevoCupon} className={btnPrimary}>
               {tab === "premios" ? "Nuevo premio" : "Nuevo cupón"}
@@ -758,7 +777,7 @@ export default function CuponesPage() {
               <div key={p.id} className={clsx(cardBase, "overflow-hidden")}>
                 <div className="relative">
                   {p.imagen_url ? (
-                    <img src={p.imagen_url} alt={p.nombre} className="h-36 w-full object-cover" />
+                    <Image src={p.imagen_url} alt={p.nombre} fill sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw" unoptimized className="object-cover" />
                   ) : (
                     <div className={clsx("flex h-36 w-full items-center justify-center text-xs font-bold", dark ? "bg-gray-900 text-gray-400" : "bg-slate-100 text-slate-500")}>
                       Sin imagen

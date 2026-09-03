@@ -1,6 +1,7 @@
 // app/c/[token]/page.tsx
 import React from "react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import { createHash, randomUUID } from "node:crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
@@ -49,6 +50,17 @@ export const metadata: Metadata = {
 };
 
 type TabKey = "inicio" | "reservas" | "nivel" | "premios" | "cupones" | "perfil";
+type NivelCliente = "nuevo" | "frecuente" | "habitual" | "vip" | "maestro";
+
+type CuponCondiciones = {
+  tipo?: "cumpleanos" | "horas_valle";
+  dias_antes?: number;
+  validez_dias?: number;
+  dias_semana?: number[];
+  hora_inicio?: string;
+  hora_fin?: string;
+  cada_x_visitas?: number;
+};
 
 type ClienteRow = {
   id: string;
@@ -91,6 +103,7 @@ type PremioPuntos = {
   imagen_url: string | null;
   activo: boolean;
   creado_en: string | null;
+  nivel_minimo: NivelCliente;
 };
 
 type CanjePuntos = {
@@ -106,12 +119,38 @@ type Cupon = {
   id: string;
   nombre: string;
   beneficio: string;
-  condiciones: any;
+  condiciones: CuponCondiciones | null;
+  nivel_minimo: NivelCliente;
   activo: boolean;
   creado_en?: string | null;
 };
 
+type RestauranteCliente = {
+  id: string;
+  nombre: string | null;
+  telefono: string | null;
+  color_primario: string | null;
+  color_fondo: string | null;
+  logo_url: string | null;
+  puntos_por_euro: number | null;
+  puntos_activo: boolean | null;
+};
+
+type ClienteResumen = {
+  visitas_totales: number | null;
+  visitas_reales: number | null;
+  ranking_posicion: number | null;
+};
+
+type NivelesConfig = {
+  nivel_frecuente_desde: number | null;
+  nivel_habitual_desde: number | null;
+  nivel_vip_desde: number | null;
+  nivel_maestro_desde: number | null;
+};
+
 type CuponClienteRow = {
+  id: string;
   cupon_id: string;
   estado: "activo" | "canjeado" | "caducado" | string;
   creado_en?: string | null;
@@ -213,6 +252,36 @@ async function ensureManagementToken(
     .maybeSingle();
   if (currentError) throw currentError;
   return current?.gestion_token ? String(current.gestion_token) : null;
+}
+
+async function getClientLoyaltyState(
+  admin: SupabaseClient,
+  clienteId: string,
+  restauranteId: string,
+) {
+  const [moduleResult, restaurantResult, summaryResult, configResult] = await Promise.all([
+    admin.from("restaurante_modulos").select("fidelizacion").eq("restaurante_id", restauranteId).maybeSingle(),
+    admin.from("restaurantes").select("puntos_activo,puntos_por_euro").eq("id", restauranteId).maybeSingle(),
+    admin.from("vw_clientes_resumen").select("visitas_reales,visitas_totales").eq("id", clienteId).eq("restaurante_id", restauranteId).maybeSingle(),
+    admin.from("fidelizacion_config").select("nivel_frecuente_desde,nivel_habitual_desde,nivel_vip_desde,nivel_maestro_desde").eq("restaurante_id", restauranteId).maybeSingle(),
+  ]);
+
+  const enabled = Boolean(moduleResult.data?.fidelizacion)
+    && Boolean(restaurantResult.data?.puntos_activo)
+    && Number(restaurantResult.data?.puntos_por_euro ?? 0) > 0;
+  const raw = configResult.data;
+  const thresholds: ClientLevelThresholds = {
+    silver: Math.max(1, Number(raw?.nivel_frecuente_desde ?? 2)),
+    gold: Math.max(2, Number(raw?.nivel_habitual_desde ?? 5)),
+    diamond: Math.max(3, Number(raw?.nivel_vip_desde ?? 10)),
+    master: Math.max(4, Number(raw?.nivel_maestro_desde ?? 20)),
+  };
+  thresholds.gold = Math.max(thresholds.gold, thresholds.silver + 1);
+  thresholds.diamond = Math.max(thresholds.diamond, thresholds.gold + 1);
+  thresholds.master = Math.max(thresholds.master, thresholds.diamond + 1);
+  const visits = Math.max(0, Number(summaryResult.data?.visitas_reales ?? summaryResult.data?.visitas_totales ?? 0));
+
+  return { enabled, visits, level: nivelClienteDesdeVisitas(visits, thresholds) };
 }
 
 function clsx(...values: Array<string | false | null | undefined>) {
@@ -332,6 +401,11 @@ function getNowMadridParts() {
   };
 }
 
+function getMadridYear(value: Date | string = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  return Number(new Intl.DateTimeFormat("en", { timeZone: "Europe/Madrid", year: "numeric" }).format(date));
+}
+
 function isBirthdayPromoActive(args: { fechaNacimiento: string | null | undefined; diasAntes: number; validezDias: number }) {
   const { fechaNacimiento, diasAntes, validezDias } = args;
   if (!fechaNacimiento) return { ok: false, motivo: "Completa tu fecha" };
@@ -359,6 +433,26 @@ function isHappyHourActive(args: { diasSemana: number[]; horaInicio: string; hor
   const dayOk = Array.isArray(diasSemana) ? diasSemana.includes(weekdayMon0) : false;
   const timeOk = isNowWithinWindow(hh * 60 + mm, timeToMinutes(horaInicio), timeToMinutes(horaFin));
   return { ok: dayOk && timeOk, motivo: dayOk ? (timeOk ? "Disponible ahora" : `Horario ${horaInicio}–${horaFin}`) : "Hoy no aplica" };
+}
+
+function nivelRank(nivel: NivelCliente | null | undefined) {
+  if (nivel === "maestro") return 5;
+  if (nivel === "vip") return 4;
+  if (nivel === "habitual") return 3;
+  if (nivel === "frecuente") return 2;
+  return 1;
+}
+
+function nivelClienteDesdeVisitas(visitas: number, niveles: ClientLevelThresholds): NivelCliente {
+  if (visitas >= niveles.master) return "maestro";
+  if (visitas >= niveles.diamond) return "vip";
+  if (visitas >= niveles.gold) return "habitual";
+  if (visitas >= niveles.silver) return "frecuente";
+  return "nuevo";
+}
+
+function cumpleNivelMinimo(actual: NivelCliente, minimo: NivelCliente | null | undefined) {
+  return nivelRank(actual) >= nivelRank(minimo);
 }
 
 function AppShell({ children, accent, bg }: { children: React.ReactNode; accent: string; bg: string }) {
@@ -501,6 +595,7 @@ function Hero({
   mainLabel,
   mainIcon,
   avisosSinLeer,
+  avisosHref,
 }: {
   restauranteNombre: string;
   clienteNombre: string;
@@ -516,6 +611,7 @@ function Hero({
   mainLabel: string;
   mainIcon: React.ReactNode;
   avisosSinLeer: number;
+  avisosHref: string;
 }) {
   return (
     <header
@@ -528,7 +624,7 @@ function Hero({
       <div className="relative z-10 flex items-start justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white/12 shadow-lg backdrop-blur">
-            {logo ? <img src={logo} alt={restauranteNombre} className="h-full w-full object-cover" /> : <Crown className="h-6 w-6" />}
+            {logo ? <Image src={logo} alt={restauranteNombre} width={48} height={48} unoptimized className="h-full w-full object-cover" /> : <Crown className="h-6 w-6" />}
           </div>
           <div className="min-w-0">
             <div className="truncate text-[11px] font-black uppercase tracking-[0.22em] text-white/60">{restauranteNombre}</div>
@@ -536,7 +632,7 @@ function Hero({
           </div>
         </div>
 
-        <a href="#avisos-app" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/12 backdrop-blur active:scale-[0.96]">
+        <a href={avisosHref} aria-label="Ver avisos" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/12 backdrop-blur active:scale-[0.96]">
           <Bell className="h-5 w-5" />
           {avisosSinLeer > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white">{avisosSinLeer}</span> : null}
         </a>
@@ -596,6 +692,7 @@ function CompactHeader({
   logo,
   accent,
   avisosSinLeer,
+  avisosHref,
 }: {
   title: string;
   subtitle: string;
@@ -603,13 +700,14 @@ function CompactHeader({
   logo: string | null;
   accent: string;
   avisosSinLeer: number;
+  avisosHref: string;
 }) {
   return (
     <header className="sticky top-0 z-30 -mx-4 border-b border-white/70 bg-white/78 px-4 py-3 shadow-[0_14px_45px_rgba(15,23,42,0.06)] backdrop-blur-xl">
       <div className="mx-auto flex max-w-[500px] items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-            {logo ? <img src={logo} alt={restauranteNombre} className="h-full w-full object-cover" /> : <Crown className="h-5 w-5" style={{ color: accent }} />}
+            {logo ? <Image src={logo} alt={restauranteNombre} width={44} height={44} unoptimized className="h-full w-full object-cover" /> : <Crown className="h-5 w-5" style={{ color: accent }} />}
           </div>
           <div className="min-w-0">
             <div className="truncate text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{restauranteNombre}</div>
@@ -618,7 +716,7 @@ function CompactHeader({
           </div>
         </div>
 
-        <a href="#avisos-app" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm active:scale-[0.96]" style={{ backgroundColor: accent }}>
+        <a href={avisosHref} aria-label="Ver avisos" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm active:scale-[0.96]" style={{ backgroundColor: accent }}>
           <Bell className="h-5 w-5" />
           {avisosSinLeer > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white">{avisosSinLeer}</span> : null}
         </a>
@@ -627,115 +725,6 @@ function CompactHeader({
   );
 }
 
-function QuickAction({ icon, title, text, href, accent, highlight = false }: { icon: React.ReactNode; title: string; text: string; href?: string | null; accent: string; highlight?: boolean }) {
-  const style = highlight ? { background: `linear-gradient(135deg, ${accent}, #0f172a)`, color: "white" } : undefined;
-  return (
-    <a
-      href={href || "#"}
-      aria-disabled={!href}
-      className={clsx(
-        "group rounded-[26px] border p-4 shadow-sm transition active:scale-[0.97] active:opacity-85",
-        highlight ? "border-transparent" : "border-slate-100 bg-white",
-        !href && "pointer-events-none opacity-50"
-      )}
-      style={style}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className={clsx("flex h-12 w-12 items-center justify-center rounded-2xl", highlight ? "bg-white/14" : "bg-slate-50")} style={!highlight ? { color: accent } : undefined}>{icon}</div>
-        <ChevronRight className={clsx("mt-1 h-4 w-4", highlight ? "text-white/50" : "text-slate-300")} />
-      </div>
-      <div className={clsx("mt-4 font-black tracking-[-0.03em]", highlight ? "text-white" : "text-slate-950")}>{title}</div>
-      <div className={clsx("mt-1 text-xs font-semibold leading-relaxed", highlight ? "text-white/66" : "text-slate-500")}>{text}</div>
-    </a>
-  );
-}
-
-function ClientImpactPanel({
-  accent,
-  proximaReserva,
-  fidelizacionActiva,
-  puntos,
-  nextRewardName,
-  nextRewardMissing,
-  recompensaDisponible,
-  avisosSinLeer,
-  buildTabHref,
-}: {
-  accent: string;
-  proximaReserva: ReservaCliente | null;
-  fidelizacionActiva: boolean;
-  puntos: number;
-  nextRewardName: string;
-  nextRewardMissing: number;
-  recompensaDisponible: PremioPuntos | null;
-  avisosSinLeer: number;
-  buildTabHref: (tab: TabKey) => string;
-}) {
-  const rewardStatus = !fidelizacionActiva
-    ? "Ventajas desactivadas"
-    : recompensaDisponible
-      ? "Premio listo para canjear"
-      : nextRewardMissing > 0
-        ? `${nextRewardMissing} puntos para ${nextRewardName}`
-        : "Premio casi listo";
-
-  return (
-    <section className="overflow-hidden rounded-[34px] border border-white/80 bg-white/95 shadow-[0_24px_80px_rgba(15,23,42,0.10)] backdrop-blur-xl">
-      <div className="relative p-5">
-        <div className="absolute -right-10 -top-10 h-36 w-36 rounded-full opacity-15" style={{ backgroundColor: accent }} />
-        <div className="relative flex items-start justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center rounded-full px-3 py-1 text-[11px] font-black uppercase tracking-[0.14em]" style={{ backgroundColor: rgba(accent, 0.1), color: accent }}>
-              <ShieldCheck className="mr-1.5 h-3.5 w-3.5" /> Zona privada
-            </div>
-            <h2 className="mt-3 text-2xl font-black tracking-[-0.06em] !text-slate-950">Tus reservas y ventajas</h2>
-            <p className="mt-1 text-sm font-semibold leading-relaxed text-slate-500">Todo lo que el cliente necesita para volver al restaurante, sin mezclarlo con pedidos de mesa.</p>
-          </div>
-          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[24px] text-white shadow-lg" style={{ background: `linear-gradient(135deg, ${accent}, #0f172a)` }}>
-            <Zap className="h-7 w-7" />
-          </div>
-        </div>
-
-        <div className="relative mt-5 grid gap-3">
-          <a href={buildTabHref("reservas")} className="flex items-center justify-between rounded-[26px] border border-slate-100 bg-slate-50/80 p-4 transition active:scale-[0.98]">
-            <div className="flex min-w-0 items-center gap-3">
-              <IconBubble accent={accent}><CalendarClock className="h-5 w-5" /></IconBubble>
-              <div className="min-w-0">
-                <div className="text-sm font-black text-slate-950">{proximaReserva ? "Próxima reserva" : "Reservas"}</div>
-                <div className="truncate text-xs font-bold text-slate-500">{proximaReserva ? `${formatReservaDate(proximaReserva.fecha_hora_reserva)} · ${formatReservaTime(proximaReserva.fecha_hora_reserva)}` : "Gestionar próximas visitas"}</div>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-slate-300" />
-          </a>
-
-          {fidelizacionActiva ? (
-            <a href={buildTabHref("nivel")} className="flex items-center justify-between rounded-[26px] border border-slate-100 bg-white p-4 transition active:scale-[0.98]">
-              <div className="flex min-w-0 items-center gap-3">
-                <IconBubble accent={accent}><Trophy className="h-5 w-5" /></IconBubble>
-                <div className="min-w-0">
-                  <div className="text-sm font-black text-slate-950">Tu nivel y progreso</div>
-                  <div className="truncate text-xs font-bold text-slate-500">{puntos} puntos · {rewardStatus}</div>
-                </div>
-              </div>
-              <ChevronRight className="h-5 w-5 text-slate-300" />
-            </a>
-          ) : null}
-
-          <a href={buildTabHref("perfil")} className="flex items-center justify-between rounded-[26px] border border-slate-100 bg-slate-50/80 p-4 transition active:scale-[0.98]">
-            <div className="flex min-w-0 items-center gap-3">
-              <IconBubble accent={accent}><Bell className="h-5 w-5" /></IconBubble>
-              <div className="min-w-0">
-                <div className="text-sm font-black text-slate-950">Avisos y ventajas</div>
-                <div className="truncate text-xs font-bold text-slate-500">{avisosSinLeer > 0 ? `${avisosSinLeer} aviso${avisosSinLeer === 1 ? "" : "s"} sin leer` : "Sin avisos pendientes"}</div>
-              </div>
-            </div>
-            <ChevronRight className="h-5 w-5 text-slate-300" />
-          </a>
-        </div>
-      </div>
-    </section>
-  );
-}
 
 function BottomNav({
   currentTab,
@@ -750,13 +739,12 @@ function BottomNav({
   accent: string;
   fidelizacionActiva: boolean;
 }) {
-  const items: Array<{ key: TabKey; label: string; icon: React.ReactNode; count?: number }> = [
+  const items: Array<{ key: TabKey; label: string; icon: React.ReactNode; count?: number; activeTabs?: TabKey[] }> = [
     { key: "inicio", label: "Inicio", icon: <Home className="h-5 w-5" /> },
     { key: "reservas", label: "Reservas", icon: <CalendarDays className="h-5 w-5" /> },
     ...(fidelizacionActiva
       ? [
-          { key: "nivel" as TabKey, label: "Nivel", icon: <Trophy className="h-5 w-5" /> },
-          { key: "premios" as TabKey, label: "Premios", icon: <Gift className="h-5 w-5" /> },
+          { key: "nivel" as TabKey, label: "Ventajas", icon: <Gift className="h-5 w-5" />, activeTabs: ["nivel", "premios", "cupones"] as TabKey[] },
         ]
       : []),
     { key: "perfil", label: "Perfil", icon: <User className="h-5 w-5" />, count: avisosSinLeer },
@@ -765,9 +753,9 @@ function BottomNav({
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-[540px] px-4 pb-4">
       <div className="rounded-[26px] border border-white/85 bg-white/95 px-2 py-2 shadow-[0_18px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl">
-        <div className={clsx("grid gap-1", fidelizacionActiva ? "grid-cols-5" : "grid-cols-3")}>
+        <div className={clsx("grid gap-1", fidelizacionActiva ? "grid-cols-4" : "grid-cols-3")}>
           {items.map((item) => {
-            const active = currentTab === item.key;
+            const active = item.activeTabs?.includes(currentTab) ?? currentTab === item.key;
             return (
               <a
                 key={item.key}
@@ -1193,9 +1181,18 @@ export default async function ClientePremiosPage({
     const { data: cliente } = await admin.from("clientes").select("id,restaurante_id,public_token").eq("public_token", tokenLocal).maybeSingle();
     if (!cliente) redirect(`/c/${tokenLocal}?tab=premios&err=cliente`);
 
-    const { data: restauranteCfg } = await admin.from("restaurantes").select("puntos_activo,puntos_por_euro").eq("id", cliente.restaurante_id).maybeSingle();
-    const fidelizacionOk = Boolean((restauranteCfg as any)?.puntos_activo) && Number((restauranteCfg as any)?.puntos_por_euro ?? 0) > 0;
-    if (!fidelizacionOk) redirect(`/c/${tokenLocal}?tab=inicio&err=premio`);
+    const loyalty = await getClientLoyaltyState(admin, cliente.id, cliente.restaurante_id);
+    if (!loyalty.enabled) redirect(`/c/${tokenLocal}?tab=inicio&err=premio`);
+
+    const { data: premio } = await admin
+      .from("premios_puntos")
+      .select("id,nivel_minimo,activo")
+      .eq("id", premioId)
+      .eq("restaurante_id", cliente.restaurante_id)
+      .maybeSingle();
+    if (!premio?.activo || !cumpleNivelMinimo(loyalty.level, (premio.nivel_minimo ?? "nuevo") as NivelCliente)) {
+      redirect(`/c/${tokenLocal}?tab=premios&err=nivel`);
+    }
 
     const { data: existente } = await admin
       .from("canjes_puntos")
@@ -1203,7 +1200,7 @@ export default async function ClientePremiosPage({
       .eq("cliente_id", cliente.id)
       .eq("restaurante_id", cliente.restaurante_id)
       .eq("premio_id", premioId)
-      .in("estado", ["pendiente", "confirmado"])
+      .eq("estado", "pendiente")
       .order("creado_en", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -1228,11 +1225,34 @@ export default async function ClientePremiosPage({
       redirect(`/c/${tokenLocal}?tab=cupones&err=rate_limit`);
     }
 
-    const { data: cliente } = await admin.from("clientes").select("id, restaurante_id, public_token").eq("public_token", tokenLocal).maybeSingle();
+    const { data: cliente } = await admin.from("clientes").select("id, restaurante_id, public_token, fecha_nacimiento").eq("public_token", tokenLocal).maybeSingle();
     if (!cliente) redirect(`/c/${tokenLocal}?tab=cupones&err=cliente`);
 
-    const { data: cupon } = await admin.from("cupones").select("id, restaurante_id, activo").eq("id", cuponId).maybeSingle();
+    const loyalty = await getClientLoyaltyState(admin, cliente.id, cliente.restaurante_id);
+    if (!loyalty.enabled) redirect(`/c/${tokenLocal}?tab=inicio&err=premio`);
+
+    const { data: cupon } = await admin.from("cupones").select("id, restaurante_id, activo, nivel_minimo, condiciones").eq("id", cuponId).maybeSingle();
     if (!cupon || cupon.restaurante_id !== cliente.restaurante_id || !cupon.activo) redirect(`/c/${tokenLocal}?tab=cupones&err=premio`);
+    if (!cumpleNivelMinimo(loyalty.level, (cupon.nivel_minimo ?? "nuevo") as NivelCliente)) {
+      redirect(`/c/${tokenLocal}?tab=cupones&err=nivel`);
+    }
+
+    const condiciones = (cupon.condiciones ?? {}) as CuponCondiciones;
+    if (condiciones.tipo === "cumpleanos") {
+      const disponibilidad = isBirthdayPromoActive({
+        fechaNacimiento: cliente.fecha_nacimiento,
+        diasAntes: Number(condiciones.dias_antes ?? 0),
+        validezDias: Number(condiciones.validez_dias ?? 1),
+      });
+      if (!disponibilidad.ok) redirect(`/c/${tokenLocal}?tab=cupones&err=condicion`);
+    } else if (condiciones.tipo === "horas_valle") {
+      const disponibilidad = isHappyHourActive({
+        diasSemana: condiciones.dias_semana ?? [],
+        horaInicio: condiciones.hora_inicio ?? "00:00",
+        horaFin: condiciones.hora_fin ?? "23:59",
+      });
+      if (!disponibilidad.ok) redirect(`/c/${tokenLocal}?tab=cupones&err=condicion`);
+    }
 
     const { data: existing } = await admin
       .from("cupon_cliente")
@@ -1240,12 +1260,46 @@ export default async function ClientePremiosPage({
       .eq("cliente_id", cliente.id)
       .eq("restaurante_id", cliente.restaurante_id)
       .eq("cupon_id", cuponId)
-      .in("estado", ["activo", "canjeado"])
+      .eq("estado", "activo")
       .order("creado_en", { ascending: false })
       .limit(1)
       .maybeSingle();
 
     if (existing) redirect(`/c/${tokenLocal}?tab=cupones&ok=cupon`);
+
+    const cadaXVisitas = Math.max(1, Number(condiciones.cada_x_visitas ?? 1));
+    const { data: ultimoUso } = await admin
+      .from("cupon_cliente")
+      .select("canjeado_en")
+      .eq("cliente_id", cliente.id)
+      .eq("restaurante_id", cliente.restaurante_id)
+      .eq("cupon_id", cuponId)
+      .eq("estado", "canjeado")
+      .order("canjeado_en", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (condiciones.tipo === "cumpleanos" && ultimoUso?.canjeado_en) {
+      const ultimoAño = getMadridYear(ultimoUso.canjeado_en);
+      if (ultimoAño === getMadridYear()) {
+        redirect(`/c/${tokenLocal}?tab=cupones&err=usado`);
+      }
+    }
+
+    if (condiciones.tipo === "horas_valle") {
+      let visitasValidas = loyalty.visits;
+      if (ultimoUso?.canjeado_en) {
+        const { count } = await admin
+          .from("reservas")
+          .select("id", { count: "exact", head: true })
+          .eq("cliente_id", cliente.id)
+          .eq("restaurante_id", cliente.restaurante_id)
+          .eq("atendida", true)
+          .gt("fecha_hora_reserva", ultimoUso.canjeado_en);
+        visitasValidas = count ?? 0;
+      }
+      if (visitasValidas < cadaXVisitas) redirect(`/c/${tokenLocal}?tab=cupones&err=visitas`);
+    }
 
     const ahora = new Date();
     const caduca = new Date(ahora.getTime() + 60 * 60 * 1000);
@@ -1448,14 +1502,15 @@ export default async function ClientePremiosPage({
     );
   }
 
-  const [restauranteRes, clienteResumenRes, nivelesClienteRes] = await Promise.all([
+  const [restauranteRes, clienteResumenRes, nivelesClienteRes, moduloRes] = await Promise.all([
     supabase.from("restaurantes").select("id,nombre,telefono,color_primario,color_fondo,logo_url,puntos_por_euro,puntos_activo").eq("id", cliente.restaurante_id).maybeSingle(),
     supabase.from("vw_clientes_resumen").select("visitas_totales,visitas_reales,ranking_posicion").eq("id", cliente.id).eq("restaurante_id", cliente.restaurante_id).maybeSingle(),
     supabase.from("fidelizacion_config").select("nivel_frecuente_desde,nivel_habitual_desde,nivel_vip_desde,nivel_maestro_desde").eq("restaurante_id", cliente.restaurante_id).maybeSingle(),
+    supabase.from("restaurante_modulos").select("fidelizacion").eq("restaurante_id", cliente.restaurante_id).maybeSingle(),
   ]);
-  const restaurante = (restauranteRes.data ?? null) as any;
-  const clienteResumen = (clienteResumenRes.data ?? null) as any;
-  const rawLevels = (nivelesClienteRes.data ?? null) as any;
+  const restaurante = (restauranteRes.data ?? null) as RestauranteCliente | null;
+  const clienteResumen = (clienteResumenRes.data ?? null) as ClienteResumen | null;
+  const rawLevels = (nivelesClienteRes.data ?? null) as NivelesConfig | null;
 
   const restoNombre = String(restaurante?.nombre ?? "Restaurante");
   const rawAccent = String(restaurante?.color_primario ?? "#2563eb");
@@ -1464,7 +1519,7 @@ export default async function ClientePremiosPage({
   const logo = (restaurante?.logo_url ?? null) as string | null;
   const restauranteTelefono = normalizePhone(restaurante?.telefono);
   const puntosPorEuro = Number(restaurante?.puntos_por_euro ?? 0);
-  const fidelizacionActiva = Boolean(restaurante?.puntos_activo) && puntosPorEuro > 0;
+  const fidelizacionActiva = Boolean(moduloRes.data?.fidelizacion) && Boolean(restaurante?.puntos_activo) && puntosPorEuro > 0;
 
   const levelThresholds: ClientLevelThresholds = {
     silver: Math.max(1, Number(rawLevels?.nivel_frecuente_desde ?? 2)),
@@ -1478,6 +1533,7 @@ export default async function ClientePremiosPage({
 
   const visitasCliente = Math.max(0, Number(clienteResumen?.visitas_reales ?? clienteResumen?.visitas_totales ?? 0));
   const rankingCliente = Number(clienteResumen?.ranking_posicion ?? 0) || null;
+  const nivelCliente = nivelClienteDesdeVisitas(visitasCliente, levelThresholds);
   const clientLevel = visitasCliente >= levelThresholds.master
     ? { label: "Maestro", text: "Estás en el nivel más exclusivo del club" }
     : visitasCliente >= levelThresholds.diamond
@@ -1498,21 +1554,22 @@ export default async function ClientePremiosPage({
 
   const [saldoRes, premiosRes, canjesRes, cuponesRes, cuponClienteRes, reservasRes, notificacionesRes] = await Promise.all([
     fidelizacionActiva ? supabase.from("puntos_saldos").select("puntos").eq("cliente_id", cliente.id).eq("restaurante_id", cliente.restaurante_id).maybeSingle() : Promise.resolve({ data: null }),
-    fidelizacionActiva ? supabase.from("premios_puntos").select("id,nombre,descripcion,puntos_requeridos,imagen_url,activo,creado_en").eq("restaurante_id", cliente.restaurante_id).eq("activo", true).order("puntos_requeridos", { ascending: true }).limit(8) : Promise.resolve({ data: [] }),
+    fidelizacionActiva ? supabase.from("premios_puntos").select("id,nombre,descripcion,puntos_requeridos,imagen_url,nivel_minimo,activo,creado_en").eq("restaurante_id", cliente.restaurante_id).eq("activo", true).order("puntos_requeridos", { ascending: true }).limit(8) : Promise.resolve({ data: [] }),
     fidelizacionActiva ? supabase.from("canjes_puntos").select("id,premio_id,puntos_usados,estado,creado_en,confirmado_en").eq("cliente_id", cliente.id).eq("restaurante_id", cliente.restaurante_id).order("creado_en", { ascending: false }).limit(12) : Promise.resolve({ data: [] }),
-    fidelizacionActiva ? supabase.from("cupones").select("id,nombre,beneficio,condiciones,activo,creado_en").eq("restaurante_id", cliente.restaurante_id).eq("activo", true).order("creado_en", { ascending: false }).limit(12) : Promise.resolve({ data: [] }),
-    fidelizacionActiva ? supabase.from("cupon_cliente").select("cupon_id,estado,creado_en,canjeado_en,caduca_en").eq("cliente_id", cliente.id).eq("restaurante_id", cliente.restaurante_id).order("creado_en", { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
+    fidelizacionActiva ? supabase.from("cupones").select("id,nombre,beneficio,condiciones,nivel_minimo,activo,creado_en").eq("restaurante_id", cliente.restaurante_id).eq("activo", true).order("creado_en", { ascending: false }).limit(12) : Promise.resolve({ data: [] }),
+    fidelizacionActiva ? supabase.from("cupon_cliente").select("id,cupon_id,estado,creado_en,canjeado_en,caduca_en").eq("cliente_id", cliente.id).eq("restaurante_id", cliente.restaurante_id).order("creado_en", { ascending: false }).limit(30) : Promise.resolve({ data: [] }),
     supabase.from("reservas").select("id,restaurante_id,cliente_id,nombre_cliente,telefono,email,personas,fecha_hora_reserva,inicio_at,estado,turno,atendida,resena_solicitada,amelia_appointment_id,amelia_booking_id,amelia_cancel_url,amelia_booking_token,gestion_token,origen,created_at").eq("cliente_id", cliente.id).eq("restaurante_id", cliente.restaurante_id).order("fecha_hora_reserva", { ascending: true }).limit(30),
     supabase.from("cliente_notificaciones").select("id,restaurante_id,cliente_id,tipo,titulo,mensaje,url,leida,created_at").eq("cliente_id", cliente.id).eq("restaurante_id", cliente.restaurante_id).order("created_at", { ascending: false }).limit(12),
   ]);
 
-  const puntos = fidelizacionActiva ? Number((saldoRes.data as any)?.puntos ?? 0) : 0;
-  const premiosPuntos = ((premiosRes.data ?? []) as any[]).map((x) => ({ id: x.id, nombre: x.nombre, descripcion: x.descripcion ?? null, puntos_requeridos: Number(x.puntos_requeridos ?? 0), imagen_url: x.imagen_url ?? null, activo: Boolean(x.activo), creado_en: x.creado_en ?? null })) as PremioPuntos[];
-  const canjes = ((canjesRes.data ?? []) as any[]).map((x) => ({ id: x.id, premio_id: x.premio_id, puntos_usados: Number(x.puntos_usados ?? 0), estado: String(x.estado ?? "pendiente"), creado_en: x.creado_en ?? null, confirmado_en: x.confirmado_en ?? null })) as CanjePuntos[];
-  const cupones = ((cuponesRes.data ?? []) as any[]) as Cupon[];
-  const cuponClienteRaw = ((cuponClienteRes.data ?? []) as any[]) as CuponClienteRow[];
-  const reservas = ((reservasRes.data ?? []) as any[]) as ReservaCliente[];
-  const notificaciones = ((notificacionesRes.data ?? []) as any[]) as ClienteNotificacion[];
+  const puntos = fidelizacionActiva ? Number(saldoRes.data?.puntos ?? 0) : 0;
+  const premiosPuntos = (premiosRes.data ?? []).map((x) => ({ id: x.id, nombre: x.nombre, descripcion: x.descripcion ?? null, puntos_requeridos: Number(x.puntos_requeridos ?? 0), imagen_url: x.imagen_url ?? null, activo: Boolean(x.activo), creado_en: x.creado_en ?? null, nivel_minimo: (x.nivel_minimo ?? "nuevo") as NivelCliente })).filter((premio) => cumpleNivelMinimo(nivelCliente, premio.nivel_minimo)) as PremioPuntos[];
+  const canjes = (canjesRes.data ?? []).map((x) => ({ id: x.id, premio_id: x.premio_id, puntos_usados: Number(x.puntos_usados ?? 0), estado: String(x.estado ?? "pendiente"), creado_en: x.creado_en ?? null, confirmado_en: x.confirmado_en ?? null })) as CanjePuntos[];
+  const cupones = (cuponesRes.data ?? []).map((x) => ({ ...x, condiciones: (x.condiciones ?? null) as CuponCondiciones | null, nivel_minimo: (x.nivel_minimo ?? "nuevo") as NivelCliente }))
+    .filter((cupon) => cumpleNivelMinimo(nivelCliente, cupon.nivel_minimo)) as Cupon[];
+  const cuponClienteRaw = (cuponClienteRes.data ?? []) as CuponClienteRow[];
+  const reservas = (reservasRes.data ?? []) as ReservaCliente[];
+  const notificaciones = (notificacionesRes.data ?? []) as ClienteNotificacion[];
 
   const nowMs = Date.now();
   const proximasReservas = reservas.filter((r) => r.fecha_hora_reserva && String(r.estado ?? "").toLowerCase() !== "cancelada" && new Date(r.fecha_hora_reserva).getTime() >= nowMs);
@@ -1596,14 +1653,14 @@ export default async function ClientePremiosPage({
   const progressPct = target && target.puntos_requeridos > 0 ? Math.min(100, (puntos / target.puntos_requeridos) * 100) : 0;
   const canjesActivosByPremioId = new Map(
     canjes
-      .filter((c) => ["pendiente", "confirmado"].includes(String(c.estado ?? "").toLowerCase()))
+      .filter((c) => String(c.estado ?? "").toLowerCase() === "pendiente")
       .map((c) => [c.premio_id, c])
   );
   const premiosCanjeables = premiosPuntos.filter((p) => puntos >= p.puntos_requeridos && !canjesActivosByPremioId.has(p.id));
   const premioDestacado = premiosCanjeables[0] ?? next ?? target ?? null;
 
-  const hiddenCuponIds = new Set<string>();
-  const cuponEstadoById = new Map<string, { estado: string; fecha: string | null; creado_en: string | null; canjeado_en: string | null; caduca_en: string | null }>();
+  const cuponEstadoById = new Map<string, { id: string; estado: string; fecha: string | null; creado_en: string | null; canjeado_en: string | null; caduca_en: string | null }>();
+  const ultimoCanjeCupon = new Map<string, string>();
   const CUPON_VISIBLE_AFTER_CANJE_MS = 30 * 60 * 1000;
 
   for (const row of cuponClienteRaw) {
@@ -1614,24 +1671,35 @@ export default async function ClientePremiosPage({
     const caducaMs = row.caduca_en ? new Date(row.caduca_en).getTime() : NaN;
     const caducado = estado === "activo" && !Number.isNaN(caducaMs) && Date.now() > caducaMs;
     const viejo = (estado === "canjeado" || estado === "caducado") && !Number.isNaN(fechaMs) && Date.now() - fechaMs > CUPON_VISIBLE_AFTER_CANJE_MS;
+    if (estado === "canjeado" && row.canjeado_en && !ultimoCanjeCupon.has(row.cupon_id)) {
+      ultimoCanjeCupon.set(row.cupon_id, row.canjeado_en);
+    }
     if (caducado || viejo) {
-      hiddenCuponIds.add(row.cupon_id);
       continue;
     }
-    if (!cuponEstadoById.has(row.cupon_id)) cuponEstadoById.set(row.cupon_id, { estado: row.estado, fecha: pickPromoDate(row), creado_en: row.creado_en ?? null, canjeado_en: row.canjeado_en ?? null, caduca_en: row.caduca_en ?? null });
+    if (!cuponEstadoById.has(row.cupon_id)) cuponEstadoById.set(row.cupon_id, { id: row.id, estado: row.estado, fecha: pickPromoDate(row), creado_en: row.creado_en ?? null, canjeado_en: row.canjeado_en ?? null, caduca_en: row.caduca_en ?? null });
   }
 
   const promosEspeciales = cupones
-    .filter((c) => !hiddenCuponIds.has(c.id))
     .filter((c) => ["cumpleanos", "horas_valle"].includes(c.condiciones?.tipo ?? ""))
     .map((c) => {
       const tipo = c.condiciones?.tipo ?? "";
       if (tipo === "cumpleanos") {
         const r = isBirthdayPromoActive({ fechaNacimiento: cliente.fecha_nacimiento, diasAntes: Number(c.condiciones?.dias_antes ?? 0), validezDias: Number(c.condiciones?.validez_dias ?? 1) });
-        return { cupon: c, tipo, ok: r.ok, texto: r.motivo, prioridad: r.ok ? 1 : 3 };
+        const ultimoUso = ultimoCanjeCupon.get(c.id);
+        const usadoEsteAño = ultimoUso ? getMadridYear(ultimoUso) === getMadridYear() : false;
+        const ok = r.ok && !usadoEsteAño;
+        return { cupon: c, tipo, ok, texto: usadoEsteAño ? "Ya usada este año" : r.motivo, prioridad: ok ? 1 : 3 };
       }
       const r = isHappyHourActive({ diasSemana: (c.condiciones?.dias_semana ?? []) as number[], horaInicio: String(c.condiciones?.hora_inicio ?? "00:00"), horaFin: String(c.condiciones?.hora_fin ?? "23:59") });
-      return { cupon: c, tipo, ok: r.ok, texto: r.motivo, prioridad: r.ok ? 1 : 3 };
+      const ultimoUso = ultimoCanjeCupon.get(c.id);
+      const visitasDesdeUso = ultimoUso
+        ? historialReservas.filter((reserva) => reserva.atendida && new Date(reserva.fecha_hora_reserva ?? "").getTime() > new Date(ultimoUso).getTime()).length
+        : visitasCliente;
+      const visitasNecesarias = Math.max(1, Number(c.condiciones?.cada_x_visitas ?? 1));
+      const cumpleVisitas = visitasDesdeUso >= visitasNecesarias;
+      const ok = r.ok && cumpleVisitas;
+      return { cupon: c, tipo, ok, texto: cumpleVisitas ? r.motivo : `Faltan ${visitasNecesarias - visitasDesdeUso} visitas`, prioridad: ok ? 1 : 3 };
     })
     .sort((a, b) => {
       const ea = cuponEstadoById.get(a.cupon.id);
@@ -1662,6 +1730,10 @@ export default async function ClientePremiosPage({
       : sp.err === "perfil" ? "Rellena todos los campos."
       : sp.err === "email" ? "Email no válido."
       : sp.err === "fecha" ? "Fecha no válida."
+      : sp.err === "nivel" ? "Esta ventaja todavía no corresponde a tu nivel."
+      : sp.err === "condicion" ? "Esta ventaja no está disponible en este momento."
+      : sp.err === "visitas" ? "Todavía faltan visitas para volver a usar esta ventaja."
+      : sp.err === "usado" ? "Esta ventaja ya se ha usado en el periodo actual."
       : sp.err === "cancel_tarde" ? "No se puede cancelar si faltan menos de 3 horas. Contacta con el restaurante."
       : sp.err === "reserva" ? "No se encontró la reserva."
       : sp.err === "cancel" ? "No se pudo cancelar la reserva."
@@ -1700,6 +1772,7 @@ export default async function ClientePremiosPage({
             mainLabel={primary.label}
             mainIcon={primary.icon}
             avisosSinLeer={avisosSinLeer}
+            avisosHref={`${buildTabHref("perfil")}#avisos-app`}
           />
         ) : (
           <CompactHeader
@@ -1709,6 +1782,7 @@ export default async function ClientePremiosPage({
             logo={logo}
             accent={accent}
             avisosSinLeer={avisosSinLeer}
+            avisosHref={`${buildTabHref("perfil")}#avisos-app`}
           />
         )}
 
@@ -1717,27 +1791,6 @@ export default async function ClientePremiosPage({
 
         {currentTab === "inicio" ? (
           <div className="space-y-5">
-            <ClientImpactPanel
-              accent={accent}
-              proximaReserva={proximaReserva}
-              fidelizacionActiva={fidelizacionActiva}
-              puntos={puntos}
-              nextRewardName={nextRewardName}
-              nextRewardMissing={nextRewardMissing}
-              recompensaDisponible={recompensaDisponible}
-              avisosSinLeer={avisosSinLeer}
-              buildTabHref={buildTabHref}
-            />
-
-            <SectionCard accent={accent} title="Acciones rápidas" subtitle="Lo importante en un toque" icon={<Zap className="h-5 w-5" />}>
-              <div className="grid grid-cols-2 gap-3">
-                <QuickAction icon={<CalendarDays className="h-6 w-6" />} title="Reservas" text="Gestionar próxima visita" href={buildTabHref("reservas")} accent={accent} highlight={Boolean(proximaReserva)} />
-                {fidelizacionActiva ? <QuickAction icon={<Trophy className="h-6 w-6" />} title="Mi nivel" text={`${clientLevel.label} · ${visitasCliente} visitas`} href={buildTabHref("nivel")} accent={accent} highlight /> : null}
-                <QuickAction icon={<TicketPercent className="h-6 w-6" />} title="Ventajas" text="Promos y cupones" href={fidelizacionActiva ? buildTabHref("cupones") : buildTabHref("perfil")} accent={accent} highlight={Boolean(promosEspeciales.some((p) => p.ok))} />
-                <QuickAction icon={<Bell className="h-6 w-6" />} title="Avisos" text="Novedades del restaurante" href={buildTabHref("perfil")} accent={accent} highlight={avisosSinLeer > 0} />
-              </div>
-            </SectionCard>
-
             <SectionCard accent={accent} title="Tu próxima visita" subtitle="Reserva activa y gestión rápida" icon={<CalendarDays className="h-5 w-5" />} right={proximaReserva ? <Badge accent={accent} variant="solid">Activa</Badge> : <Badge accent={accent}>Sin reserva</Badge>}>
               {!proximaReserva ? (
                 <EmptyState title="Sin reserva activa" text="Cuando tengas una reserva, podrás gestionarla desde aquí." icon={<CalendarDays className="h-6 w-6" />} accent={accent} />
@@ -1956,7 +2009,7 @@ export default async function ClientePremiosPage({
                     const estado = cuponEstadoById.get(promo.cupon.id);
                     return (
                       <div key={promo.cupon.id} className="space-y-3">
-                        <ScratchCoupon title={promo.cupon.nombre} subtitle={promo.cupon.beneficio} code={validationCode(promo.cupon.id)} accent={accent} status="activo" />
+                        <ScratchCoupon title={promo.cupon.nombre} subtitle={promo.cupon.beneficio} code={validationCode(estado?.id)} accent={accent} status="activo" />
                         <div className="rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
                           {estado?.caduca_en ? `Válido hasta ${new Date(estado.caduca_en).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : "Enséñalo al personal antes de usarlo."}
                         </div>

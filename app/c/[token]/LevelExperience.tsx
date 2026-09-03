@@ -76,7 +76,7 @@ export default function LevelExperience({
     const previous = previousRaw === null ? null : Number(previousRaw);
 
     if (previous !== null && Number.isFinite(previous) && currentIndex > previous) {
-      setShowCelebration(true);
+      queueMicrotask(() => setShowCelebration(true));
     }
 
     window.localStorage.setItem(storageKey, String(currentIndex));
