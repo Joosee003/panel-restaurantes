@@ -20,8 +20,6 @@ import {
   Users,
 } from "lucide-react";
 
-const DEMO_EMAIL = "demo@gastrohelp.es";
-const DEMO_PASSWORD = "DemoGastroHelp#2026!";
 const DEMO_MODE_KEY = "gastrohelp-demo-mode";
 const DEMO_STORAGE_KEY = "gastrohelp-demo-auth";
 
@@ -39,6 +37,14 @@ const demoClient = createClient(
 );
 
 type StepState = "waiting" | "active" | "done";
+
+type DemoSessionResponse = {
+  ok: boolean;
+  session?: {
+    accessToken: string;
+    refreshToken: string;
+  };
+};
 
 const features = [
   { icon: LayoutDashboard, label: "Dashboard" },
@@ -80,50 +86,23 @@ export default function DemoPage() {
     try {
       window.sessionStorage.setItem(DEMO_MODE_KEY, "1");
 
-      const {
-        data: { session: existingSession },
-      } = await demoClient.auth.getSession();
+      const response = await fetch("/api/demo/session", {
+        method: "POST",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      const result = (await response.json()) as DemoSessionResponse;
 
-      if (existingSession?.user.email !== DEMO_EMAIL) {
-        await demoClient.auth.signOut();
+      if (!response.ok || !result.ok || !result.session) {
+        throw new Error("No se ha podido iniciar la sesión demo.");
       }
 
-      let { data: signInData, error: signInError } =
-        await demoClient.auth.signInWithPassword({
-          email: DEMO_EMAIL,
-          password: DEMO_PASSWORD,
-        });
-
-      if (signInError || !signInData.session) {
-        const { error: signUpError } = await demoClient.auth.signUp({
-          email: DEMO_EMAIL,
-          password: DEMO_PASSWORD,
-          options: {
-            data: {
-              nombre: "Usuario Demo",
-              demo: true,
-            },
-          },
-        });
-
-        const alreadyExists = Boolean(
-          signUpError?.message.toLowerCase().includes("already") ||
-            signUpError?.message.toLowerCase().includes("registered"),
-        );
-
-        if (signUpError && !alreadyExists) throw signUpError;
-
-        const retry = await demoClient.auth.signInWithPassword({
-          email: DEMO_EMAIL,
-          password: DEMO_PASSWORD,
-        });
-
-        signInData = retry.data;
-        signInError = retry.error;
-      }
-
-      if (signInError || !signInData.session) {
-        throw signInError ?? new Error("No se ha podido iniciar la sesión demo.");
+      const { error: sessionError } = await demoClient.auth.setSession({
+        access_token: result.session.accessToken,
+        refresh_token: result.session.refreshToken,
+      });
+      if (sessionError) {
+        throw sessionError;
       }
 
       await wait(260);
