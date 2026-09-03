@@ -371,6 +371,32 @@ function estadoReservaLabel(estado: string | null | undefined) {
   return e.charAt(0).toUpperCase() + e.slice(1);
 }
 
+function reservaYaNoEsProxima(reserva: ReservaCliente) {
+  if (reserva.atendida) return true;
+
+  const estado = String(reserva.estado ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[_-]+/g, " ");
+
+  return [
+    "cancelada",
+    "cancelado",
+    "anulada",
+    "anulado",
+    "no ha venido",
+    "no show",
+    "noshow",
+    "ha venido",
+    "llegado",
+    "llegada",
+    "completada",
+    "completado",
+    "atendida",
+    "atendido",
+  ].includes(estado);
+}
+
 function canCancelReserva(reserva: ReservaCliente) {
   if (!reserva.fecha_hora_reserva) return false;
   const estado = String(reserva.estado ?? "").toLowerCase();
@@ -1577,8 +1603,23 @@ export default async function ClientePremiosPage({
   const notificaciones = (notificacionesRes.data ?? []) as ClienteNotificacion[];
 
   const nowMs = Date.now();
-  const proximasReservas = reservas.filter((r) => r.fecha_hora_reserva && String(r.estado ?? "").toLowerCase() !== "cancelada" && new Date(r.fecha_hora_reserva).getTime() >= nowMs);
-  const historialReservas = reservas.filter((r) => r.fecha_hora_reserva && new Date(r.fecha_hora_reserva).getTime() < nowMs).sort((a, b) => new Date(b.fecha_hora_reserva ?? "").getTime() - new Date(a.fecha_hora_reserva ?? "").getTime());
+  const proximasReservas = reservas.filter(
+    (r) =>
+      r.fecha_hora_reserva &&
+      !reservaYaNoEsProxima(r) &&
+      new Date(r.fecha_hora_reserva).getTime() >= nowMs,
+  );
+  const historialReservas = reservas
+    .filter(
+      (r) =>
+        r.fecha_hora_reserva &&
+        (reservaYaNoEsProxima(r) || new Date(r.fecha_hora_reserva).getTime() < nowMs),
+    )
+    .sort(
+      (a, b) =>
+        new Date(b.fecha_hora_reserva ?? "").getTime() -
+        new Date(a.fecha_hora_reserva ?? "").getTime(),
+    );
   const proximaReserva = proximasReservas[0] ?? null;
   const reservaSeleccionadaCambio = sp.cambiar
     ? proximasReservas.find((r) => r.id === sp.cambiar && canCancelReserva(r) && !r.gestion_token) ?? null
