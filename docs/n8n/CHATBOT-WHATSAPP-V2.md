@@ -40,6 +40,10 @@ No publicar ni conectar el flujo al router hasta que el código de la rama de pr
 6. Repetir el mismo identificador y confirmar que se marca como duplicado.
 7. Solo después preparar una versión en borrador del router.
 
+## Prueba por WhatsApp del piloto
+
+El modo `pilot` entrega respuestas únicamente cuando el router ha limitado antes el remitente autorizado. Permite recorrer reservas, cancelaciones y cambios sin crear ni modificar una reserva real. El modo `live` sigue siendo el único que escribe cambios reales.
+
 ## Condiciones antes de publicar
 
 - Prueba autenticada correcta.

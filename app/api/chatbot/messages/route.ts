@@ -145,7 +145,12 @@ export async function POST(request: NextRequest) {
   const phone = normalizePhone(body.from);
   const name = cleanText(body.name, 120);
   const text = cleanText(body.text, 2000);
-  const mode = body.mode === "test" ? "test" : body.mode === "live" || body.mode == null ? "live" : null;
+  const mode =
+    body.mode === "test" || body.mode === "pilot"
+      ? body.mode
+      : body.mode === "live" || body.mode == null
+        ? "live"
+        : null;
 
   if (!messageId || !isUuid(restaurantId) || !phone || !text || !mode) {
     return json({ ok: false, error: "INVALID_REQUEST" }, 400);
@@ -191,7 +196,7 @@ export async function POST(request: NextRequest) {
   const web = webQuery.data;
   if (!restaurant) return json({ ok: false, error: "RESTAURANT_NOT_FOUND" }, 404);
 
-  if (mode === "live" && (modules?.chatbot !== true || modules.estado !== "activo")) {
+  if (mode !== "test" && (modules?.chatbot !== true || modules.estado !== "activo")) {
     return json({ ok: false, error: "CHATBOT_NOT_ENABLED" }, 409);
   }
 
@@ -274,7 +279,7 @@ export async function POST(request: NextRequest) {
         name: web?.nombre_publico || restaurant.nombre,
         slug: web?.slug || restaurant.slug || "",
         timezone: booking?.zona_horaria || "Europe/Madrid",
-        bookingEnabled: booking?.activo === true && legalReady,
+        bookingEnabled: booking?.activo === true && (legalReady || mode === "pilot"),
         minParty: booking?.personas_minimas || 1,
         maxParty: booking?.personas_maximas || 12,
         maxAdvanceDays: booking?.dias_maximos_antelacion || 60,

@@ -22,7 +22,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const input = $json || {};\nconst required = ['restaurantId', 'messageId', 'from', 'text'];\nconst missing = required.filter((key) => !String(input[key] ?? '').trim());\nif (missing.length) {\n  throw new Error(`CHATBOT_INPUT_MISSING:${missing.join(',')}`);\n}\nconst phone = String(input.from).replace(/[^0-9]/g, '');\nif (phone.length < 7 || phone.length > 15) {\n  throw new Error('CHATBOT_PHONE_INVALID');\n}\nreturn [{\n  json: {\n    restaurantId: String(input.restaurantId).trim(),\n    messageId: String(input.messageId).trim().slice(0, 190),\n    from: phone,\n    name: String(input.name ?? '').trim().slice(0, 120),\n    text: String(input.text).trim().slice(0, 2000),\n    mode: input.mode === 'test' ? 'test' : 'live'\n  }\n}];"
+        "jsCode": "const input = $json || {};\nconst required = ['restaurantId', 'messageId', 'from', 'text'];\nconst missing = required.filter((key) => !String(input[key] ?? '').trim());\nif (missing.length) {\n  throw new Error(`CHATBOT_INPUT_MISSING:${missing.join(',')}`);\n}\nconst phone = String(input.from).replace(/[^0-9]/g, '');\nif (phone.length < 7 || phone.length > 15) {\n  throw new Error('CHATBOT_PHONE_INVALID');\n}\nreturn [{\n  json: {\n    restaurantId: String(input.restaurantId).trim(),\n    messageId: String(input.messageId).trim().slice(0, 190),\n    from: phone,\n    name: String(input.name ?? '').trim().slice(0, 120),\n    text: String(input.text).trim().slice(0, 2000),\n    mode: input.mode === 'test' || input.mode === 'pilot' ? input.mode : 'live'\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,

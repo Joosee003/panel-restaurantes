@@ -90,7 +90,7 @@ export type ChatbotEngineInput = {
   text: string;
   phone: string;
   contactName: string;
-  mode: "live" | "test";
+  mode: "live" | "pilot" | "test";
   restaurant: ChatbotRestaurant;
   dependencies: ChatbotDependencies;
 };
@@ -506,7 +506,7 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
       return stateResult(confirmationReply(draft, restaurant), "booking_confirm", draft);
     }
 
-    if (mode === "test") {
+    if (mode !== "live") {
       return reset(
         `[PRUEBA] La reserva sería válida para ${bookingSummary(draft, restaurant)}. No se ha creado ninguna reserva real.`,
         "test_only",
@@ -585,7 +585,7 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
     }
     const selected = draft.selectedReservation;
     if (!selected) return reset("No encuentro la reserva. Escribe PERSONA para que lo revise el equipo.");
-    if (mode === "test") {
+    if (mode !== "live") {
       return reset("[PRUEBA] La cancelación es válida. No se ha cambiado ninguna reserva real.", "test_only");
     }
     try {
@@ -643,7 +643,7 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
     if (!selected || !draft.start) {
       return reset("No encuentro los datos del cambio. Escribe PERSONA para que lo revise el equipo.");
     }
-    if (mode === "test") {
+    if (mode !== "live") {
       return reset("[PRUEBA] El cambio es válido. No se ha cambiado ninguna reserva real.", "test_only");
     }
     try {
