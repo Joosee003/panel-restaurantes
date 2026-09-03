@@ -765,6 +765,11 @@ export default function SalaPage() {
       return;
     }
 
+    setReservasDia((actuales) =>
+      actuales.map((reserva) =>
+        reserva.id === reservaId ? { ...reserva, estado: "ha venido" } : reserva,
+      ),
+    );
     setMensaje("Cliente marcado como llegado.");
     setReservaDetalle(null);
     setMesaDetalle(null);
@@ -1354,10 +1359,14 @@ export default function SalaPage() {
               <button
                 type="button"
                 onClick={() => marcarLlegada(reservaDetalle.id)}
-                disabled={guardandoAccion || estadoEsAtendido(reservaDetalle)}
+                disabled={
+                  guardandoAccion ||
+                  estadoEsAtendido(reservaDetalle) ||
+                  estadoEsOcupado(reservaDetalle.estado)
+                }
                 className="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:opacity-50"
               >
-                Cliente ha llegado
+                {estadoEsOcupado(reservaDetalle.estado) ? "Cliente en mesa" : "Cliente ha llegado"}
               </button>
               <button
                 type="button"
