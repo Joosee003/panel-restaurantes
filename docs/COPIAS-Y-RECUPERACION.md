@@ -4,8 +4,27 @@
 
 - El proyecto de Supabase está en el plan Free.
 - No dispone de copias programadas ni de restauración desde el panel.
+- Supabase solo muestra la rama principal; no existe un entorno separado con datos para probar una recuperación.
 - Supabase recomienda exportar con frecuencia los proyectos Free y guardar la copia fuera del proveedor.
 - Las copias de base de datos no incluyen los archivos de Storage; esos objetos necesitan una copia separada.
+
+## Diferencia entre producción y el repositorio — 4 sep 2026
+
+- Producción registra 94 migraciones.
+- El repositorio contiene 37 archivos de migración.
+- Coinciden 36 nombres de migración.
+- Faltan en el repositorio 58 cambios históricos, entre ellos el esquema inicial, permisos antiguos de carta y pedidos, fidelización, cierres de mesa, índices, Realtime, Storage, el alta segura y la primera versión de automatizaciones.
+- El repositorio contiene una migración local sin nombre equivalente en el historial remoto: `connect_booking_blocks_to_public_availability`.
+
+Consecuencia: las migraciones guardadas sirven para seguir cambiando la base actual, pero todavía no permiten crear desde cero una copia fiel de producción.
+
+Para cerrar esta diferencia:
+
+- [ ] Crear una exportación lógica cifrada de producción.
+- [ ] Guardar por separado roles, esquema y datos.
+- [ ] Obtener un esquema base sin datos personales y conservarlo fuera del historial público si contiene metadatos sensibles.
+- [ ] Comparar el esquema restaurado con producción antes de aceptar la copia.
+- [ ] Decidir si la migración local sin equivalente ya está incluida bajo otro cambio remoto.
 
 Documentación oficial:
 
