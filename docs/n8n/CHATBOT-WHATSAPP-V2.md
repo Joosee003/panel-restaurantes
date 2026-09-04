@@ -61,6 +61,8 @@ La prueba del piloto quedó completada con 21 turnos internos y una entrega real
 
 ## Pendiente de seguridad
 
+- El flujo `Motor Reservas Supabase TEST` (`9VX4fCoRUhX7Ixvj`) quedó despublicado el 04/09/2026. Tenía un webhook temporal sin autenticación y ningún flujo activo dependía de él.
+- El flujo antiguo `C9N9uXB5dFUh6xh4` está inactivo, no tiene versión activa y ningún flujo publicado lo referencia. Conserva 86 nodos y todavía no está archivado.
 - Retirar el flujo antiguo `C9N9uXB5dFUh6xh4`.
 - Rotar la credencial que usaba ese flujo.
 - Confirmar primero que ningún flujo activo depende de ella.
