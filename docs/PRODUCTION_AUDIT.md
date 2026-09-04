@@ -1,5 +1,22 @@
 # Auditoría de producción del panel — 27/07/2026
 
+## Actualización — 04/09/2026
+
+- Producción alineada con `main` en el commit `8ae16044619568fea80c210cea1e4042b75babef`.
+- Los PR `#31` y `#32` están incorporados.
+- `npm run lint`, `npm run build` y la auditoría de dependencias de producción pasan sin fallos conocidos.
+- La demo entra en el panel con 8 reservas del día y muestra Rentabilidad, Carta QR y Camarero digital.
+- Las 51 tablas del esquema público tienen RLS activo.
+- La cuenta demo no puede escribir ni consultar datos de otros restaurantes.
+- Un usuario ordinario solo ve su restaurante y un administrador conserva la vista global.
+- Supabase ya no marca claves foráneas sin índice.
+- La Carta QR de La Reserva vuelve a cargar en producción: 4 categorías y 8 productos.
+- Los accesos de pedido QR de la demo están caducados. La carta queda en modo consulta y no acepta pedidos.
+- El chatbot de WhatsApp está publicado en modo piloto para un remitente autorizado. La prueba real fue correcta y no cambió reservas.
+- Supabase sigue en el plan Free: no hay copias programadas ni protección contra contraseñas filtradas.
+- La activación comercial sigue bloqueada hasta cargar los datos legales de un restaurante real y probar alta, cambio y cancelación de una reserva real.
+- Falta retirar el flujo antiguo de n8n y rotar su credencial con confirmación en el momento del cambio.
+
 ## Resumen
 
 El panel está publicado, conectado al repositorio oficial y responde correctamente en el dominio principal. La demo pública también responde, declara datos ficticios, utiliza `noindex, nofollow` y presenta el acceso como solo lectura.
