@@ -74,6 +74,8 @@ No activar reservas públicas, WhatsApp en modo `live` ni dominio propio si falt
 
 ## 7. Copias y recuperación
 
+Procedimiento: [Copias y recuperación](./COPIAS-Y-RECUPERACION.md).
+
 - [ ] Pasar Supabase a Pro antes de cobrar al restaurante
 - [ ] Activar y comprobar las copias diarias
 - [ ] Activar la protección contra contraseñas filtradas
