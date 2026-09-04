@@ -64,15 +64,9 @@ function deliveryErrorMessage(error: unknown) {
   return error.message.slice(0, 1000);
 }
 
-async function webhookFor(eventType: string) {
-  const endpointKey =
-    eventType === "visit.review_request"
-      ? "review_webhook"
-      : "native_booking_webhook";
-  const envUrl =
-    eventType === "visit.review_request"
-      ? process.env.N8N_REVIEW_WEBHOOK_URL
-      : process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL;
+async function webhookFor() {
+  const endpointKey = "native_booking_webhook";
+  const envUrl = process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL;
 
   const { data, error } = await getSupabaseAdmin()
     .from("private_integration_endpoints")
@@ -183,8 +177,9 @@ async function deliverEvent(event: AutomationEvent) {
     const { config, customer: permissions, consent } =
       await permissionsFor(event);
 
-    let whatsappAllowed =
-      config?.whatsapp_enabled === true && Boolean(text(customer.phone));
+    // Los avisos por WhatsApp necesitan plantillas de Meta aprobadas.
+    // Hasta configurarlas, el canal operativo y comprobable es el correo.
+    let whatsappAllowed = false;
     let emailAllowed =
       config?.email_enabled === true && Boolean(text(customer.email));
 
@@ -263,7 +258,7 @@ async function deliverEvent(event: AutomationEvent) {
       process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET?.trim();
     let response: Response;
     try {
-      response = await fetch(await webhookFor(event.event_type), {
+      response = await fetch(await webhookFor(), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
