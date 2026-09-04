@@ -13,6 +13,8 @@
 - La Carta QR de La Reserva vuelve a cargar en producción: 4 categorías y 8 productos.
 - Los accesos de pedido QR de la demo están caducados. La carta queda en modo consulta y no acepta pedidos.
 - El chatbot de WhatsApp está publicado en modo piloto para un remitente autorizado. La prueba real fue correcta y no cambió reservas.
+- El flujo temporal `Motor Reservas Supabase TEST` quedó despublicado tras confirmar que ningún flujo activo dependía de él.
+- El chatbot antiguo está inactivo, sin versión activa y sin referencias desde los flujos publicados. Falta archivarlo.
 - Supabase sigue en el plan Free: no hay copias programadas ni protección contra contraseñas filtradas.
 - La activación comercial sigue bloqueada hasta cargar los datos legales de un restaurante real y probar alta, cambio y cancelación de una reserva real.
 - Falta retirar el flujo antiguo de n8n y rotar su credencial con confirmación en el momento del cambio.
