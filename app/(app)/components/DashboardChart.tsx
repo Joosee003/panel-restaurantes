@@ -22,7 +22,6 @@ type Props = {
 };
 
 export default function DashboardChart({ restauranteId }: Props) {
-
   const [data, setData] = useState<ChartPoint[]>([]);
 
   useEffect(() => {
@@ -68,26 +67,28 @@ export default function DashboardChart({ restauranteId }: Props) {
 
 
   return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border h-[260px]">
+    <div className="flex h-[280px] min-w-0 flex-col rounded-xl border bg-white p-6 shadow-sm">
       <h2 className="text-sm font-medium text-gray-600 mb-4">
         Reservas de la semana
       </h2>
 
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="day" />
-          <YAxis allowDecimals={false} />
-          <Tooltip />
-          <Line
-            type="monotone"
-            dataKey="reservas"
-            stroke="#2563eb"
-            strokeWidth={3}
-            dot={{ r: 4 }}
-          />
-        </LineChart>
-      </ResponsiveContainer>
+      <div className="min-h-0 min-w-0 flex-1">
+        <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+          <LineChart data={data}>
+            <CartesianGrid strokeDasharray="3 3" />
+            <XAxis dataKey="day" />
+            <YAxis allowDecimals={false} />
+            <Tooltip />
+            <Line
+              type="monotone"
+              dataKey="reservas"
+              stroke="#2563eb"
+              strokeWidth={3}
+              dot={{ r: 4 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
     </div>
   );
 }
