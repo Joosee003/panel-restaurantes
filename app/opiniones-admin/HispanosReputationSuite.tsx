@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  AlertTriangle,
   ArrowLeftRight,
   ExternalLink,
   Globe2,
@@ -32,24 +33,42 @@ export default function HispanosReputationSuite() {
   const supabase = useMemo(() => getOpinionesBrowserClient(), []);
   const [brand, setBrand] = useState<SuiteBrand | null>(null);
   const [canSwitch, setCanSwitch] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let active = true;
 
     const loadBrand = async () => {
-      const { data: configs } = await supabase
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+      if (!active) return;
+      if (sessionError || !sessionData.session?.user) {
+        window.location.replace("/reputacion/acceso");
+        return;
+      }
+
+      const { data: configs, error: configError } = await supabase
         .from("opinion_config")
         .select("restaurante_id,slug,logo_url,google_review_url")
         .eq("active", true)
         .order("created_at");
 
-      if (!active || !configs?.length) return;
+      if (!active) return;
+      if (configError) {
+        setError("No se ha podido comprobar el acceso al panel de reputación.");
+        return;
+      }
+      if (!configs?.length) {
+        setError("Esta cuenta no tiene ningún panel de reputación asignado.");
+        return;
+      }
 
       const requestedRestaurant = new URLSearchParams(window.location.search).get("restaurante");
       const storedRestaurant = window.localStorage.getItem(REPUTATION_RESTAURANT_KEY);
       const selectedRestaurant = requestedRestaurant || storedRestaurant;
       const selectedConfig = selectedRestaurant
         ? configs.find((item) => item.restaurante_id === selectedRestaurant)
+          ?? (configs.length === 1 ? configs[0] : null)
         : configs.length === 1
           ? configs[0]
           : null;
@@ -59,13 +78,17 @@ export default function HispanosReputationSuite() {
         return;
       }
 
-      const { data: restaurant } = await supabase
+      const { data: restaurant, error: restaurantError } = await supabase
         .from("restaurantes")
         .select("nombre,logo_url")
         .eq("id", selectedConfig.restaurante_id)
         .maybeSingle();
 
       if (!active) return;
+      if (restaurantError || !restaurant) {
+        setError("No se ha podido cargar el restaurante asignado.");
+        return;
+      }
       const isHispanos = selectedConfig.slug === "hispanos-grill";
       setCanSwitch(configs.length > 1);
       setBrand({
@@ -79,6 +102,19 @@ export default function HispanosReputationSuite() {
     void loadBrand();
     return () => { active = false; };
   }, [supabase]);
+
+  if (error) {
+    return (
+      <div className="grid min-h-screen place-items-center bg-[#031b3b] p-6 text-blue-100">
+        <div className="w-full max-w-lg rounded-[2rem] border border-white/15 bg-white/10 p-8 text-center shadow-2xl backdrop-blur-xl">
+          <AlertTriangle className="mx-auto h-9 w-9 text-amber-300" />
+          <h1 className="mt-5 text-2xl font-black text-white">Acceso no disponible</h1>
+          <p className="mt-3 text-sm font-semibold leading-6 text-blue-100">{error}</p>
+          <Link href="/logout" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-5 text-xs font-black text-[#062b5c]">Cerrar sesión</Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!brand) {
     return <div className="grid min-h-screen place-items-center bg-[#031b3b] text-blue-100"><div className="flex items-center gap-3 text-sm font-black"><Loader2 className="h-5 w-5 animate-spin" /> Cargando restaurante…</div></div>;
