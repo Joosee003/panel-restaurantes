@@ -301,10 +301,11 @@ function ReservaCard({
             <span>{reserva.origen || "origen no indicado"}</span>
           </div>
           {reserva.notas ? <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{reserva.notas}</p> : null}
-          {fidelizacionActiva && reserva.consumo_registrado_en ? (
+          {reserva.consumo_registrado_en ? (
             <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800">
               <ReceiptText size={16} />
-              Consumo registrado · {money(Number(reserva.consumo_total || 0))} · {Number(reserva.puntos_generados || 0)} pts
+              Consumo registrado · {money(Number(reserva.consumo_total || 0))}
+              {fidelizacionActiva ? ` · ${Number(reserva.puntos_generados || 0)} pts` : ""}
             </div>
           ) : null}
         </div>
@@ -341,8 +342,7 @@ function ReservaCard({
             <X size={16} /> Cancelar
           </button>
         ) : null}
-        {fidelizacionActiva &&
-        (reserva.estado === "confirmada" || reserva.estado === "ha venido" || reserva.atendida === true) &&
+        {(reserva.estado === "confirmada" || reserva.estado === "ha venido" || reserva.atendida === true) &&
         reserva.atendida !== false &&
         !reserva.consumo_registrado_en ? (
           <button onClick={() => onRegistrarConsumo(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100">
@@ -621,12 +621,12 @@ export default function ReservasPage() {
   };
 
   const abrirConsumo = (reserva: Reserva) => {
-    if (!fidelizacionActiva || reserva.estado === "cancelada" || reserva.consumo_registrado_en) return;
+    if (reserva.estado === "cancelada" || reserva.consumo_registrado_en) return;
     setConsumoModal({ reserva, gasto: "", metodo_pago: "tarjeta", notas: "" });
   };
 
   const registrarConsumo = async () => {
-    if (!restauranteId || !consumoModal || !fidelizacionActiva) return;
+    if (!restauranteId || !consumoModal) return;
     const gasto = Number(consumoModal.gasto.replace(",", "."));
     if (!Number.isFinite(gasto) || gasto <= 0) {
       setError("Introduce un importe válido para registrar el consumo.");
@@ -1101,13 +1101,13 @@ export default function ReservasPage() {
         </div>
       ) : null}
 
-      {consumoModal && fidelizacionActiva ? (
+      {consumoModal ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-4 sm:items-center">
           <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-700">
-                  <Banknote size={14} /> Fidelización
+                  <Banknote size={14} /> {fidelizacionActiva ? "Fidelización" : "Visita"}
                 </div>
                 <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950">Registrar consumo</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">{consumoModal.reserva.nombre_cliente} · {consumoModal.reserva.personas} persona{consumoModal.reserva.personas === 1 ? "" : "s"}</p>
@@ -1118,7 +1118,9 @@ export default function ReservasPage() {
             </div>
 
             <div className="mt-5 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-semibold text-blue-900">
-              Al confirmar, la reserva quedará como atendida, se guardará el gasto y se sumarán los puntos en la app del cliente. No se puede duplicar el consumo de la misma reserva.
+              {fidelizacionActiva
+                ? "Al confirmar, la reserva quedará como atendida, se guardará el gasto y se sumarán los puntos en la app del cliente. No se puede duplicar el consumo de la misma reserva."
+                : "Al confirmar, la reserva quedará como atendida y se guardará el gasto y la visita. No se puede duplicar el consumo de la misma reserva."}
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -1166,7 +1168,7 @@ export default function ReservasPage() {
               <button onClick={() => setConsumoModal(null)} className="inline-flex flex-1 items-center justify-center rounded-2xl border border-slate-200 px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Cancelar</button>
               <button onClick={registrarConsumo} disabled={saving === consumoModal.reserva.id} className="inline-flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:opacity-60">
                 {saving === consumoModal.reserva.id ? <Loader2 className="animate-spin" size={16} /> : <Banknote size={16} />}
-                Registrar y sumar puntos
+                {fidelizacionActiva ? "Registrar y sumar puntos" : "Registrar consumo"}
               </button>
             </div>
           </div>
