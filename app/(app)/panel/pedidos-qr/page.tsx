@@ -1060,7 +1060,7 @@ export default function PedidosQRPage() {
                           <option value="tarjeta">Tarjeta</option>
                           <option value="efectivo">Efectivo</option>
                           <option value="bizum">Bizum</option>
-                          <option value="invitado">Invitado</option>
+                          <option value="mixto">Mixto</option>
                         </select>
                       </label>
                     </div>

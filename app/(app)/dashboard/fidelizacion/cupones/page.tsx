@@ -82,7 +82,22 @@ function tipoCuponLabel(condiciones: CondicionesCupon | null) {
 }
 
 function mensajeError(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : "";
+
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return "No se pudo conectar. Comprueba la conexión y vuelve a intentarlo.";
+  }
+
+  if (/23505|duplicate key|unique/i.test(message)) {
+    return "Ese premio o cupón ya existe.";
+  }
+
+  return message || fallback;
 }
 
 export default function CuponesPage() {
@@ -773,6 +788,16 @@ export default function CuponesPage() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <CreateCard title="Añadir premio" subtitle="Premio por puntos y nivel" onClick={abrirNuevoPremio} dark={dark} />
+            {premios.length === 0 ? (
+              <div className={clsx(cardBase, "flex min-h-44 items-center justify-center p-6 text-center sm:col-span-1 xl:col-span-2")}>
+                <div>
+                  <div className="text-base font-black">Aún no hay premios</div>
+                  <p className={clsx("mt-2 text-sm font-semibold", smallText)}>
+                    Añade el primer premio para que los clientes puedan usar sus puntos.
+                  </p>
+                </div>
+              </div>
+            ) : null}
             {premios.map((p) => (
               <div key={p.id} className={clsx(cardBase, "overflow-hidden")}>
                 <div className="relative">
@@ -851,6 +876,16 @@ export default function CuponesPage() {
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             <CreateCard title="Añadir cupón" subtitle="Ventaja por nivel o condición" onClick={abrirNuevoCupon} dark={dark} />
+            {cupones.length === 0 ? (
+              <div className={clsx(cardBase, "flex min-h-44 items-center justify-center p-6 text-center sm:col-span-1 xl:col-span-2")}>
+                <div>
+                  <div className="text-base font-black">Aún no hay cupones</div>
+                  <p className={clsx("mt-2 text-sm font-semibold", smallText)}>
+                    Añade el primer cupón y decide quién puede usarlo.
+                  </p>
+                </div>
+              </div>
+            ) : null}
             {cupones.map((c) => (
               <div key={c.id} className={clsx(cardBase, "p-5")}>
                 <div className="flex items-start justify-between gap-3">

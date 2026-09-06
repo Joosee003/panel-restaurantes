@@ -14,7 +14,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!restaurant || !isLegalDocument(document)) return { title: "Documento no encontrado" };
   return {
     title: `${document === "privacidad" ? "Privacidad" : document === "cookies" ? "Cookies" : document === "aviso-legal" ? "Aviso legal" : "Condiciones de reserva"} | ${restaurant.name}`,
-    robots: { index: true, follow: true },
+    robots: restaurant.demo
+      ? { index: false, follow: false }
+      : { index: true, follow: true },
     alternates: { canonical: `${publicRestaurantUrl(restaurant)}/legal/${document}` },
   };
 }
