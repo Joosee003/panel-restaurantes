@@ -73,6 +73,7 @@ type WebRow = {
   restaurante_id: string;
   slug: string;
   publicada: boolean;
+  es_demo: boolean;
   nombre_publico: string;
   antetitulo: string | null;
   titular: string | null;
@@ -240,7 +241,7 @@ export async function getPublicRestaurant(
     const { data: web, error: webError } = await supabase
       .from("restaurante_webs")
       .select(
-        "restaurante_id,slug,publicada,nombre_publico,antetitulo,titular,subtitulo,descripcion,direccion_publica,telefono_publico,email_publico,whatsapp,google_maps_url,instagram_url,facebook_url,logo_url,hero_image_url,galeria_urls,especialidades,color_primario,color_acento,color_fondo,seo_titulo,seo_descripcion,dominio_personalizado,titular_legal,nif_cif,domicilio_legal,email_legal,datos_registrales,privacidad_email,conservacion_reservas,legal_actualizado_en",
+        "restaurante_id,slug,publicada,es_demo,nombre_publico,antetitulo,titular,subtitulo,descripcion,direccion_publica,telefono_publico,email_publico,whatsapp,google_maps_url,instagram_url,facebook_url,logo_url,hero_image_url,galeria_urls,especialidades,color_primario,color_acento,color_fondo,seo_titulo,seo_descripcion,dominio_personalizado,titular_legal,nif_cif,domicilio_legal,email_legal,datos_registrales,privacidad_email,conservacion_reservas,legal_actualizado_en",
       )
       .eq("slug", slug)
       .eq("publicada", true)
@@ -333,7 +334,7 @@ export async function getPublicRestaurant(
       restauranteId: web.restaurante_id,
       slug: web.slug,
       published: web.publicada,
-      demo: web.slug === pilotFallback.slug,
+      demo: web.es_demo === true,
       name: web.nombre_publico,
       eyebrow: web.antetitulo || "",
       headline: web.titular || web.nombre_publico,
@@ -390,6 +391,27 @@ export async function getPublicRestaurant(
   } catch (error) {
     console.error("No se ha podido cargar la web pública", error);
     return isPilotPreview(slug) ? pilotFallback : null;
+  }
+}
+
+export async function getPublishedRestaurantSlugs(): Promise<string[]> {
+  try {
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase
+      .from("restaurante_webs")
+      .select("slug")
+      .eq("publicada", true)
+      .eq("es_demo", false)
+      .order("slug", { ascending: true });
+
+    if (error) throw error;
+
+    return (data || [])
+      .map((row) => String(row.slug || "").trim())
+      .filter(Boolean);
+  } catch (error) {
+    console.error("No se han podido cargar las webs publicadas", error);
+    return [];
   }
 }
 

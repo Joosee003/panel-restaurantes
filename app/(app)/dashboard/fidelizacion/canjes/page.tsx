@@ -62,7 +62,18 @@ function nombreClienteVisible(cl: Cliente | undefined, clienteId: string) {
 }
 
 function mensajeError(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String(error.message)
+        : "";
+
+  if (/failed to fetch|networkerror|load failed/i.test(message)) {
+    return "No se pudo conectar. Comprueba la conexión y vuelve a intentarlo.";
+  }
+
+  return message || fallback;
 }
 
 export default function CanjesPage() {
