@@ -401,6 +401,13 @@ export async function POST(request: NextRequest) {
       p_lock_token: lockToken,
       p_error_code: errorCode,
     });
+    if (/CAPACITY_BUSY/.test(errorCode)) {
+      return NextResponse.json(
+        { ok: false, error: "CAPACITY_BUSY", retryable: true, retryAfterMs: 2000,
+          message: "Se está actualizando la disponibilidad. Vuelve a intentarlo en unos segundos." },
+        { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0", "Retry-After": "2" } },
+      );
+    }
     return json({ ok: false, error: "CHATBOT_FAILED", retryable: true }, 500);
   }
 }

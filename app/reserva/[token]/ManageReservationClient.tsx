@@ -74,6 +74,7 @@ function statusLabel(status: string) {
 
 function readableError(code: string) {
   const messages: Record<string, string> = {
+    CAPACITY_BUSY: "Se está actualizando la disponibilidad. La reserva no se ha cambiado; vuelve a intentarlo en unos segundos.",
     RATE_LIMITED: "Has hecho varios intentos seguidos. Espera un momento y vuelve a probar.",
     SLOT_NOT_AVAILABLE: "Esa hora acaba de ocuparse. Elige otra disponible.",
     CANCELLATION_WINDOW_CLOSED:

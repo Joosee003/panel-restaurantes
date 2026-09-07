@@ -20,6 +20,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { useRestaurante } from "../../../hooks/useRestaurante";
+import { FINAL_QR_STATES, qrBillKey, qrQuoteSignature, qrTotal, readAllActiveQrOrders } from "../../lib/qr-billing";
 
 type PedidoItem = {
   id: string;
@@ -70,14 +72,7 @@ type MesaAbierta = {
   primerPedido: string;
 };
 
-const estadosFinales = new Set([
-  "cobrado",
-  "cobrada",
-  "cerrado",
-  "cerrada",
-  "cancelado",
-  "cancelada",
-]);
+const estadosFinales = new Set<string>(FINAL_QR_STATES);
 
 const columnasCocina = [
   {
@@ -176,6 +171,8 @@ function crearResumenItems(items: PedidoItem[]) {
 }
 
 export default function PedidosQRPage() {
+  const { data: restauranteActual, isLoading: cargandoRestaurante } = useRestaurante();
+  const restauranteId = restauranteActual?.id as string | undefined;
   const [pedidos, setPedidos] = useState<PedidoQR[]>([]);
   const [vista, setVista] = useState<TabVista>("cocina");
   const [cargando, setCargando] = useState(true);
@@ -193,6 +190,9 @@ export default function PedidosQRPage() {
   const primeraCargaRef = useRef(true);
   const pedidosIdsRef = useRef<Set<string>>(new Set());
   const audioContextRef = useRef<AudioContext | null>(null);
+  const cargaRef = useRef<AbortController | null>(null);
+  const operacionRef = useRef<string | null>(null);
+  const vistaScopeRef = useRef<object>({});
 
   useEffect(() => {
     const root = document.documentElement;
@@ -221,13 +221,14 @@ export default function PedidosQRPage() {
   }, []);
 
   const pedidosActivos = useMemo(
-    () => pedidos.filter((pedido) => !esEstadoFinal(pedido.estado)),
-    [pedidos]
+    () => pedidos.filter((pedido) => pedido.restaurante_id === restauranteId && !esEstadoFinal(pedido.estado)),
+    [pedidos, restauranteId]
   );
 
   const pedidosFinalizados = useMemo(
-    () => pedidos.filter((pedido) => esEstadoFinal(pedido.estado)),
-    [pedidos]
+    () => pedidos.filter((pedido) => pedido.restaurante_id === restauranteId && esEstadoFinal(pedido.estado))
+      .sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at)),
+    [pedidos, restauranteId]
   );
 
   const pedidosNuevos = useMemo(
@@ -239,7 +240,7 @@ export default function PedidosQRPage() {
     const mapa = new Map<string, MesaAbierta>();
 
     pedidosActivos.forEach((pedido) => {
-      const mesaKey = String(pedido.mesa_id || pedido.mesa || "sin-mesa");
+      const mesaKey = qrBillKey(pedido);
       const mesaLabel = pedido.mesa ? `Mesa ${pedido.mesa}` : "Sin mesa";
       const actual = mapa.get(mesaKey);
       const itemsPedido = pedido.items || [];
@@ -266,11 +267,8 @@ export default function PedidosQRPage() {
       }
     });
 
-    return Array.from(mapa.values()).sort((a, b) => {
-      if (a.mesaKey === "sin-mesa") return 1;
-      if (b.mesaKey === "sin-mesa") return -1;
-      return Number(a.mesaKey) - Number(b.mesaKey);
-    });
+    return Array.from(mapa.values()).map((mesa) => ({ ...mesa, total: qrTotal(mesa.pedidos) }))
+      .sort((a, b) => a.mesaLabel.localeCompare(b.mesaLabel, "es", { numeric: true }) || a.primerPedido.localeCompare(b.primerPedido));
   }, [pedidosActivos]);
 
   const totalActivo = pedidosActivos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
@@ -395,14 +393,22 @@ export default function PedidosQRPage() {
     return { descuento, propina, metodoPago, totalFinal };
   }
 
-  const cargarPedidos = useCallback(async (silencioso = false) => {
+  const cargarPedidos = useCallback(async (silencioso = false): Promise<PedidoQR[] | null> => {
+    if (!restauranteId) return null;
+    // A slow background load must not be aborted by every polling tick.
+    if (silencioso && cargaRef.current) return null;
+    cargaRef.current?.abort();
+    const controller = new AbortController();
+    cargaRef.current = controller;
+    let timeoutReached = false;
+    const timeout = setTimeout(() => {
+      timeoutReached = true;
+      controller.abort();
+    }, 15000);
     if (!silencioso) setCargando(true);
-    setError(null);
 
     try {
-      const { data, error } = await supabase
-        .from("pedidos_qr")
-        .select(`
+      const select = `
           *,
           pedido_qr_items (
             id,
@@ -414,20 +420,40 @@ export default function PedidosQRPage() {
             notas,
             created_at
           )
-        `)
-        .order("created_at", { ascending: false })
-        .limit(120);
-
-      if (error) throw error;
+        `;
+      const [activosData, historial] = await Promise.all([
+        readAllActiveQrOrders<PedidoQRRow>(async (afterId, limit) => {
+          let query = supabase.from("pedidos_qr").select(select)
+            .eq("restaurante_id", restauranteId)
+            .not("estado", "in", `(${FINAL_QR_STATES.join(",")})`)
+            .order("id", { ascending: true }).limit(limit);
+          if (afterId) query = query.gt("id", afterId);
+          const response = await query.abortSignal(controller.signal);
+          if (response.error) throw response.error;
+          return (response.data || []) as unknown as PedidoQRRow[];
+        }),
+        supabase.from("pedidos_qr").select(select)
+          .eq("restaurante_id", restauranteId).in("estado", [...FINAL_QR_STATES])
+          .order("updated_at", { ascending: false, nullsFirst: false }).order("id", { ascending: false })
+          .limit(120).abortSignal(controller.signal),
+      ]);
+      if (historial.error) throw historial.error;
+      if (controller.signal.aborted) return null;
+      // An order can move from active to history between both reads. Keep only
+      // the final copy; the server validates the full bill again before closing.
+      const porId = new Map<string, PedidoQRRow>();
+      for (const row of [...activosData, ...((historial.data || []) as unknown as PedidoQRRow[])]) porId.set(row.id, row);
+      const data = Array.from(porId.values());
 
       const pedidosFormateados = ((data || []) as PedidoQRRow[]).map((pedido) => ({
         ...pedido,
         estado: normalizarEstado(pedido.estado),
         total: Number(pedido.total || 0),
         items: pedido.pedido_qr_items || [],
-      })) as PedidoQR[];
+      })).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)) as PedidoQR[];
 
       const activos = pedidosFormateados.filter((pedido) => !esEstadoFinal(pedido.estado));
+      qrTotal(activos); // Reject invalid totals before displaying a payable bill.
       const idsActuales = new Set(activos.map((pedido) => pedido.id));
 
       if (!primeraCargaRef.current) {
@@ -443,25 +469,43 @@ export default function PedidosQRPage() {
       pedidosIdsRef.current = idsActuales;
       primeraCargaRef.current = false;
       setPedidos(pedidosFormateados);
+      setError(null);
+      return pedidosFormateados;
     } catch (err: unknown) {
+      if (controller.signal.aborted && !timeoutReached) return null;
       console.error(err);
-      setError(errorMessage(err, "No se pudieron cargar los pedidos"));
+      setError(timeoutReached
+        ? "La consulta ha tardado demasiado. Los pedidos no están actualizados; vuelve a cargarlos antes de registrar un pago."
+        : errorMessage(err, "No se pudieron cargar los pedidos"));
+      return null;
     } finally {
-      if (!silencioso) setCargando(false);
+      clearTimeout(timeout);
+      if (cargaRef.current === controller) {
+        cargaRef.current = null;
+        setCargando(false);
+      }
     }
-  }, [reproducirSonidoNuevoPedido]);
+  }, [reproducirSonidoNuevoPedido, restauranteId]);
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: string) {
+    if (operacionRef.current || !restauranteId) return;
+    const scope = vistaScopeRef.current;
+    operacionRef.current = pedidoId;
     setActualizandoId(pedidoId);
     setError(null);
 
     try {
-      const { error } = await supabase
+      const { data: actualizado, error } = await supabase
         .from("pedidos_qr")
         .update({ estado: nuevoEstado, updated_at: new Date().toISOString() })
-        .eq("id", pedidoId);
+        .eq("id", pedidoId)
+        .eq("restaurante_id", restauranteId)
+        .not("estado", "in", `(${FINAL_QR_STATES.join(",")})`)
+        .select("id").maybeSingle();
 
       if (error) throw error;
+      if (!actualizado) throw new Error("El pedido ya ha cambiado o se ha cerrado. Actualiza antes de continuar.");
+      if (vistaScopeRef.current !== scope) return;
 
       setPedidos((actual) =>
         actual.map((pedido) =>
@@ -471,49 +515,70 @@ export default function PedidosQRPage() {
         )
       );
 
-      setTimeout(() => cargarPedidos(true), 250);
+      void cargarPedidos(true);
     } catch (err: unknown) {
+      if (vistaScopeRef.current !== scope) return;
       console.error(err);
       setError(errorMessage(err, "No se pudo cambiar el estado del pedido"));
     } finally {
-      setActualizandoId(null);
+      operacionRef.current = null;
+      if (vistaScopeRef.current === scope) setActualizandoId(null);
     }
   }
 
   async function cerrarMesa(mesa: MesaAbierta) {
-    if (!mesa.pedidos.length) return;
-
-    const { descuento, propina, metodoPago, totalFinal } = calcularMesaFinal(mesa);
-
-    const confirmar = window.confirm(
-      `¿Cerrar y cobrar ${mesa.mesaLabel}?\nTotal productos: ${formatearDinero(mesa.total)}\nDescuento: ${formatearDinero(descuento)}\nPropina: ${formatearDinero(propina)}\nA cobrar: ${formatearDinero(totalFinal)}\nPago: ${metodoPago}`
-    );
-
-    if (!confirmar) return;
-
+    if (!mesa.pedidos.length || operacionRef.current) return;
+    const scope = vistaScopeRef.current;
+    operacionRef.current = mesa.mesaKey;
     const ids = mesa.pedidos.map((pedido) => pedido.id);
-    const restauranteId = mesa.pedidos[0]?.restaurante_id;
     setActualizandoId(mesa.mesaKey);
     setError(null);
 
     try {
-      if (!restauranteId || !mesa.mesaId) {
+      const sessionId = mesa.pedidos[0]?.mesa_session_id;
+      if (!restauranteId || mesa.pedidos.some((pedido) => pedido.restaurante_id !== restauranteId)
+        || !mesa.mesaId || !sessionId) {
         throw new Error("Este pedido no está vinculado a una mesa protegida.");
       }
 
-      const { data, error } = await supabase.rpc("cerrar_mesa_qr_segura", {
+      const actualizados = await cargarPedidos();
+      if (!actualizados || vistaScopeRef.current !== scope) return;
+      const cuentaActual = actualizados.filter((pedido) => !esEstadoFinal(pedido.estado) && qrBillKey(pedido) === mesa.mesaKey);
+      if (qrQuoteSignature(cuentaActual) !== qrQuoteSignature(mesa.pedidos)) {
+        throw new Error("La cuenta ha cambiado. Revisa los pedidos y el importe actualizados antes de confirmar el pago.");
+      }
+      const { descuento, propina, metodoPago, totalFinal } = calcularMesaFinal(mesa);
+      if (!window.confirm(
+        `¿Registrar el pago ya recibido y cerrar ${mesa.mesaLabel}?\nTotal productos: ${formatearDinero(mesa.total)}\nDescuento: ${formatearDinero(descuento)}\nPropina: ${formatearDinero(propina)}\nTotal recibido: ${formatearDinero(totalFinal)}\nPago: ${metodoPago}\nEsto no realiza ningún cargo bancario.`,
+      )) return;
+
+      // Requires the staged SQL capability. Never fall back to the old RPC:
+      // the new endpoint rechecks the quote and session under database locks.
+      const { data, error } = await supabase.rpc("cerrar_mesa_qr_validada", {
         p_mesa_id: mesa.mesaId,
         p_pedidos_ids: ids,
+        p_mesa_session_id: sessionId,
+        p_total_esperado: mesa.total,
         p_descuento: descuento,
         p_propina: propina,
         p_metodo_pago: metodoPago,
         p_notas: `Cierre/cobro desde cocina QR. ${mesa.pedidos.length} pedido(s).`,
       });
 
-      if (error) throw error;
+      if (error) {
+        if (error.code === "PGRST202") throw new Error("El cierre seguro aún no está instalado. No se ha registrado el pago desde este panel.");
+        if (/PEDIDOS_|CUENTA_|SESION_|SESSION_|IMPORTE_CAMBIADO/i.test(error.message)) {
+          throw new Error("La cuenta o su sesión ha cambiado. Actualiza y revisa el importe antes de registrar el pago.");
+        }
+        if (/IMPORTES_|TOTAL_ESPERADO_|METODO_PAGO_/i.test(error.message)) {
+          throw new Error("Revisa los importes (máximo dos decimales) y el método de pago. No se ha cerrado la cuenta.");
+        }
+        throw error;
+      }
 
       const resultado = Array.isArray(data) ? data[0] : data;
       if (!resultado?.ok) throw new Error("No se pudo confirmar el cierre de la mesa.");
+      if (vistaScopeRef.current !== scope) return;
 
       setPedidos((actual) =>
         actual.map((pedido) =>
@@ -540,26 +605,50 @@ export default function PedidosQRPage() {
       });
 
       setVista("historial");
-      setTimeout(() => cargarPedidos(true), 250);
+      void cargarPedidos(true);
     } catch (err: unknown) {
+      if (vistaScopeRef.current !== scope) return;
       console.error(err);
       setError(errorMessage(err, "No se pudo cerrar la mesa"));
     } finally {
-      setActualizandoId(null);
+      operacionRef.current = null;
+      if (vistaScopeRef.current === scope) setActualizandoId(null);
     }
   }
 
   useEffect(() => {
     let activo = true;
+    vistaScopeRef.current = {};
     queueMicrotask(() => {
-      if (activo) void cargarPedidos();
+      if (!activo) return;
+      setActualizandoId(null);
+      if (!restauranteId) {
+        if (!cargandoRestaurante) {
+          setCargando(false);
+          setError("No hay un restaurante seleccionado para consultar sus pedidos.");
+        }
+        return;
+      }
+      primeraCargaRef.current = true;
+      pedidosIdsRef.current = new Set();
+      void cargarPedidos();
     });
-    const interval = setInterval(() => void cargarPedidos(true), 3000);
+    const refresh = () => { if (document.visibilityState === "visible") void cargarPedidos(true); };
+    const interval = setInterval(refresh, 10000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       activo = false;
+      vistaScopeRef.current = {};
       clearInterval(interval);
+      cargaRef.current?.abort();
+      cargaRef.current = null;
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", refresh);
     };
-  }, [cargarPedidos]);
+  }, [cargarPedidos, cargandoRestaurante, restauranteId]);
 
   function getEstadoClass(estado: string) {
     const normalizado = normalizarEstado(estado);
@@ -1076,11 +1165,15 @@ export default function PedidosQRPage() {
                       <Printer className="h-4 w-4" />
                       Imprimir cuenta
                     </button>
-                    <button onClick={() => cerrarMesa(mesa)} disabled={actualizandoId === mesa.mesaKey} className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    <button onClick={() => cerrarMesa(mesa)} disabled={actualizandoId !== null || !mesa.mesaId || !mesa.pedidos[0]?.mesa_session_id} className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
                       {actualizandoId === mesa.mesaKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                      Cerrar y cobrar
+                      Registrar pago y cerrar
                     </button>
                   </div>
+                  <p className={`mt-3 text-xs ${mutedTextClass}`}>Registra únicamente un pago ya recibido. No realiza cargos bancarios ni emite una factura.</p>
+                  {(!mesa.mesaId || !mesa.pedidos[0]?.mesa_session_id) && (
+                    <p className="mt-2 text-sm font-bold text-amber-600">Pedido sin sesión protegida. Revisa su origen con soporte antes de registrar el cierre.</p>
+                  )}
                 </article>
               );
             })}

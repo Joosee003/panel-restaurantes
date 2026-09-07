@@ -50,6 +50,7 @@ type BookingConfig = {
   intervalo_minutos: number;
   duracion_minutos: number;
   capacidad_por_turno: number;
+  capacidad_vinculada_sala: boolean;
   personas_minimas: number;
   personas_maximas: number;
   antelacion_minutos: number;
@@ -233,6 +234,7 @@ export default function WebReservasSettings({
     intervalo_minutos: 30,
     duracion_minutos: 90,
     capacidad_por_turno: 40,
+    capacidad_vinculada_sala: false,
     personas_minimas: 1,
     personas_maximas: 12,
     antelacion_minutos: 60,
@@ -256,6 +258,7 @@ export default function WebReservasSettings({
   });
   const [schedule, setSchedule] = useState<DaySchedule[]>(defaultDays);
   const [loading, setLoading] = useState(true);
+  const [capacityModeSupported, setCapacityModeSupported] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
@@ -266,6 +269,7 @@ export default function WebReservasSettings({
     async function load() {
       setLoading(true);
       setError("");
+      setCapacityModeSupported(false);
 
       const [webResult, configResult, scheduleResult] = await Promise.all([
         supabase
@@ -337,12 +341,14 @@ export default function WebReservasSettings({
 
       if (configResult.data) {
         const row = configResult.data as Record<string, unknown>;
+        setCapacityModeSupported(Object.prototype.hasOwnProperty.call(row, "capacidad_vinculada_sala"));
         setBooking({
           activo: Boolean(row.activo),
           zona_horaria: String(row.zona_horaria || "Europe/Madrid"),
           intervalo_minutos: Number(row.intervalo_minutos || 30),
           duracion_minutos: Number(row.duracion_minutos || 90),
           capacidad_por_turno: Number(row.capacidad_por_turno || 40),
+          capacidad_vinculada_sala: row.capacidad_vinculada_sala === true,
           personas_minimas: Number(row.personas_minimas || 1),
           personas_maximas: Number(row.personas_maximas || 12),
           antelacion_minutos: Number(row.antelacion_minutos || 60),
@@ -476,6 +482,8 @@ export default function WebReservasSettings({
       return values;
     });
 
+    const bookingPayload: Record<string, unknown> = { ...booking };
+    if (!capacityModeSupported) delete bookingPayload.capacidad_vinculada_sala;
     setSaving(true);
     const { error: saveError } = await supabase.rpc(
       "guardar_configuracion_web_reservas_legal",
@@ -486,7 +494,7 @@ export default function WebReservasSettings({
           galeria_urls: splitList(web.galeria_urls),
           especialidades: splitList(web.especialidades),
         },
-        p_config: booking,
+        p_config: bookingPayload,
         p_horarios: rows,
         p_legal: legal,
       },
@@ -495,7 +503,9 @@ export default function WebReservasSettings({
 
     if (saveError) {
       console.error("Error guardando web y reservas", saveError);
-      const errorText = /ACTIVE_BOOKING_REQUIRES_SCHEDULE/.test(saveError.message)
+      const errorText = /CAPACITY_BUSY/.test(saveError.message)
+        ? "Se está actualizando la disponibilidad. No se han guardado los cambios; vuelve a intentarlo en unos segundos."
+        : /ACTIVE_BOOKING_REQUIRES_SCHEDULE/.test(saveError.message)
         ? "Añade al menos un horario antes de activar reservas."
         : /OVERLAPPING_BOOKING_SCHEDULE/.test(saveError.message)
           ? "Los horarios de comida y cena no pueden solaparse."
@@ -731,6 +741,21 @@ export default function WebReservasSettings({
               label="Confirmación automática"
               detail="Si está apagado, las nuevas reservas entrarán como pendientes."
             />
+            {capacityModeSupported ? (
+              <Toggle
+                checked={booking.capacidad_vinculada_sala}
+                onChange={(value) => {
+                  if (value && !window.confirm("¿Has revisado todas las zonas, mesas y plazas? Las mesas bloqueadas o inactivas y las zonas inactivas dejarán de aportar plazas. Si no hay mesas disponibles, no se aceptarán reservas nuevas.")) return;
+                  setBooking((current) => ({ ...current, capacidad_vinculada_sala: value }));
+                }}
+                label="Limitar las reservas a las plazas de Sala"
+                detail="Usa el menor valor entre el cupo configurado y las plazas de mesas activas, no bloqueadas y en zonas activas. No asigna ni combina mesas automáticamente."
+              />
+            ) : (
+              <p className="text-sm text-slate-500">
+                La conexión de plazas con Sala está pendiente de la actualización de datos. Por ahora se usa la capacidad configurada.
+              </p>
+            )}
             <div className="grid gap-4 sm:grid-cols-2">
               <label>
                 <span className={labelClass}>Zona horaria</span>

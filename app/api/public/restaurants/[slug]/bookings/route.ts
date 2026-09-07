@@ -44,6 +44,7 @@ function cleanText(value: unknown, maxLength: number) {
 }
 
 function rpcErrorCode(message: string) {
+  if (/CAPACITY_BUSY/.test(message)) return "CAPACITY_BUSY";
   if (/SLOT_NOT_AVAILABLE/.test(message)) return "SLOT_NOT_AVAILABLE";
   if (/INVALID_BOOKING_REQUEST/.test(message)) return "INVALID_BOOKING_REQUEST";
   if (/BOOKING_NOT_AVAILABLE/.test(message)) return "BOOKING_NOT_AVAILABLE";
@@ -165,6 +166,12 @@ export async function POST(
 
     if (error) {
       const code = rpcErrorCode(error.message);
+      if (code === "CAPACITY_BUSY") {
+        return NextResponse.json(
+          { ok: false, error: code, message: "Se está actualizando la disponibilidad. Vuelve a intentarlo en unos segundos." },
+          { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0", "Retry-After": "2" } },
+        );
+      }
       const status = code === "SLOT_NOT_AVAILABLE" ? 409 : code === "BOOKING_NOT_AVAILABLE" ? 404 : 400;
       return json({ ok: false, error: code }, status);
     }

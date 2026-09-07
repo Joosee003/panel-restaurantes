@@ -56,6 +56,12 @@ export async function POST(
     );
 
     if (error) {
+      if (/CAPACITY_BUSY/.test(error.message)) {
+        return NextResponse.json(
+          { ok: false, error: "CAPACITY_BUSY", message: "Se está actualizando la disponibilidad. La reserva no se ha cambiado; vuelve a intentarlo en unos segundos." },
+          { status: 503, headers: { "Cache-Control": "private, no-store, max-age=0", "Retry-After": "2" } },
+        );
+      }
       const code = /SLOT_NOT_AVAILABLE/.test(error.message)
         ? "SLOT_NOT_AVAILABLE"
         : /CANCELLATION_WINDOW_CLOSED/.test(error.message)

@@ -61,6 +61,7 @@ function friendlyDate(date: string) {
 
 function readableError(code: string) {
   const errors: Record<string, string> = {
+    CAPACITY_BUSY: "Se está actualizando la disponibilidad. Vuelve a intentarlo en unos segundos.",
     SLOT_NOT_AVAILABLE:
       "Esa hora acaba de ocuparse. Actualiza la disponibilidad y elige otra.",
     INVALID_BOOKING_REQUEST: "Revisa los datos antes de continuar.",

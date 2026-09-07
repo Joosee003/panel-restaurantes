@@ -29,6 +29,9 @@ function fechaLocalHoy() {
 
 function mensajeErrorReserva(message: string | undefined) {
   const value = message || "";
+  if (value.includes("CAPACITY_BUSY")) {
+    return "Se está actualizando la disponibilidad. Conservamos los datos; vuelve a intentarlo en unos segundos.";
+  }
   if (value.includes("SLOT_NOT_AVAILABLE")) {
     return "Esa hora acaba de dejar de estar disponible. Elige otra.";
   }
