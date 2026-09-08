@@ -1,49 +1,58 @@
-# Primer bloque de conexiones de servicios
+# Conexiones de Sala, reservas y cuentas QR
 
-7 de septiembre de 2026. Rama `codex/connect-restaurant-services`, basada en `b6ea46b`.
+Actualizado el 8 de septiembre de 2026. Rama `codex/connect-restaurant-services`, base `b6ea46b`.
+[Propuesta en borrador #39](https://github.com/Joosee003/panel-restaurantes/pull/39).
 
-**Estado: cambios locales y SQL provisional probados por separado. No publicado ni aplicado a Supabase. No se ha activado el piloto de Hispanos Grill.**
+**Implementado y probado localmente; no instalado en Supabase ni publicado en producción.** No se ha activado el piloto de Hispanos Grill, enviado mensajes ni cambiado sus condiciones.
 
 ## Preparado
 
-1. **Sala:** lecturas completas con actualización por eventos, comprobación cada 45 segundos mientras la pestaña está visible y al volver a ella. Descarta respuestas de otra fecha/restaurante, conserva la selección y avisa si no consigue datos actuales. No convierte un error de lectura en mesas aparentemente libres.
-2. **Plazas y reservas:** ajuste voluntario, apagado por defecto. El cupo queda limitado por las plazas de mesas activas, no bloqueadas y dentro de zonas activas. Se comprueba también al guardar una reserva, no solo al mostrar disponibilidad. No calcula combinaciones de mesas ni modifica cupos de TheFork.
-3. **Cierre QR:** los pedidos se separan por restaurante, mesa y sesión. Se consultan los abiertos con paginación por identificador, aparte del historial. La cuenta se vuelve a leer antes de confirmar; el servidor preparado exige sesión, importe y lista completa bajo bloqueo. Registrar el pago no realiza ningún cargo ni emite factura.
+1. **Sala:** lecturas completas por eventos, cada 45 segundos con pestaña visible y al volver. Descarta respuestas de otra fecha/restaurante y conserva la última lectura completa ante fallos. Un error no convierte las mesas en aparentemente libres.
+2. **Plazas:** conexión opcional, apagada por defecto. Limita cupos por asientos de mesas activas, no bloqueadas, en zonas activas. Comprueba también al guardar y conserva reservas ya aceptadas. No calcula combinaciones ni cambia cupos externos.
+3. **Cuenta QR:** separación por restaurante, mesa y sesión, lectura completa de pedidos abiertos, comprobación antes de confirmar y validación bajo bloqueo. Las líneas y el total deben cuadrar. No ejecuta cargos bancarios ni emite facturas.
+4. **Protección del servidor:** exige módulo QR activo; impide modificar cuentas y líneas finales, fabricar cierres o marcar directamente un pedido cobrado desde la API. Mantiene solo el refresco de fechas de los cuatro pedidos ficticios de demostración mediante su función propietaria, sin cambiar su contenido.
+5. **QR → reserva → cliente:** reserva elegida expresamente, misma mesa/restaurante/servicio y cliente ya asignado. Cierre, consumo neto sin propina, visita y puntos se guardan en una transacción. La fidelización debe estar activa para sumar puntos. No se deduce identidad ni se concede consentimiento de contacto. Un consumo manual previo requiere revisión.
+6. **Respuesta perdida:** petición con identificador estable guardada antes del envío. «Comprobar cierre pendiente» repite exactamente esa petición y recupera el mismo resultado. Una respuesta antigua no borra otra operación y un rechazo del reintento no demuestra que el intento anterior no se guardó.
 
-La pantalla nueva de QR depende de `cerrar_mesa_qr_validada`. Si falta, rechaza el cierre: **no publicar esta interfaz antes de instalar y verificar el SQL correspondiente**.
+La pantalla requiere **`cerrar_mesa_qr_con_reserva`**, incluso sin reserva elegida. Aplicar y verificar primero `harden-qr-close.sql`, después `connect-qr-reservation.sql` y solo entonces publicar la interfaz. Los tres SQL siguen en `docs/sql`; no son migraciones aplicadas.
 
-## Comprobaciones
+## Pruebas y límites
 
-- 13 pruebas de lógica local: identidad y cuentas QR, importes, paginación y solicitudes de Sala.
-- 17 comprobaciones SQL de plazas en PostgreSQL local con datos ficticios.
-- 28 comprobaciones SQL de cierre QR, incluyendo roles y reversión del cambio ante permisos inesperados.
-- TypeScript y ESLint de los archivos cambiados; compilación de Next.js con configuración ficticia, sin claves reales.
+Última pasada: **146 comprobaciones pasan** (23 Node, 17 plazas, 61 cierre QR y 45 enlace a reserva). Las comprobaciones estáticas del verificador de concurrencia no se incluyen en esa cifra.
 
-Las pruebas SQL usan PGlite 0.5.8 y un esquema reducido. No prueban el esquema completo, todos los disparadores reales, dos conexiones simultáneas ni el recorrido completo en navegador. No son prueba de que los cambios estén operativos en producción.
+- Pruebas Node: cuentas, paginación, Sala, candidatos de reserva, importes, petición pendiente y respuesta antigua.
+- Pruebas SQL PGlite: plazas, permisos, cierre y consumo. Roles reales `anon`/`authenticated` sobre esquema ficticio, reversión completa, reintento idempotente, fidelización y consumo manual frente a QR.
+- TypeScript, ESLint de archivos cambiados, revisión independiente y compilación Next.js con valores ficticios y sin claves reales.
+- Preparadas doce carreras PostgreSQL independientes. Solo comprobación estática ejecutada: el entorno deniega el cambio de usuario necesario para iniciar PostgreSQL. **No son carreras verificadas.**
+- La vista previa redirige al inicio de sesión de Vercel. No se ha pasado esa protección ni probado el recorrido autenticado.
 
-Para repetirlas, con Node 24 y las dependencias del proyecto instaladas:
+PGlite 0.5.8 usa esquema reducido y una conexión. No prueba el esquema completo, todas las políticas/disparadores de producción ni escrituras simultáneas. Compilar tampoco demuestra el recorrido del usuario.
+
+Comandos reproducibles con Node 24 y dependencias instaladas:
 
 ```sh
 node --test tests/*.test.mjs
-npm install --prefix /tmp/gastrohelp-sql-tests --no-audit --no-fund --save-exact @electric-sql/pglite@0.5.8
-GASTROHELP_SQL_TEST_ROOT=/tmp/gastrohelp-sql-tests node scripts/test-room-capacity.mjs
-node scripts/test-qr-close-sql.mjs /tmp/gastrohelp-sql-tests/node_modules/@electric-sql/pglite/dist/index.js
+GASTROHELP_SQL_TEST_ROOT=/ruta/dependencias node scripts/test-room-capacity.mjs
+node scripts/test-qr-close-sql.mjs /ruta/dependencias/node_modules/@electric-sql/pglite/dist/index.js
+node scripts/test-qr-reservation-sql.mjs /ruta/dependencias/node_modules/@electric-sql/pglite/dist/index.js
+node scripts/test-sql-concurrent.mjs --self-check
 npx tsc --noEmit --incremental false
 ```
 
-## Pendiente antes de publicar
+## Antes de publicar
 
-- Copia recuperable y prueba de restauración; no se dispone todavía de esa comprobación.
-- Entorno PostgreSQL desechable con esquema completo y dos conexiones para probar las carreras entre reservas/bloqueos y pedidos/cierres. PGlite no cubre esa prueba.
-- Convertir ambos borradores de `docs/sql` a migraciones mediante la CLI. La ejecución de la CLI quedó bloqueada; no se han inventado ni registrado migraciones.
-- Revisar las restricciones posteriores al cierre y el permiso del módulo QR en el servidor. El SQL de permisos privados también cambia los permisos predeterminados de funciones futuras del creador; revisar otros roles creadores antes de aplicarlo.
-- Probar navegador con dos sesiones y cambio de restaurante/fecha, errores de conexión, lista completa, importe cambiado y respuesta de cierre perdida.
-- Instalar SQL antes de la interfaz dependiente; confirmar el resultado y solo entonces activar el ajuste de plazas en un restaurante cuyo inventario de Sala esté completo.
+1. Disponer de copia recuperable y probar su restauración.
+2. Entorno desechable autorizado con esquema completo. Ejecutar [las carreras preparadas](CONCURRENCY-VERIFICATION.md); añadir enlace QR frente a consumo manual y dos llamadas con la misma operación.
+3. Revisar esquemas expuestos, permisos privados y predeterminados. El SQL retira `PUBLIC EXECUTE` de funciones futuras del rol creador en todos los esquemas, no de las existentes. Revisar otros roles creadores.
+4. Generar migraciones con la CLI tras validar los borradores. Instalar SQL antes de la interfaz y probar con dos sesiones de navegador, cambio de restaurante/fecha y desconexiones.
+5. Activar plazas solo con inventario de Sala completo. No activar el piloto sin acordar alcance y accesos.
 
-## Todavía no conectado
+La consulta agregada de coherencia detectó un pedido abierto de demostración con cabecera de 96,40 € y líneas de 97,70 €. No se corrigió en producción. El nuevo cierre lo rechaza; no apareció ese descuadre en el otro pedido abierto leído.
 
-El cierre QR aún no registra automáticamente reserva, visita, gasto, puntos o ventas de rentabilidad. El contrato y sus restricciones están en [CONEXION-CIERRE-QR.md](CONEXION-CIERRE-QR.md): elección expresa de la reserva, operación única y protección frente a registros manuales duplicados. No unir clientes o platos por parecido de nombre.
+## Fuera de este bloque
 
-TheFork sigue pendiente de acceso oficial y prueba. También falta recoger el uso real de web, TPV, mesas, cocina y cobros de Hispanos Grill. No se han enviado mensajes a Michel ni modificado sus condiciones comerciales.
+TheFork necesita acceso oficial y prueba. QR → rentabilidad necesita mapa explícito de productos/platos, identificador de menú y origen único por venta. Correcciones, devoluciones, cuentas divididas y mesas combinadas requieren diseño y pruebas separados. Las reservas sin cliente asignado o intervalo comprobable no se enlazan desde esta pantalla; pueden cerrarse sin vinculación.
 
-Detalles de plazas: [ROOM-CAPACITY-CONNECTION.md](ROOM-CAPACITY-CONNECTION.md).
+Falta comprobar el uso real de web, TPV, turnos y cobros con Hispanos Grill.
+
+Detalles: [CONEXION-CIERRE-QR.md](CONEXION-CIERRE-QR.md), [ROOM-CAPACITY-CONNECTION.md](ROOM-CAPACITY-CONNECTION.md).

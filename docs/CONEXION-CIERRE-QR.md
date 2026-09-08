@@ -1,102 +1,67 @@
-# Cierre QR y conexión con los demás servicios
+# Cierre QR conectado a reserva y cliente
 
-Estado: preparación local, 7 de septiembre de 2026. No aplicado a producción. No se ha activado el piloto ni se han enviado mensajes o realizado cobros.
+8 de septiembre de 2026. Implementación en borrador, **no instalada en producción**. No realiza cargos, facturas, mensajes externos ni altas de marketing.
 
-## Qué hace hoy
+## Recorrido preparado
 
-La ruta de cierre revisada guarda `cierres_mesa_qr`, marca los pedidos como cobrados y cambia el acceso/sesión QR de la mesa. Registrar «tarjeta», «efectivo», «Bizum» o «mixto» **no ejecuta un pago**.
+El empleado revisa la cuenta completa, busca reservas de esa mesa y elige una expresamente, o deja «Sin reserva vinculada». Confirma que el dinero ya se recibió. Una llamada guarda el cierre y, con reserva válida, consumo, visita y puntos. Un error revierte todo, incluido el cambio de sesión QR.
 
-La función de cierre no escribe una reserva, visita, gasto de cliente, puntos ni venta de rentabilidad. Se revisaron sus definiciones y los disparadores de las tablas afectadas mediante consultas de catálogo, sin leer filas de clientes. No se ha confirmado ningún consumidor externo que haga estas conexiones por su cuenta.
+Requisitos para vincular:
 
-## Primer bloque: asegurar el cierre existente
+- Módulos QR, reservas y clientes activos; usuario autorizado, no demostración.
+- Misma mesa/restaurante; reserva pendiente o confirmada; cliente ya asignado del mismo restaurante. No se busca por nombre, teléfono o correo.
+- Hora actual y todos los pedidos dentro del servicio, extremo final exclusivo. El servidor interpreta reservas antiguas con su zona horaria; la pantalla propone solo intervalos explícitos `inicio_at`/`fin_at`.
+- Ningún consumo/visita anterior ni movimiento de puntos huérfano. No se sobreescribe un consumo manual.
+- Consumo = productos − descuento, sin propina. De 0 a 10.000 € para el enlace; una cuenta gratuita registra visita sin puntos. Sin vinculación se permiten importes superiores válidos.
 
-Preparado en `docs/sql/harden-qr-close.sql`, todavía fuera de las migraciones:
+La cuenta se atribuye al titular elegido, no a cada comensal. El trigger existente de historial es el único que añade puntos, respetando módulo y ajustes; se lee el movimiento realmente guardado. No se crean clientes ni cambian consentimientos. La notificación es interna.
 
-- Crear un pedido y cerrar una mesa toman el mismo bloqueo de mesa. El disparador de inserción comprueba de nuevo restaurante y sesión después del bloqueo, conservando los límites existentes. Un pedido que traiga una sesión anterior se rechaza.
-- El cierre exige exactamente todos los pedidos abiertos de la sesión actual. No acepta una parte, identificadores repetidos, nulos, cancelados ni otra mesa/restaurante.
-- Las filas de pedidos se bloquean durante el cálculo y la escritura. Si cambió la cuenta desde lo que confirmó el empleado, no se registra el cierre.
-- Importes finitos, no negativos, con precisión de céntimos; descuento no superior al bruto; métodos de pago reconocidos.
-- Se conserva la firma antigua para los clientes ya publicados. La interfaz nueva utiliza la llamada validada y no debe recurrir a la antigua si falta la nueva.
-- El nuevo acceso público es `SECURITY INVOKER`; el código con privilegios está en `app_private`, comprueba usuario, restaurante y bloqueo de demostración. Solo `authenticated` tiene permiso de ejecución. `app_private` debe seguir fuera de los esquemas de la API.
-- Antes de dar `USAGE` sobre `app_private`, una comprobación de catálogo aborta si cualquier otra función con privilegios puede ejecutarse como `authenticated`, también por `PUBLIC` o un rol heredado. Todo el archivo va dentro de una transacción: ese rechazo deshace también las funciones y permisos anteriores.
-- Se retira `EXECUTE` por defecto para `PUBLIC` en las funciones futuras del rol que aplique el SQL. PostgreSQL no permite retirar ese permiso implícito solo en un esquema: afecta a las nuevas funciones de ese creador en todos los esquemas, que necesitarán permisos explícitos. No cambia funciones existentes. Hay que revisar por separado otros roles creadores y sus permisos predeterminados antes de publicar.
+## Contrato y orden de instalación
 
-Contrato de la llamada nueva:
+Primero `harden-qr-close.sql`, después `connect-qr-reservation.sql`, tras cumplir los requisitos de publicación.
 
 ```text
-cerrar_mesa_qr_validada(
+cerrar_mesa_qr_con_reserva(
+  p_operacion_id uuid,
   p_mesa_id uuid,
   p_pedidos_ids uuid[],
   p_mesa_session_id uuid,
-  p_total_esperado numeric,  // bruto de productos; NO incluye descuento ni propina
-  p_descuento numeric,
-  p_propina numeric,
-  p_metodo_pago text,
-  p_notas text
+  p_total_esperado numeric,  // bruto de productos sin descuento ni propina
+  p_descuento numeric = 0,
+  p_propina numeric = 0,
+  p_metodo_pago text = 'tarjeta',
+  p_notas text = null,
+  p_reserva_id uuid = null
 )
 ```
 
-La respuesta correcta conserva `ok`, `cierre_id`, `total_cobrado`, `nueva_url_generada` y `expires_at`. Una respuesta perdida no autoriza a repetir el cierre: primero hay que comprobar el historial. El segundo intento con la sesión anterior se rechaza, no registra otro cierre.
+Devuelve `ok`, `cierre_id`, `total_cobrado`, `nueva_url_generada`, `expires_at`, `operacion_id`, `reserva_id`, `cliente_id`, `consumo_total`, `puntos_generados` y `replayed`. La misma operación/contenido devuelve el resultado anterior; con otro contenido se rechaza.
 
-Errores que requieren recargar y volver a confirmar: `SESION_MESA_CAMBIADA`, `PEDIDOS_CAMBIADOS_ACTUALIZA`, `IMPORTE_CAMBIADO_ACTUALIZA`. Los demás errores de autorización o importes no deben transformarse en éxito.
+La tabla privada tiene unicidad de operación, mesa/sesión, cierre, reserva e historial. No permite acceso de `anon` ni `authenticated`. La función pública es `SECURITY INVOKER`; la privada comprueba identidad/acceso antes de consultar respuestas. `app_private` debe permanecer fuera de los esquemas de la API. El SQL comprueba dependencias antes de instalarse.
 
-### Comprobaciones realizadas y límites
+## Protección y recuperación
 
-`scripts/test-qr-close-sql.mjs` ejecuta el SQL preparado en PostgreSQL local mediante PGlite 0.5.8, con datos ficticios y sin conexión a Supabase. Pasaron 28 comprobaciones: conjunto parcial/duplicado/nulo/cancelado, sesión o precio antiguos, importes inválidos, usuario desconocido, restaurante ajeno, modo demostración, rechazo real con rol `anon`, delegación con rol `authenticated`, cierre único, inserción con sesión caducada y límite de frecuencia. También comprueba la falta de permiso implícito en futuras funciones y el rechazo con reversión de todos los cambios ante funciones ajenas ejecutables por `PUBLIC` o por un rol heredado.
+- Creación y cierre toman bloqueo de mesa; el cierre bloquea pedidos y las escrituras de líneas bloquean su pedido. Se comprueban sesión, lista e importe. Una suma de líneas distinta del total se rechaza sin sustituir el importe confirmado.
+- Módulo QR activo obligatorio en el servidor. Cuentas y líneas cobradas/canceladas no se reabren, editan ni borran mediante una pantalla antigua.
+- La API no puede fabricar cierres ni marcar directamente pedidos cobrados. El control usa el rol SQL, no una variable que se pueda falsificar.
+- Solo se conserva el refresco de fechas de los cuatro pedidos ficticios de demostración desde su función propietaria; no cambia su contenido.
+- El consumo vinculado y su historial no se borran ni reinician para introducir otro consumo. Notas operativas editables. Ajustes económicos/devoluciones siguen pendientes de un proceso propio.
+- El navegador valida antes de guardar la petición en `sessionStorage`. No contiene nombres, teléfonos ni credenciales. Dura la pestaña; la garantía definitiva reside en la base de datos.
+- «Comprobar cierre pendiente» usa identificador y contenido originales aunque la cuenta ya no aparezca abierta. No recalcula ni cobra. Una respuesta antigua no borra una operación posterior.
+- Rechazo explícito del primer intento permite retirar el pendiente. Un rechazo de un reintento, cambio de permisos o respuesta desconocida **no prueba que el primer intento no se guardó**: se conserva para revisión. Un registro local dañado bloquea nuevos cierres, sin descartarse en silencio.
 
-```sh
-node scripts/test-qr-close-sql.mjs /ruta/a/@electric-sql/pglite/dist/index.js
-```
+## Pruebas y límites
 
-Las pruebas usan una función local de bytes ficticios; no prueban la calidad del generador criptográfico. PGlite aquí usa una conexión: **no acredita las carreras de dos conexiones simultáneas**. Antes de publicar se necesita:
+Node comprueba identidad, importes, candidatos, paginación y recuperación. SQL PGlite 0.5.8 con datos ficticios comprueba roles, permisos, módulos, estados finales, escritura anónima autorizada de cabecera/líneas/total, demostración, sesión, coherencia monetaria, enlace único, consumo manual anterior/posterior, fidelización y reversión completa.
 
-1. Revisar el SQL con el esquema completo, sus permisos y disparadores. Confirmar que el disparador `pedidos_qr_enforce_session_limits` existe y está habilitado antes de aplicar el reemplazo de su función.
-2. Probar dos sesiones PostgreSQL: alta de pedido frente a cierre, dos cierres, cancelación desde cocina frente a cierre y recepción de un pedido tras esperar un bloqueo.
-3. Revisar cambios directos de `estado` o `total`: una pantalla de cocina antigua no debe reabrir, cancelar ni editar una cuenta ya cerrada. El cierre bloquea filas durante su transacción, pero no sustituye las restricciones de las escrituras posteriores.
-4. Revisar el permiso del módulo QR en el servidor. El endurecimiento mantiene el control por restaurante existente, pero **no añade la comprobación de contratación/activación del módulo**.
-5. Probar la interfaz completa, datos reales de esquema en un entorno desechable autorizado y copia/restauración comprobada. Después crear la migración con la CLI; publicar SQL antes de la interfaz dependiente. No publicar solamente el frontend.
+El esquema ficticio incluye el trigger actual de puntos y la función manual; **no sustituye el esquema completo ni las pruebas simultáneas**. La simulación anónima reproduce escrituras, no todas las validaciones reales de QR, token, carta o menú.
 
-## Segundo bloque: una reserva y una cuenta completas
+Pendientes: copia/restauración, entorno desechable con esquema completo, carreras reales y navegador autenticado. Ver [CONCURRENCY-VERIFICATION.md](CONCURRENCY-VERIFICATION.md). Debe comprobarse el orden de bloqueos entre módulo, reserva/cliente y mesa frente a las rutas antiguas. Los conflictos exigen repetir la misma operación, no deducir éxito.
 
-La primera conexión funcional debe ser deliberadamente limitada: **una sesión de mesa, una cuenta completa y una reserva elegida expresamente por el empleado**. Sin deducir automáticamente el cliente por hora, nombre, teléfono o mesa.
+## No conectado
 
-Interfaz propuesta:
+QR no escribe ventas de rentabilidad. `carta_productos` y `platos` necesitan mapa explícito del mismo restaurante, clave de origen por línea, coste de venta y reparto exacto de descuentos. No se unen por nombres. Los menús deben conservar `menu_id`. Sin coste/mapa el margen queda sin calcular, no con coste cero.
 
-- Mostrar la sesión QR, cuenta y reservas candidatas del mismo restaurante/mesa. El empleado confirma cuál corresponde; si no hay una, dejar «sin reserva vinculada».
-- Mostrar el titular al que se asignaría el gasto y aclarar que sería el gasto de la cuenta, no el consumo individual de todos los comensales.
-- Si la reserva ya tiene un consumo registrado manualmente, detener la vinculación y mostrar una revisión. No sumar otra visita ni sobrescribir el importe.
-- Cuentas divididas, varias sesiones para una reserva, varios pagadores y mesas combinadas quedan fuera de ese primer paso, con aviso claro. «Mixto» es solo el método anotado: no existe aún reparto detallado de importes por pagador.
+Tampoco quedan resueltos cuentas divididas, varios pagadores, mesas combinadas, devoluciones, TheFork ni pruebas con Hispanos Grill. «Mixto» solo anota un método, no el reparto entre pagadores.
 
-Servidor propuesto: una única transacción que valide y bloquee mesa, pedidos y reserva en un orden documentado; guarde el cierre y su referencia única a la reserva; registre la visita/consumo; y cambie la sesión. No encadenar dos llamadas desde el navegador: si la segunda falla quedarían estados distintos.
-
-Condiciones necesarias:
-
-- Referencias persistentes de cierre/sesión/reserva; restricciones de restaurante coherentes y claves únicas para impedir dos cierres asociados a la misma visita.
-- Reintento con la misma clave devuelve el resultado anterior solo si coincide todo el contenido; clave repetida con otro importe debe fallar. Diseñar correcciones y devoluciones como movimientos trazables, no borrados de consumo.
-- La función actual de consumo rechaza gasto cero y superior a 10.000. Una cuenta gratuita/descuento total o superior a ese importe necesita un tratamiento explícito; no puede impedir registrar correctamente el cobro ya recibido.
-- Un `ok: false / CONSUMO_YA_REGISTRADO` no es éxito. Debe detener toda la nueva transacción o producir una reconciliación expresamente definida; nunca cerrar por un lado y duplicar gasto por otro.
-- Validar estado de la reserva, fecha/turno y mesa. Una reserva cancelada o de no asistencia no se convierte silenciosamente en visita por un cierre QR.
-- Separar bruto, descuento, consumo neto y propina. Propuesta conservadora: el consumo/puntos toma productos menos descuento, sin propina; pendiente de fijar y probar la regla de fidelización. No atribuir el gasto de cada miembro del grupo sin identificación y acuerdo.
-
-## Tercer bloque: puntos, mensajes y rentabilidad
-
-**Puntos:** reutilizar la regla existente solo después de confirmar que no se duplican el disparador de historial y el registro explícito. Solo con módulo de fidelización y puntos activos. Debe quedar una referencia estable al cierre/visita y una devolución exacta en caso de corrección. No inscribir a un invitado en un programa ni crear un cliente de marketing por haber pedido desde el QR.
-
-**Permisos de contacto:** la función de consumo actual intenta insertar `permite_whatsapp/email = true` al crear un cliente, pero un disparador de producción vuelve a calcular esos campos desde consentimientos activos por finalidad. Mantener esa protección y cambiar futuros insertos a valores falsos explícitos. La notificación interna de visita/puntos no debe disparar por sí sola un mensaje promocional. Un teléfono de reserva no constituye permiso para reseñas o fidelización.
-
-**Rentabilidad:** `carta_productos` y `platos` son catálogos distintos y hoy no tienen una referencia entre ellos. Las ventas manuales tampoco llevan una clave de origen QR que evite duplicados. Hace falta:
-
-- Mapa explícito producto QR → plato de rentabilidad del mismo restaurante. Nunca unir por nombre parecido.
-- Guardar origen de cada línea y una clave única (`pedido_qr_item_id` o equivalente), cantidades y coste en el momento de la venta. No volver a añadir manualmente la misma venta.
-- Repartir el descuento de cuenta entre líneas con ajuste exacto de céntimos; propinas separadas. No presentar impuestos, costes faltantes o ventas no registradas como margen neto real.
-- Tratar productos sin mapa y costes pendientes como «sin calcular», no coste cero/margen completo.
-- Los menús del día se aceptan con un identificador `menu-...`, pero el pedido actual persiste `producto_id = null` y no conserva `menu_id`. Hay que guardar esa identidad y definir su receta o componentes antes de calcular su margen.
-
-## Qué sigue pendiente de confirmar con Hispanos Grill
-
-- Uso real de TheFork, su web, TPV, turnos, mesas combinadas, cocina, cobros y trabajo sin conexión.
-- Qué cuenta corresponde al titular de una reserva; gestión de invitados, división de cuentas, propinas, premios y correcciones.
-- Acceso oficial para TheFork: no está concedido ni probado; no se sustituye con extracción de pantalla o credenciales compartidas.
-- Alcance y fechas del piloto completo por fases, costes externos y tratamiento de sus 30 €/mes de reputación. No se han cambiado esas condiciones.
-
-Fuentes técnicas consultadas el 7 de septiembre de 2026: código local de `pedidos-qr`, migraciones de consumo/fidelización y consultas de catálogo de Supabase (sin filas de negocio); [funciones y permisos de Supabase](https://supabase.com/docs/guides/database/functions), [permisos predeterminados de PostgreSQL](https://www.postgresql.org/docs/current/sql-alterdefaultprivileges.html). No se ha ejecutado ningún cierre ni insertado pedidos en producción.
+Fuentes: código del proyecto y catálogo de Supabase; [funciones/permisos](https://supabase.com/docs/guides/database/functions), [permisos predeterminados](https://www.postgresql.org/docs/current/sql-alterdefaultprivileges.html).
