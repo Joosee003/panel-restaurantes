@@ -1,0 +1,32 @@
+{
+  "name": "gastrohelp_opinion_tras_visita",
+  "category": "MARKETING",
+  "language": "es",
+  "components": [
+    {
+      "type": "BODY",
+      "text": "Hola {{1}}, gracias por tu visita a {{2}}. ¿Nos cuentas tu experiencia en Google? Tu opinión nos ayuda a mejorar. Desde el enlace también puedes dejar de recibir estas peticiones.",
+      "example": {
+        "body_text": [
+          [
+            "Cliente",
+            "Restaurante"
+          ]
+        ]
+      }
+    },
+    {
+      "type": "BUTTONS",
+      "buttons": [
+        {
+          "type": "URL",
+          "text": "Compartir mi opinión",
+          "url": "https://panel.gastrohelp.es/r/{{1}}",
+          "example": [
+            "https://panel.gastrohelp.es/r/77000000-0000-4000-8000-000000000001"
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -24,7 +24,7 @@ try {
  await bounded(new Promise((resolve,reject)=>{let log='';server.on('error',reject);server.stderr.on('data',chunk=>{log+=chunk;if(log.includes('ready to accept connections'))resolve();});}),10000);
  const a=await connect(),b=await connect(),observer=await connect();
  const catalog=JSON.parse(await readFile(new URL('../tests/fixtures/application-catalog-2026-09-08.json',import.meta.url),'utf8'));assert.equal(catalog.fixture_only,true);
- await restoreApplicationCatalog(a,catalog);await a.exec(await readFile(new URL('../docs/sql/post-visit-reviews.sql',import.meta.url),'utf8'));await a.exec('alter role service_role bypassrls');
+ await restoreApplicationCatalog(a,catalog);await a.exec(await readFile(new URL('../supabase/migrations/20260908164431_post_visit_review_requests.sql',import.meta.url),'utf8'));await a.exec('alter role service_role bypassrls');
  const backend=(await b.query('select pg_backend_pid() id')).rows[0].id;
  const reset=async()=>{await a.exec('rollback');await b.exec('rollback');await seedReviews(a);await addReviewVisit(a);await reviewActor(b);};
  async function waiting(operation,release){

@@ -46,7 +46,7 @@ Solo una respuesta válida con identificador de mensaje registra aceptación por
 
 ## Aplicación y reversión
 
-1. Revisar los controles de CI y una vista previa con una base aislada. El borrador es `docs/sql/post-visit-reviews.sql`; convertirlo en migración versionada usando Supabase CLI antes de publicarlo. Comprobar que la función actual de notificaciones conserva la misma definición que la usada como base en este cambio.
+1. Revisar los controles de CI y una vista previa con una base aislada. La migración `supabase/migrations/20260908164431_post_visit_review_requests.sql` está creada con Supabase CLI y conserva exactamente el SQL probado. Aplicarla una sola vez al completar la revisión. Comprobar que la función actual de notificaciones conserva la misma definición que la usada como base en este cambio.
 2. Guardar una copia reciente y la definición anterior de `sync_reservation_automation_events`. Aplicar el SQL atómico antes del despliegue de la aplicación, que necesita los nuevos RPC. El script no hace backfill ni envía mensajes históricos. No requiere cambiar el plan de Supabase.
 3. Comprobar el recorrido manual con una identidad de prueba autorizada y retirar sus datos al terminar. Validar la vista móvil, el botón de WhatsApp, los filtros y la confirmación en navegador.
 4. Para automatización, configurar y probar la plantilla con un destino de prueba autorizado. Añadir únicamente el restaurante validado a la lista de activación. Verificar aceptación y el comportamiento de la baja antes de usar clientes reales.
@@ -69,8 +69,22 @@ npm run build
 
 La copia de catálogo es la misma fixture saneada de la revisión de servicios: 50 tablas públicas, 5 vistas, 102 funciones, 60 triggers y 242 políticas. No contiene filas de clientes ni credenciales. Se reutiliza el restaurador de esa revisión para probar las funciones con los permisos y triggers de la aplicación.
 
-Verificado localmente: 10 pruebas de mensaje/transporte, 17 recorridos SQL, 5 comprobaciones por HTTP, lint y compilación con Webpack. Turbopack local no admite el enlace a dependencias fuera del worktree; CI instala dependencias normales y ejecuta la compilación estándar.
+Verificado localmente: 10 pruebas de mensaje/transporte, 17 recorridos SQL, 5 comprobaciones por HTTP, lint y compilación con Webpack. La preparación del ensayo instala dependencias propias del worktree; la compilación estándar también se comprueba en CI.
 
 El [control de CI del código publicado](https://github.com/Joosee003/panel-restaurantes/actions/runs/34249261320), commit `112f04939182d9113f98044a1e76763bf59cbdc6`, terminó correctamente: 10 pruebas de mensaje/transporte, 17 recorridos SQL, 6 carreras entre conexiones independientes con PostgreSQL 17, 5 comprobaciones por HTTP, lint, auditoría de dependencias de producción y compilación estándar. Vercel también completó la compilación de la vista previa de ese commit.
 
-La prueba HTTP usa las páginas y rutas reales con transporte RPC local sobre PGlite; no sustituye Supabase Auth/PostgREST, la interacción visual ni la prueba real de WhatsApp. La revisión de pantalla con una base aislada y la prueba autorizada de envío siguen pendientes.
+La prueba HTTP usa las páginas y rutas reales con transporte RPC local sobre PGlite; no sustituye Supabase Auth/PostgREST, la interacción visual ni la prueba real de WhatsApp. El ensayo ya permite revisar la pantalla con una base aislada. Se han comprobado en navegador la asistencia, la espera, el envío simulado, la ausencia de duplicados, la apertura de Google y la nueva visita sin confirmación. El navegador se bloqueó con una confirmación nativa; ese aviso se sustituyó por un diálogo dentro del panel. La revisión final de ese diálogo y del ancho móvil, la prueba contra Supabase Auth/PostgREST y la recepción real de WhatsApp siguen pendientes.
+
+## Recorrido preparado para Jose
+
+La vista previa de la rama genera `/pruebas-resenas/index.html` y `/pruebas-resenas/mobile.html`. La compilación de producción elimina estos archivos. La prueba carga en el navegador una copia de la base PGlite con el esquema y los permisos de la aplicación, la migración de reseñas y registros ficticios. No necesita credenciales ni consulta Supabase o Meta. Se usan los mismos componentes del panel y del enlace del cliente, y el mismo código de envío con una respuesta de WhatsApp simulada. Al recargar empieza de nuevo; los cambios no se guardan en un servidor.
+
+1. Marcar la visita: aparece programada y aún no permite preparar el mensaje.
+2. Adelantar el reloj: se habilita la petición. Probar el envío automático o abrir el borrador manual y confirmar el envío.
+3. Abrir el enlace como cliente y pulsar Google: el panel debe pedir una revisión, con la reseña aún sin confirmar.
+4. Marcar «Aún no aparece» y añadir otra visita: al realizarla y pasar el plazo permite otra petición.
+5. Confirmar la reseña: cancela pendientes y no vuelve a pedirla en otra visita. Se puede deshacer la confirmación.
+6. Retirar permiso o darse de baja desde el enlace: las peticiones pendientes quedan canceladas.
+7. Reiniciar para probar los dos plazos, filtros, tema oscuro y ancho de móvil.
+
+El ensayo del navegador comprueba la interfaz y el SQL; no sustituye una prueba contra Supabase Auth/PostgREST ni la recepción real en WhatsApp. Para esa última prueba quedan preparados el transporte, la migración y `docs/whatsapp-review-template.json`. La plantilla es una propuesta, no una aprobación de Meta. El emisor del piloto existente se ha identificado en el flujo n8n el 8 de septiembre de 2026; no se han copiado credenciales ni activado envíos. Hay que conectar el emisor y la plantilla aprobada al servidor y acordar el destino antes de enviar.

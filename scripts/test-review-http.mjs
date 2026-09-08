@@ -15,7 +15,7 @@ let queue=Promise.resolve();
 const bounded=(promise,ms)=>{let timer;return Promise.race([promise,new Promise((_,reject)=>{timer=setTimeout(()=>reject(new Error('Local HTTP test timed out')),ms);})]).finally(()=>clearTimeout(timer));};
 try {
  const catalog=JSON.parse(await readFile(new URL('../tests/fixtures/application-catalog-2026-09-08.json',import.meta.url),'utf8'));assert.equal(catalog.fixture_only,true);
- await restoreApplicationCatalog(db,catalog);await db.exec(await readFile(new URL('../docs/sql/post-visit-reviews.sql',import.meta.url),'utf8'));await db.exec('alter role service_role bypassrls');
+ await restoreApplicationCatalog(db,catalog);await db.exec(await readFile(new URL('../supabase/migrations/20260908164431_post_visit_review_requests.sql',import.meta.url),'utf8'));await db.exec('alter role service_role bypassrls');
  await seedReviews(db);await addReviewVisit(db);const prepared=await reviewAction(db,'prepare');
  api=http.createServer((req,res)=>{
   queue=queue.then(async()=>{

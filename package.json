@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
+    "dev": "node scripts/dev-entry.mjs",
+    "build": "node scripts/build-app.mjs",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "build:review-preview": "node scripts/build-review-preview.mjs"
   },
   "dependencies": {
     "@fullcalendar/daygrid": "^6.1.20",
@@ -31,6 +32,8 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.0",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "8.2.2",
+    "@electric-sql/pglite": "0.5.8"
   }
 }

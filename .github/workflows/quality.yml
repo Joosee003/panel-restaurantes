@@ -46,6 +46,9 @@ jobs:
       - name: Public review page and API with synthetic SQL
         run: node scripts/test-review-http.mjs
 
+      - name: Build isolated review rehearsal
+        run: npm run build:review-preview
+
       - name: Production dependency audit
         run: npm audit --omit=dev --audit-level=high
 

@@ -1,0 +1,7 @@
+@import "../../app/globals.css";
+@source "../../app/(app)/resenas/ReviewRequestsPanelView.tsx";
+@source "./main.tsx";
+:root{font-family:Arial,Helvetica,sans-serif;color-scheme:light}
+button:focus-visible,a:focus-visible{outline:3px solid #6366f1;outline-offset:3px}
+
+@source "../../app/r/[token]/ReviewLinkActions.tsx";

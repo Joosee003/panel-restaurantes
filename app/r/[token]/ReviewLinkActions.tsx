@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { googleReviewUrl } from "@/lib/reviews/review-flow";
 
-export default function ReviewLinkActions({ token, active, optedOut }: { token: string; active: boolean; optedOut: boolean }) {
+export type ReviewLinkTransport = {
+  submit: (token: string, action: "google" | "stop") => Promise<{ url?: string }>;
+  openGoogle: (url: string) => void;
+};
+
+export default function ReviewLinkActions({ token, active, optedOut, transport }: { token: string; active: boolean; optedOut: boolean; transport?: ReviewLinkTransport }) {
   const [stopped, setStopped] = useState(optedOut);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -11,15 +16,20 @@ export default function ReviewLinkActions({ token, active, optedOut }: { token: 
     if (busy) return;
     setBusy(true); setError("");
     try {
-      const form = new FormData(); form.set("action", action);
-      const response = await fetch(`/api/public/review-requests/${token}`, { method: "POST", body: form });
-      if (!response.ok) throw new Error(await response.text());
-      const result = await response.json();
+      let result: { url?: string };
+      if (transport) result = await transport.submit(token, action);
+      else {
+        const form = new FormData(); form.set("action", action);
+        const response = await fetch(`/api/public/review-requests/${token}`, { method: "POST", body: form });
+        if (!response.ok) throw new Error(await response.text());
+        result = await response.json();
+      }
       if (action === "stop") setStopped(true);
       else {
         const target = googleReviewUrl(result.url);
         if (!target) throw new Error("El enlace de Google no está disponible.");
-        window.location.assign(target);
+        if (transport) transport.openGoogle(target);
+        else window.location.assign(target);
       }
     } catch (e) { setError(e instanceof Error ? e.message : "No se pudo completar la solicitud."); }
     finally { setBusy(false); }

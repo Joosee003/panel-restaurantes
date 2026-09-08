@@ -10,7 +10,7 @@ try {
  const catalog=JSON.parse(await readFile(new URL('../tests/fixtures/application-catalog-2026-09-08.json',import.meta.url),'utf8'));
  assert.equal(catalog.fixture_only,true);
  const restored=await restoreApplicationCatalog(db,catalog);
- await db.exec(await readFile(new URL('../docs/sql/post-visit-reviews.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/20260908164431_post_visit_review_requests.sql',import.meta.url),'utf8'));
  const checks=await checkReviewSchema(db);
  console.log(JSON.stringify({status:'passed',restored,checks},null,2));
 } catch(error) { console.error(JSON.stringify({status:'failed',message:error.message,code:error.code,where:error.where,stack:error.stack}));process.exitCode=1; }
