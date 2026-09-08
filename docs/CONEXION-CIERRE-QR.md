@@ -59,7 +59,7 @@ Node comprueba identidad, importes, candidatos, paginación y recuperación. SQL
 
 El esquema ficticio incluye el trigger actual de puntos y la función manual; **no sustituye el esquema completo ni las pruebas simultáneas**. La simulación anónima reproduce escrituras, no todas las validaciones reales de QR, token, carta o menú.
 
-Pendientes: copia/restauración, entorno desechable con esquema completo y navegador autenticado. Ver [CONCURRENCY-VERIFICATION.md](CONCURRENCY-VERIFICATION.md): 22 carreras reales superadas en PostgreSQL 17.6 mediante GitHub Actions, con esquema ficticio. Debe repetirse el recorrido con todos los disparadores y permisos reales. Los conflictos exigen repetir la misma operación, no deducir éxito.
+Pendientes: copia/restauración, entorno desechable con esquema completo y navegador autenticado. Ver [CONCURRENCY-VERIFICATION.md](CONCURRENCY-VERIFICATION.md): 26 carreras reales superadas en PostgreSQL 17.6 mediante GitHub Actions, con esquema ficticio. Debe repetirse el recorrido con todos los disparadores y permisos reales. Los conflictos exigen repetir la misma operación, no deducir éxito.
 
 ## Rentabilidad preparada en el borrador
 

@@ -1,16 +1,13 @@
 # Verificación con conexiones simultáneas
 
-Estado a 8 de septiembre de 2026: **22 carreras reales superadas en PostgreSQL 17.6 con datos ficticios**.
+Estado a 8 de septiembre de 2026: **26 carreras reales superadas en PostgreSQL 17.6 con datos ficticios**.
 
-Ampliación posterior en el borrador: **26 carreras preparadas**, con cuatro
-casos de rentabilidad QR (reintento simultáneo y desactivación antes/después de
-confirmar o revertir). Montaje local comprobado; la ejecución real de esos cuatro
-casos nuevos espera el trabajo de CI correspondiente. La evidencia de debajo
-corresponde a las 22 anteriores.
+Incluyen cuatro casos de rentabilidad QR: reintento simultáneo y desactivación
+antes/después de confirmar o revertir.
 
-Evidencia: [trabajo SQL terminado correctamente](https://github.com/Joosee003/panel-restaurantes/actions/runs/34211333493/job/102012788183)
-del commit `b934e5ec9d73f18f95e23290cb3a209985934537`, a las 09:41 UTC.
-También pasaron las 160 comprobaciones de una conexión/Node y el trabajo de
+Evidencia: [trabajo SQL terminado correctamente](https://github.com/Joosee003/panel-restaurantes/actions/runs/34214087002/job/102021618240)
+del commit `03ba853fcacc83d219b5fceccb8739f8a8a04a12`, a las 10:11 UTC.
+También pasaron las 221 comprobaciones de una conexión/Node y el trabajo de
 calidad con lint, auditoría de dependencias y compilación. Esto **no acredita el
 esquema completo de Supabase ni el recorrido con navegador**.
 
@@ -60,13 +57,13 @@ minutos. No despliega ni aplica cambios a otras bases.
 
 El resultado de `--self-check` y una ejecución pendiente no cuentan como
 concurrencia verificada. La ejecución enlazada terminó con
-`22 REAL two-connection race checks passed`. Sus conexiones fueron:
+`26 REAL two-connection race checks passed`. Sus conexiones fueron:
 
 | Grupo | Escritor A | Escritor B | Observador |
 | --- | --- | --- | --- |
-| Plazas | 2509 | 2510 | 2511 |
-| Cuenta QR | 2513 | 2514 | 2515 |
-| QR vinculado a reserva | 2517 | 2518 | 2519 |
+| Plazas | 2332 | 2333 | 2334 |
+| Cuenta QR | 2336 | 2337 | 2338 |
+| QR vinculado a reserva y rentabilidad | 2340 | 2341 | 2342 |
 
 Los avisos de conexión terminada al detener el clúster corresponden al apagado
 del servidor ficticio después de completar las pruebas; el trabajo terminó con éxito.
@@ -117,6 +114,10 @@ No modifica producción ni otras bases locales. La salida sólo puede anunciar
 | Dos identificadores, primer cierre revertido | Completar el segundo sin registros del primero. |
 | Mismo identificador con datos de pago distintos | Rechazar tras confirmar el original, sin alterar su resultado. |
 | Cliente bloqueado por otra operación | Rechazar por ocupado, sin efectos, y permitir repetir tras liberar. |
+| Reintento simultáneo de cierre con rentabilidad | Conservar una venta por línea y recuperar el mismo cierre. |
+| Cierre antes de desactivar captura de ventas | La desactivación espera la confirmación y conserva las ventas guardadas. |
+| Cierre revertido mientras espera la desactivación | No dejar ventas/visitas/puntos parciales y respetar la desactivación al reintentar. |
+| Desactivación antes de un cierre en espera | El cierre termina sin registrar ventas con una activación antigua. |
 
 ## Límites que siguen abiertos
 

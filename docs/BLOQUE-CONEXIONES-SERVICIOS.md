@@ -25,8 +25,7 @@ La pantalla requiere **`cerrar_mesa_qr_con_reserva`**, incluso sin reserva elegi
 - Pruebas Node: cuentas, paginación, Sala, candidatos de reserva, importes, petición pendiente y respuesta antigua.
 - Pruebas SQL PGlite: plazas, permisos, cierre y consumo. Roles reales `anon`/`authenticated` sobre esquema ficticio, reversión completa, reintento idempotente, fidelización y consumo manual frente a QR.
 - TypeScript, ESLint de archivos cambiados, revisión independiente y compilación Next.js con valores ficticios y sin claves reales.
-- **22 carreras PostgreSQL 17.6 superadas** con dos escritores y observador de bloqueos en GitHub Actions. [Evidencia del commit b934e5e](https://github.com/Joosee003/panel-restaurantes/actions/runs/34211333493/job/102012788183). El trabajo de calidad también pasó lint, auditoría de dependencias y compilación. El entorno local continúa sin admitir PostgreSQL con su usuario actual.
-- Ampliado el verificador a **26 carreras** con reintento QR/rentabilidad y desactivación antes/después de confirmar o revertir. Montaje local comprobado; las cuatro nuevas esperan su ejecución real en CI.
+- **26 carreras PostgreSQL 17.6 superadas** con dos escritores y observador de bloqueos en GitHub Actions, incluidas las cuatro nuevas de rentabilidad. [Evidencia del commit 03ba853](https://github.com/Joosee003/panel-restaurantes/actions/runs/34214087002/job/102021618240), 8 de septiembre de 2026, 10:11 UTC. También pasaron las 221 comprobaciones y el trabajo de calidad con lint, auditoría y compilación. El entorno local continúa sin admitir PostgreSQL con su usuario actual.
 - La vista previa redirige al inicio de sesión de Vercel. No se ha pasado esa protección ni probado el recorrido autenticado.
 
 PGlite 0.5.8 usa esquema reducido y una conexión. No prueba el esquema completo, todas las políticas/disparadores de producción ni escrituras simultáneas. Compilar tampoco demuestra el recorrido del usuario.
@@ -49,7 +48,7 @@ npx tsc --noEmit --incremental false
 ## Antes de publicar
 
 1. Disponer de copia recuperable y probar su restauración.
-2. Repetir en un entorno desechable autorizado con esquema completo los recorridos de [las 22 carreras ya superadas con datos ficticios](CONCURRENCY-VERIFICATION.md), incluido enlace QR frente a consumo manual y dos llamadas con la misma operación.
+2. Repetir en un entorno desechable autorizado con esquema completo los recorridos de [las 26 carreras ya superadas con datos ficticios](CONCURRENCY-VERIFICATION.md), incluido enlace QR frente a consumo manual, rentabilidad y dos llamadas con la misma operación.
 3. Revisar esquemas expuestos, permisos privados y predeterminados. El SQL retira `PUBLIC EXECUTE` de funciones futuras del rol creador en todos los esquemas, no de las existentes. Revisar otros roles creadores.
 4. Generar migraciones con la CLI tras validar los borradores. Instalar SQL antes de la interfaz y probar con dos sesiones de navegador, cambio de restaurante/fecha y desconexiones.
 5. Activar plazas solo con inventario de Sala completo. No activar el piloto sin acordar alcance y accesos.

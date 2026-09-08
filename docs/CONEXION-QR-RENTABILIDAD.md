@@ -87,10 +87,11 @@ expuestos. El cierre de una cuenta no ejecuta un cargo bancario ni una factura.
 Pruebas reproducibles añadidas: **22 de origen de menús y 39 de rentabilidad
 superadas** con `scripts/test-qr-menu-origin-sql.mjs` y
 `scripts/test-qr-profitability-sql.mjs`. TypeScript y ESLint focal también pasan.
-El verificador `scripts/test-sql-concurrent.mjs` añade cuatro carreras reales
-(26 en total); su montaje pasa localmente, con ejecución real nueva pendiente
-de CI. Las pruebas con esquema ficticio no acreditan el recorrido de navegador
-ni todos los disparadores/políticas de producción.
+El verificador `scripts/test-sql-concurrent.mjs` añade cuatro carreras reales:
+**las 26 pasan en PostgreSQL 17.6**, junto con las 221 comprobaciones de Node/SQL,
+lint, auditoría de dependencias y compilación. [Evidencia del commit 03ba853](https://github.com/Joosee003/panel-restaurantes/actions/runs/34214087002),
+8 de septiembre de 2026. Las pruebas con esquema ficticio no acreditan el
+recorrido de navegador ni todos los disparadores/políticas de producción.
 
 Referencias: [funciones y permisos de Supabase](https://supabase.com/docs/guides/database/functions),
 [exposición explícita de tablas](https://supabase.com/changelog/45329-breaking-change-tables-not-exposed-to-data-and-graphql-api-automatically),
