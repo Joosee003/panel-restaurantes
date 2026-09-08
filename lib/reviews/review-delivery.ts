@@ -7,46 +7,75 @@ type Environment = Record<string, string | undefined>;
 type Outcome = { outcome: "sent" | "blocked" | "uncertain"; messageId?: string; error?: string };
 
 export function reviewWhatsAppConfigured(env: Environment, restaurantId: string) {
-  return Boolean(env.WHATSAPP_ACCESS_TOKEN?.trim()
-    && /^\d+$/.test(env.WHATSAPP_PHONE_NUMBER_ID || "")
-    && /^v\d+\.\d+$/.test(env.WHATSAPP_GRAPH_VERSION || "")
-    && /^[a-z0-9_]+$/.test(env.WHATSAPP_REVIEW_TEMPLATE_NAME || "")
-    && /^[a-z]{2}(?:_[A-Z]{2})?$/.test(env.WHATSAPP_REVIEW_TEMPLATE_LANGUAGE || "")
+  return Boolean(restaurantId.trim() && reviewWebhookUrl(env)
+    && env.N8N_REVIEW_WEBHOOK_SECRET?.trim()
+    && !/[\r\n]/.test(env.N8N_REVIEW_WEBHOOK_SECRET)
     && (env.WHATSAPP_REVIEW_RESTAURANT_IDS || "").split(",").map(id=>id.trim()).includes(restaurantId));
 }
 
-// Template must have two body parameters (first name, restaurant) and one URL button
-// https://panel.gastrohelp.es/r/{{1}}. No fallback to free-form or another channel.
-export async function sendReviewTemplate(delivery: Delivery, env: Environment, transport: typeof fetch = fetch): Promise<Outcome> {
+function reviewWebhookUrl(env: Environment): string | null {
+  try {
+    const url = new URL(env.N8N_REVIEW_WEBHOOK_URL?.trim() || "");
+    if (url.protocol !== "https:" || url.hostname !== "n8n.gastrohelp.es"
+      || url.port || url.username || url.password || url.href.includes("?") || url.href.includes("#")
+      || !url.pathname.startsWith("/webhook/") || url.pathname === "/webhook/") return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+// n8n owns the approved WhatsApp template and provider credentials. A generic
+// webhook acceptance is not proof of a send; only its correlated provider ACK is.
+export async function sendReviewTemplate(event: ReviewEvent, delivery: Delivery, env: Environment, transport: typeof fetch = fetch): Promise<Outcome> {
+  if (!delivery.allowed || delivery.deliveryMode !== "live") return { outcome: "blocked", error: "review_delivery_not_live" };
+  const webhookUrl = reviewWebhookUrl(env);
+  if (!webhookUrl || !reviewWhatsAppConfigured(env, event.restaurante_id)) return { outcome: "blocked", error: "whatsapp_not_configured" };
   const phone = whatsappPhone(delivery.phone);
   if (!phone || !isReviewToken(delivery.token)) return { outcome: "blocked", error: "review_contact_invalid" };
   const singleLine = (value: string) => value.replace(/\s+/g," ").trim().slice(0,120);
   try {
-    const response = await transport(`https://graph.facebook.com/${env.WHATSAPP_GRAPH_VERSION}/${env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+    const response = await transport(webhookUrl, {
       method: "POST",
-      headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}`, "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-GastroHelp-Webhook-Secret": env.N8N_REVIEW_WEBHOOK_SECRET!.trim(),
+        "X-GastroHelp-Automation-Event": event.event_id,
+        "X-GastroHelp-Delivery-Mode": "live",
+      },
       body: JSON.stringify({
-        messaging_product: "whatsapp", recipient_type: "individual", to: phone, type: "template",
-        template: { name: env.WHATSAPP_REVIEW_TEMPLATE_NAME, language: { code: env.WHATSAPP_REVIEW_TEMPLATE_LANGUAGE },
-          components: [
-            { type: "body", parameters: [
-              { type: "text", text: singleLine(delivery.name).split(" ")[0] || "cliente" },
-              { type: "text", text: singleLine(delivery.restaurantName) },
-            ] },
-            { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: delivery.token }] },
-          ],
+        event: "visit.review_request",
+        automationEventId: event.event_id,
+        restaurantId: event.restaurante_id,
+        deliveryMode: "live",
+        whatsappAllowed: true,
+        review: {
+          token: delivery.token,
+          name: singleLine(delivery.name).split(" ")[0] || "cliente",
+          phone,
+          restaurantName: singleLine(delivery.restaurantName),
         },
       }),
-      cache: "no-store", signal: AbortSignal.timeout(15_000), redirect: "error",
+      cache: "no-store", signal: AbortSignal.timeout(25_000), redirect: "error",
     });
     // A timeout or server error may happen after acceptance. Never retry it blindly.
-    if (!response.ok) return { outcome: response.status >= 500 ? "uncertain" : "blocked", error: `whatsapp_http_${response.status}` };
-    const result = await response.json() as { messages?: { id?: unknown }[] };
-    const id = result.messages?.[0]?.id;
-    if (typeof id !== "string" || !id.trim() || id.length > 512) return { outcome: "uncertain", error: "whatsapp_ack_missing" };
+    if (response.status >= 500) return { outcome: "uncertain", error: `n8n_review_http_${response.status}` };
+    const result = await response.json() as Record<string, unknown> | null;
+    if (!result || result.eventId !== event.event_id || result.deliveryMode !== "live") {
+      return { outcome: "uncertain", error: "n8n_review_ack_mismatch" };
+    }
+    if (result.ok === false && result.outcome === "blocked" && typeof result.error === "string" && result.error.trim()) {
+      const error = /^[a-z0-9_:-]{1,120}$/i.test(result.error) ? result.error : "n8n_review_blocked";
+      return { outcome: "blocked", error };
+    }
+    const id = result.messageId;
+    if (!response.ok || result.ok !== true || result.provider !== "whatsapp" || result.outcome !== "sent"
+      || typeof id !== "string" || !/^wamid\.[A-Za-z0-9._~+\/=-]+$/.test(id) || id.length > 512) {
+      return { outcome: "uncertain", error: "n8n_review_ack_missing" };
+    }
     return { outcome: "sent", messageId: id };
   } catch {
-    return { outcome: "uncertain", error: "whatsapp_delivery_unknown" };
+    return { outcome: "uncertain", error: "n8n_review_delivery_unknown" };
   }
 }
 
@@ -70,7 +99,7 @@ export async function deliverVisitReview(event: ReviewEvent, rpc: Rpc, env: Envi
     }
     if (delivery.deliveryMode === "test") return await finish("test");
     if (delivery.deliveryMode !== "live" || !reviewWhatsAppConfigured(env, event.restaurante_id)) return await finish("blocked", "whatsapp_not_configured");
-    const sent = await sendReviewTemplate(delivery, env, transport);
+    const sent = await sendReviewTemplate(event, delivery, env, transport);
     return await finish(sent.outcome, sent.error, sent.messageId);
   } catch {
     // In particular, never route a review through the generic webhook retry handler.

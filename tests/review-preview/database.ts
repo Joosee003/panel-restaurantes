@@ -37,6 +37,7 @@ async function newVisit() {
  await actor();currentVisit=(await db.query<{id:string}>('select gen_random_uuid() id')).rows[0].id;
  await db.query(`insert into reservas(id,restaurante_id,cliente_id,nombre_cliente,telefono,estado,origen,personas,turno,inicio_at,fin_at,fecha_hora_reserva,atendida)
  values($1,$2,$3,'Cliente de prueba','+34600000001','confirmada','panel_nativo',2,'comida',now()-interval '4 hours',now()-interval '150 minutes',(now()-interval '4 hours') at time zone 'Europe/Madrid',null)`,[currentVisit,restaurant,customer]);
+ await db.query('select public.marcar_asistencia_reserva($1,true)',[currentVisit]);
 }
 export async function resetDatabase() {
  return exclusive(async()=>{
@@ -70,13 +71,12 @@ export const automatic=()=>exclusive(async()=>{
   try{return {data:await call(name,args,'service_role'),error:null};}
   catch(error){return {data:null,error:{message:String(error)}};}
  },{
-  WHATSAPP_ACCESS_TOKEN:'fixture-only-no-external-access',WHATSAPP_PHONE_NUMBER_ID:'1',WHATSAPP_GRAPH_VERSION:'v25.0',
-  WHATSAPP_REVIEW_TEMPLATE_NAME:'gastrohelp_opinion_tras_visita',WHATSAPP_REVIEW_TEMPLATE_LANGUAGE:'es',WHATSAPP_REVIEW_RESTAURANT_IDS:restaurant,
+  N8N_REVIEW_WEBHOOK_URL:'https://n8n.gastrohelp.es/webhook/review-fixture',N8N_REVIEW_WEBHOOK_SECRET:'fixture-only-no-external-access',
+  WHATSAPP_REVIEW_RESTAURANT_IDS:restaurant,
  },async(_url,options)=>{
   const body=JSON.parse(String(options?.body));
-  const components=body.template.components;
-  lastMessage={firstName:components[0].parameters[0].text,restaurantName:components[0].parameters[1].text,token:components[1].parameters[0].text};
-  submitted++;return new Response(JSON.stringify({messages:[{id:`fixture.accepted.${submitted}`}]}),{status:200});
+  lastMessage={firstName:body.review.name,restaurantName:body.review.restaurantName,token:body.review.token};
+  submitted++;return new Response(JSON.stringify({ok:true,eventId:body.automationEventId,deliveryMode:'live',provider:'whatsapp',outcome:'sent',messageId:`wamid.fixture.${submitted}`}),{status:200});
  });
  return {sent:submitted-before,total:submitted,message:JSON.stringify(report)};
 });

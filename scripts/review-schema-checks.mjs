@@ -31,7 +31,7 @@ export async function seedReviews(db) {
       values('${I.restaurant}','${I.customer}',true,'test_fixture','v1');`);
   await reviewActor(db);
 }
-export async function addReviewVisit(db,{id=I.reservation,hours=4,attended=null,state='confirmada',customer=I.customer}={}) {
+export async function addReviewVisit(db,{id=I.reservation,hours=4,attended=true,state='confirmada',customer=I.customer}={}) {
   await db.query(`insert into reservas(id,restaurante_id,cliente_id,nombre_cliente,telefono,estado,origen,personas,turno,inicio_at,fin_at,fecha_hora_reserva,atendida)
     values($1,$2,$3,'Cliente de prueba','+34600000001',$4,'panel_nativo',2,'comida',now()-make_interval(hours=>$5),
       now()-make_interval(hours=>$5)+interval '90 minutes',(now()-make_interval(hours=>$5)) at time zone 'Europe/Madrid',$6)`,[id,I.restaurant,customer,state,hours,attended]);
@@ -46,20 +46,65 @@ export async function claimReview(db) {
 }
 export const checkDelivery=(db,event)=>db.query('select get_visit_review_delivery($1,$2) result',[event.event_id,event.lock_token]).then(r=>r.rows[0].result);
 export const finishDelivery=(db,event,outcome,id=null,error=null)=>db.query('select complete_visit_review_delivery($1,$2,$3,$4,$5) result',[event.event_id,event.lock_token,outcome,id,error]).then(r=>r.rows[0].result);
+const attendance=(db,attended=true,id=I.reservation)=>db.query('select public.marcar_asistencia_reserva($1,$2) result',[id,attended]).then(r=>r.rows[0].result);
 export async function checkReviewSchema(db) {
   const passed=[];
   const pass=name=>passed.push(name);
   await db.exec('alter role service_role bypassrls');
   await seedReviews(db);
-  await addReviewVisit(db,{hours:1});
+  await addReviewVisit(db,{hours:1,attended:null});
+  assert.equal(await requestRow(db),undefined);
+  assert.equal(await claimReview(db),undefined);await reviewActor(db);
+  assert.deepEqual(await attendance(db),{reserva_id:I.reservation,cliente_id:I.customer,atendida:true});
   let q=await requestRow(db);
   assert.equal(q.status,'scheduled');
   const delta=(await db.query('select extract(epoch from (q.scheduled_for-r.inicio_at)) n from visit_review_requests q join reservas r on r.id=q.reserva_id')).rows[0].n;
   assert.equal(Number(delta),10800);
   await assert.rejects(reviewAction(db,'prepare'),/REVIEW_NOT_DUE/);
-  assert.equal((await db.query('select atendida from reservas where id=$1',[I.reservation])).rows[0].atendida,null);
+  assert.equal((await db.query('select atendida from reservas where id=$1',[I.reservation])).rows[0].atendida,true);
   assert.equal(await claimReview(db),undefined);await reviewActor(db);
-  pass('Confirmed reservations schedule automatically without an attendance action and block sends before three hours.');
+  pass('A confirmed reservation alone cannot request a review; marking attendance schedules three hours from its start, without a manual send.');
+  await seedReviews(db);await addReviewVisit(db,{attended:null,state:'pendiente'});
+  assert.equal(await requestRow(db),undefined);
+  await attendance(db);assert.ok(await requestRow(db));
+  assert.equal((await db.query('select estado from reservas where id=$1',[I.reservation])).rows[0].estado,'pendiente');
+  assert.equal((await db.query("select count(*)::int n from reservation_webhook_deliveries where reservation_id=$1 and event_type='reservation.status_changed'",[I.reservation])).rows[0].n,0);
+  const pendingEvent=await claimReview(db);assert.ok(pendingEvent);assert.equal((await checkDelivery(db,pendingEvent)).allowed,true);
+  pass('Marking attendance is distinct from confirming a booking: its status stays unchanged and no status-change message is queued.');
+  await seedReviews(db);await addReviewVisit(db,{attended:null,customer:null});
+  const attendanceResult=await attendance(db);assert.equal(attendanceResult.cliente_id,I.customer);
+  assert.deepEqual(await attendance(db),attendanceResult);
+  assert.equal((await db.query('select count(*)::int n from clientes')).rows[0].n,1);
+  assert.equal((await db.query('select count(*)::int n from clientes_historial where reserva_id=$1',[I.reservation])).rows[0].n,0);
+  assert.equal((await db.query('select count(*)::int n from visit_review_requests where reserva_id=$1',[I.reservation])).rows[0].n,1);
+  const consumption=(await db.query('select registrar_consumo_reserva($1,$2,35) result',[I.reservation,I.restaurant])).rows[0].result;
+  assert.equal(consumption.ok,true);
+  assert.equal((await db.query('select count(*)::int n from clientes_historial where reserva_id=$1',[I.reservation])).rows[0].n,1);
+  await assert.rejects(attendance(db,false),/RESERVA_CONSUMO_REGISTRADO/);
+  pass('Attendance associates an existing customer once, does not create a bill, and allows a later consumption record without duplication.');
+  await seedReviews(db);await addReviewVisit(db,{attended:null,customer:null});
+  await db.query("update reservas set telefono='+34600000009',email='new-visit@example.invalid' where id=$1",[I.reservation]);
+  const createdAttendance=await attendance(db);assert.notEqual(createdAttendance.cliente_id,I.customer);
+  const createdCustomer=(await db.query('select restaurante_id,permite_whatsapp,permite_email from clientes where id=$1',[createdAttendance.cliente_id])).rows[0];
+  assert.deepEqual(createdCustomer,{restaurante_id:I.restaurant,permite_whatsapp:false,permite_email:false});
+  assert.equal((await requestRow(db)).status,'blocked');assert.equal(await claimReview(db),undefined);
+  pass('Attendance can create a missing customer but never grants WhatsApp or email permission or sends without consent.');
+  await seedReviews(db);await addReviewVisit(db,{attended:null,customer:null});
+  const missed=await attendance(db,false);assert.equal(missed.cliente_id,null);assert.equal(missed.atendida,false);
+  assert.equal((await db.query('select count(*)::int n from clientes')).rows[0].n,1);
+  assert.equal(await requestRow(db),undefined);await assert.rejects(attendance(db),/RESERVA_NO_SHOW/);
+  await seedReviews(db);await addReviewVisit(db,{attended:null,state:'cancelada'});await assert.rejects(attendance(db),/RESERVA_CANCELADA/);
+  await seedReviews(db);await addReviewVisit(db,{attended:null,hours:-2});await assert.rejects(attendance(db),/RESERVA_AUN_NO_INICIADA/);
+  pass('No-show recording creates no customer; cancelled, missed and future reservations cannot be marked as attended.');
+  await seedReviews(db);await addReviewVisit(db,{attended:null});
+  await reviewActor(db,I.otherUser);await assert.rejects(attendance(db),/RESERVA_NO_ENCONTRADA|ASISTENCIA_ACCESS_DENIED/);
+  await reviewActor(db,null,'anon');await assert.rejects(attendance(db),/permission denied/);
+  await reviewActor(db,null,'service_role');await assert.rejects(attendance(db),/permission denied/);
+  await reviewActor(db,null);await assert.rejects(attendance(db),/ASISTENCIA_ACCESS_DENIED/);
+  await db.exec('reset role');await db.query('update usuarios_restaurantes set demo_vista=true where user_id=$1',[I.user]);
+  await reviewActor(db);await assert.rejects(attendance(db),/ASISTENCIA_ACCESS_DENIED/);
+  await db.exec('reset role');assert.equal((await db.query('select atendida from reservas where id=$1',[I.reservation])).rows[0].atendida,null);
+  pass('Attendance RPC preserves restaurant isolation and explicitly rejects anonymous, missing-identity, service-only and demo callers.');
   await seedReviews(db);await addReviewVisit(db);
   const prepared=await reviewAction(db,'prepare');assert.equal(prepared.ok,true);
   q=await requestRow(db);assert.equal(q.status,'prepared');assert.equal(q.sent_at,null);
@@ -145,23 +190,23 @@ export async function checkReviewSchema(db) {
   pass('A cancelled visit invalidates even a claimed automatic request.');
   await seedReviews(db);await addReviewVisit(db,{state:'no_show'});assert.equal(await requestRow(db),undefined);
   await addReviewVisit(db,{id:second,attended:false});assert.equal(await requestRow(db,second),undefined);
-  await addReviewVisit(db,{id:'76000000-0000-4000-8000-000000000003',state:'pendiente'});assert.equal(await requestRow(db,'76000000-0000-4000-8000-000000000003'),undefined);
-  pass('No-shows, explicit missed attendance and unconfirmed reservations cannot trigger requests.');
+  await addReviewVisit(db,{id:'76000000-0000-4000-8000-000000000003',state:'pendiente',attended:null});assert.equal(await requestRow(db,'76000000-0000-4000-8000-000000000003'),undefined);
+  pass('No-shows, explicit missed attendance and pending reservations without recorded attendance cannot trigger requests.');
   await seedReviews(db);await addReviewVisit(db,{hours:1});
-  await addReviewVisit(db,{id:second,hours:-24});
-  assert.equal((await requestRow(db,second)).status,'scheduled');
+  await addReviewVisit(db,{id:second,hours:-24,attended:null});
+  assert.equal(await requestRow(db,second),undefined);
   assert.equal((await requestRow(db)).status,'scheduled');
   assert.equal(await claimReview(db),undefined);
   await reviewActor(db);
   await db.query("update reservas set inicio_at=now()-interval '4 hours',fin_at=now()-interval '150 minutes',fecha_hora_reserva=(now()-interval '4 hours') at time zone 'Europe/Madrid' where id=$1",[I.reservation]);
   event=await claimReview(db);assert.ok(event);assert.equal(event.reservation_id,I.reservation);
   assert.equal((await checkDelivery(db,event)).allowed,true);
-  await finishDelivery(db,event,'sent','wamid.without-attendance');
-  assert.equal((await db.query('select atendida from reservas where id=$1',[I.reservation])).rows[0].atendida,null);
-  assert.equal((await requestRow(db,second)).status,'scheduled');
-  pass('Future bookings preserve earlier requests; elapsed time alone allows delivery without marking attendance.');
+  await finishDelivery(db,event,'sent','wamid.attendance-confirmed');
+  assert.equal((await db.query('select atendida from reservas where id=$1',[I.reservation])).rows[0].atendida,true);
+  assert.equal(await requestRow(db,second),undefined);
+  pass('A future booking leaves the earlier attended visit request intact and cannot schedule another request before attendance.');
   await seedReviews(db);await addReviewVisit(db);event=await claimReview(db);
-  await reviewActor(db);await db.query('update reservas set atendida=false where id=$1',[I.reservation]);
+  await reviewActor(db);await attendance(db,false);
   await reviewActor(db,null,'service_role');assert.equal((await checkDelivery(db,event)).allowed,false);
   pass('Recording a missed visit cancels a request even after a worker claimed it.');
   await seedReviews(db);await addReviewVisit(db,{hours:48});assert.ok(await requestRow(db));assert.equal(await claimReview(db),undefined);
@@ -188,10 +233,15 @@ export async function checkReviewSchema(db) {
   assert.deepEqual([consent.loyalty_whatsapp,consent.loyalty_email,consent.review_email],[false,false,false]);
   assert.equal((await db.query('select cliente_id from reservas where id=$1',[optIn.reserva_id])).rows[0].cliente_id,I.customer);
   const bookedRequest=await requestRow(db,optIn.reserva_id);
-  assert.equal(bookedRequest?.status,'scheduled',JSON.stringify(bookedRequest));
+  assert.equal(bookedRequest,undefined);
   const queued=(await db.query("select status from reservation_webhook_deliveries where reservation_id=$1 and event_type='visit.review_request'",[optIn.reserva_id])).rows[0];
-  assert.equal(queued.status,'pending');
+  assert.equal(queued,undefined);
   assert.equal((await db.query('select atendida from reservas where id=$1',[optIn.reserva_id])).rows[0].atendida,null);
+  await reviewActor(db);
+  await db.query("update reservas set inicio_at=now()-interval '4 hours',fin_at=now()-interval '150 minutes',fecha_hora_reserva=(now()-interval '4 hours') at time zone 'Europe/Madrid' where id=$1",[optIn.reserva_id]);
+  assert.equal(await requestRow(db,optIn.reserva_id),undefined);
+  await attendance(db,true,optIn.reserva_id);assert.ok(await requestRow(db,optIn.reserva_id));
+  assert.equal((await claimReview(db)).reservation_id,optIn.reserva_id);
   pass('The actual public booking transaction records optional consent, matches phone formatting variants and cannot change consent on retry or revive revoked promotion permissions.');
   return passed;
 }

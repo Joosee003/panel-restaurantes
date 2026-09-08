@@ -69,7 +69,7 @@ export default function ResenasPage() {
   const [tab, setTab] = useState<Tab>("solicitudes");
   const restauranteId = restaurant?.id ? String(restaurant.id) : null;
   return <div className={`min-h-screen space-y-6 px-4 py-6 sm:px-6 lg:px-8 ${dark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-950"}`}>
-    <header><div className="flex items-center gap-3"><span className="rounded-2xl bg-indigo-100 p-3 text-indigo-700"><MessageCircle size={24}/></span><div><h1 className="text-3xl font-black tracking-tight">Reseñas</h1><p className={`mt-1 text-sm ${dark ? "text-slate-400" : "text-slate-500"}`}>Peticiones automáticas tras la reserva. Comprueba aquí quién ha dejado su reseña.</p></div></div></header>
+    <header><div className="flex items-center gap-3"><span className="rounded-2xl bg-indigo-100 p-3 text-indigo-700"><MessageCircle size={24}/></span><div><h1 className="text-3xl font-black tracking-tight">Reseñas</h1><p className={`mt-1 text-sm ${dark ? "text-slate-400" : "text-slate-500"}`}>Peticiones automáticas después de marcar «Ha venido». Comprueba aquí quién ha dejado su reseña.</p></div></div></header>
     <nav className="flex flex-wrap gap-2" aria-label="Apartados de reseñas">
       {([["solicitudes","Solicitudes"],["resenas","Reseñas guardadas"],["respondidas","Respondidas"]] as [Tab,string][]).map(([key,label])=><button type="button" key={key} onClick={()=>setTab(key)} aria-current={tab===key ? "page" : undefined} className={`rounded-xl px-4 py-3 text-sm font-bold ${tab===key ? "bg-[#1601ad] text-white" : dark ? "bg-slate-800 text-slate-200" : "border border-slate-200 bg-white text-slate-600"}`}>{label}</button>)}
     </nav>

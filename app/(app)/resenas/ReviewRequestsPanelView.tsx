@@ -116,7 +116,7 @@ export default function ReviewRequestsPanelView({ restauranteId, dark, client }:
     </dialog>
     <div className={`rounded-2xl border px-5 py-4 text-sm ${active ? dark ? "border-indigo-800 bg-indigo-950 text-indigo-100" : "border-indigo-100 bg-indigo-50 text-indigo-950" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
       <p className="font-bold">{active ? "Peticiones automáticas por WhatsApp" : "Envío automático pendiente de activación por GastroHelp"}</p>
-      <p className="mt-1">{active ? `Se envían ${data?.settings.review_delay_hours || 3} horas después de la reserva, con permiso del cliente. Aquí solo tienes que comprobar si ha dejado la reseña.` : "Cuando el servicio esté activo, las peticiones saldrán desde las reservas sin tener que enviarlas desde el panel."}</p>
+      <p className="mt-1">{active ? `Tras marcar «Ha venido» en Reservas, se envían automáticamente al cumplirse ${data?.settings.review_delay_hours || 3} horas desde la hora reservada, con permiso del cliente. Aquí puedes revisar si ha dejado la reseña.` : "Cuando el servicio esté activo, marcar «Ha venido» en Reservas programará la petición automática. Aquí podrás revisar si ha dejado la reseña."}</p>
     </div>
     <div className="grid gap-3 sm:grid-cols-3">{[["Peticiones enviadas", stats.sent], ["Pendientes de revisar", stats.pending], ["Clientes con reseña confirmada", stats.confirmed]].map(([label, value]) => <div key={label} className={card}><p className={`text-sm font-semibold ${muted}`}>{label}</p><p className="mt-2 text-3xl font-black">{value}</p></div>)}</div>
     {error && !selected && <p role="alert" className="rounded-2xl bg-rose-50 p-4 text-sm text-rose-800">{error}</p>}

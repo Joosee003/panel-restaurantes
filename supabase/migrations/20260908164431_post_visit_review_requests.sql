@@ -100,10 +100,10 @@ begin
   v_consent:=review_private.has_consent(r.restaurante_id,r.cliente_id);
   v_reason:=case
     when q.id is not null and q.cliente_id is distinct from r.cliente_id then 'review_customer_changed'
-    when r.atendida is false or lower(coalesce(r.estado,'')) not in ('confirmada','confirmado','ha venido','completada','completado') then 'visit_not_completed'
+    when r.atendida is not true or lower(coalesce(r.estado,'')) not in ('pendiente','confirmada','confirmado','ha venido','completada','completado') then 'visit_not_completed'
     when c.id is null then 'customer_missing'
     when c.ya_dejo_resena is true then 'review_confirmed'
-    when v_start is null then 'visit_not_completed'
+    when v_start is null or v_start>now() then 'visit_not_completed'
     when not exists(select 1 from public.restaurante_modulos m where m.restaurante_id=r.restaurante_id and m.resenas is true) then 'review_disabled'
     else null end;
   if v_reason is not null then
@@ -265,7 +265,7 @@ begin
   if c.ya_dejo_resena is true then raise exception 'REVIEW_ALREADY_CONFIRMED'; end if;
   if q.sent_at is not null then raise exception 'REVIEW_ALREADY_SENT'; end if;
   if not review_private.has_consent(r.restaurante_id,c.id) then raise exception 'REVIEW_CONSENT_MISSING'; end if;
-  if q.status='cancelled' or r.atendida is false or lower(coalesce(r.estado,'')) not in ('confirmada','confirmado','ha venido','completada','completado') then raise exception 'REVIEW_VISIT_NOT_COMPLETED'; end if;
+  if q.status='cancelled' or r.atendida is not true or lower(coalesce(r.estado,'')) not in ('pendiente','confirmada','confirmado','ha venido','completada','completado') then raise exception 'REVIEW_VISIT_NOT_COMPLETED'; end if;
   if q.scheduled_for>now() then raise exception 'REVIEW_NOT_DUE'; end if;
   if p_action='prepare' then
     if q.status='uncertain' or q.active_delivery_token is not null then raise exception 'REVIEW_DELIVERY_UNCERTAIN'; end if;
@@ -338,6 +338,71 @@ begin
 end;
 $$;
 
+-- Attendance is a separate restaurant action. It does not record a bill or award points.
+-- Invoker security preserves the existing reservation/customer RLS and demo restrictions.
+create or replace function public.marcar_asistencia_reserva(p_reserva_id uuid,p_asistio boolean)
+returns jsonb language plpgsql security invoker set search_path = '' as $$
+declare
+  r public.reservas%rowtype;
+  v_cliente_id uuid;
+  v_phone text;
+  v_email text;
+  v_start timestamptz;
+begin
+  if auth.uid() is null or public.is_demo_user() then
+    raise exception 'ASISTENCIA_ACCESS_DENIED' using errcode='42501';
+  end if;
+  if p_reserva_id is null or p_asistio is null then raise exception 'ASISTENCIA_INVALIDA'; end if;
+  select * into r from public.reservas where id=p_reserva_id for update;
+  if r.id is null then raise exception 'RESERVA_NO_ENCONTRADA'; end if;
+  if not public.puede_acceder_restaurante(r.restaurante_id) then
+    raise exception 'ASISTENCIA_ACCESS_DENIED' using errcode='42501';
+  end if;
+  if lower(coalesce(r.estado,'')) in ('cancelada','cancelado') then raise exception 'RESERVA_CANCELADA'; end if;
+  if p_asistio and lower(coalesce(r.estado,'')) in ('no_show','no-show','no presentado','no_presentado') then raise exception 'RESERVA_NO_SHOW'; end if;
+  if not p_asistio and r.consumo_registrado_en is not null then raise exception 'RESERVA_CONSUMO_REGISTRADO'; end if;
+  if p_asistio then
+    select coalesce(r.inicio_at,r.fecha_hora_reserva at time zone coalesce(rc.zona_horaria,'Europe/Madrid'))
+      into v_start from public.restaurantes rr left join public.reservas_config rc on rc.restaurante_id=rr.id
+      where rr.id=r.restaurante_id;
+    if v_start is null or v_start>now() then raise exception 'RESERVA_AUN_NO_INICIADA'; end if;
+    v_cliente_id:=r.cliente_id;
+    if v_cliente_id is not null then
+      if not exists(select 1 from public.clientes where id=v_cliente_id and restaurante_id=r.restaurante_id) then
+        raise exception 'ASISTENCIA_CLIENTE_INVALIDO';
+      end if;
+    else
+      -- Serialize this action's customer lookup/create; all matching stays within the restaurant.
+      perform pg_advisory_xact_lock(hashtextextended(r.restaurante_id::text||':attendance-customer',0));
+      v_phone:=review_private.normalized_phone(r.telefono);
+      v_email:=nullif(lower(trim(coalesce(r.email,''))),'');
+      select c.id into v_cliente_id from public.clientes c
+        where c.restaurante_id=r.restaurante_id and (
+          (v_phone is not null and review_private.normalized_phone(c.telefono)=v_phone)
+          or (v_email is not null and lower(trim(c.email))=v_email
+            and (v_phone is null or review_private.normalized_phone(c.telefono) is null or review_private.normalized_phone(c.telefono)=v_phone)))
+        order by (v_phone is not null and review_private.normalized_phone(c.telefono)=v_phone) desc nulls last,c.created_at asc nulls last,c.id
+        limit 1;
+      if v_cliente_id is null then
+        insert into public.clientes(restaurante_id,nombre,telefono,email,origen_principal,canal_contacto,puntos_totales,visitas_totales,permite_whatsapp,permite_email)
+          values(r.restaurante_id,coalesce(nullif(trim(r.nombre_cliente),''),'Cliente'),
+            coalesce('+'||v_phone,nullif(trim(r.telefono),'')),nullif(trim(r.email),''),
+            coalesce(nullif(r.origen,''),'reserva'),coalesce(nullif(r.origen,''),'reserva'),0,0,false,false)
+          returning id into v_cliente_id;
+      end if;
+    end if;
+    if r.atendida is not true or r.cliente_id is distinct from v_cliente_id then
+      update public.reservas set atendida=true,cliente_id=v_cliente_id
+        where id=r.id and restaurante_id=r.restaurante_id returning * into r;
+    end if;
+  else
+    update public.reservas set atendida=false,estado='no-show',mesa_id=null
+      where id=r.id and restaurante_id=r.restaurante_id returning * into r;
+  end if;
+  return jsonb_build_object('reserva_id',r.id,'cliente_id',r.cliente_id,'atendida',r.atendida);
+end;
+$$;
+
 -- Booking and optional review permission are committed in one transaction. Retrying a booking cannot change consent.
 create or replace function public.crear_reserva_publica_con_resena(
   p_slug text,p_inicio_at timestamptz,p_personas integer,p_nombre text,p_telefono text default null,
@@ -366,9 +431,6 @@ begin
         loyalty_whatsapp=case when cliente_comunicaciones_consentimiento.revoked_at is null then cliente_comunicaciones_consentimiento.loyalty_whatsapp else false end,
         loyalty_email=case when cliente_comunicaciones_consentimiento.revoked_at is null then cliente_comunicaciones_consentimiento.loyalty_email else false end,
         consent_source='public_booking',consent_version='review-whatsapp-v1',updated_at=now();
-    -- The reservation INSERT precedes consent. Schedule now, in this same transaction,
-    -- so the restaurant never has to mark attendance to trigger the request.
-    perform review_private.ensure_request(r.id,true);
   end if;
   return v_result;
 end;
@@ -395,7 +457,7 @@ begin
     return jsonb_build_object('allowed',false,'reason',case when q.active_delivery_token=p_lock_token then 'review_delivery_in_progress' else 'review_delivery_uncertain' end);
   end if;
   if q.sent_at is not null or q.status in ('prepared','uncertain','cancelled') or c.ya_dejo_resena is true then return jsonb_build_object('allowed',false,'reason','review_already_handled'); end if;
-  if r.atendida is false or lower(coalesce(r.estado,'')) not in ('confirmada','confirmado','ha venido','completada','completado') then return jsonb_build_object('allowed',false,'reason','visit_not_completed'); end if;
+  if r.atendida is not true or lower(coalesce(r.estado,'')) not in ('pendiente','confirmada','confirmado','ha venido','completada','completado') then return jsonb_build_object('allowed',false,'reason','visit_not_completed'); end if;
   if q.scheduled_for>now() then return jsonb_build_object('allowed',false,'reason','review_not_due'); end if;
   if not review_private.has_consent(r.restaurante_id,c.id) then return jsonb_build_object('allowed',false,'reason','review_consent_missing'); end if;
   if a.enabled is not true or a.review_enabled is not true or a.whatsapp_enabled is not true or a.delivery_mode is distinct from d.delivery_mode
@@ -444,10 +506,12 @@ $$;
 
 -- Grants below deliberately exclude direct writes and service operations from browser roles.
 revoke all on all functions in schema review_private from public, anon, authenticated;
-grant execute on function review_private.assert_manager(uuid),review_private.list_requests(uuid),review_private.settings(uuid,text,integer,boolean),review_private.action(uuid,text) to authenticated;
+grant execute on function review_private.assert_manager(uuid),review_private.normalized_phone(text),review_private.list_requests(uuid),review_private.settings(uuid,text,integer,boolean),review_private.action(uuid,text) to authenticated;
 grant execute on all functions in schema review_private to service_role;
 revoke all on function public.list_visit_review_requests(uuid),public.save_visit_review_settings(uuid,text,integer,boolean),public.visit_review_action(uuid,text) from public,anon;
 grant execute on function public.list_visit_review_requests(uuid),public.save_visit_review_settings(uuid,text,integer,boolean),public.visit_review_action(uuid,text) to authenticated,service_role;
+revoke all on function public.marcar_asistencia_reserva(uuid,boolean) from public,anon,authenticated,service_role;
+grant execute on function public.marcar_asistencia_reserva(uuid,boolean) to authenticated;
 revoke all on function public.get_visit_review_link(uuid),public.open_visit_review_link(uuid),public.stop_visit_review_requests(uuid),public.crear_reserva_publica_con_resena(text,timestamptz,integer,text,text,text,text,uuid,boolean,boolean,text,boolean) from public,anon,authenticated;
 grant execute on function public.get_visit_review_link(uuid),public.open_visit_review_link(uuid),public.stop_visit_review_requests(uuid),public.crear_reserva_publica_con_resena(text,timestamptz,integer,text,text,text,text,uuid,boolean,boolean,text,boolean) to service_role;
 revoke all on function public.get_visit_review_delivery(text,uuid),public.complete_visit_review_delivery(text,uuid,text,text,text) from public,anon,authenticated;

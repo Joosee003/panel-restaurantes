@@ -32,7 +32,7 @@ jobs:
         run: npm run lint
 
       - name: Review message and transport tests
-        run: node --test tests/review-flow.test.mjs
+        run: node --test tests/review-flow.test.mjs tests/n8n-review-contract.test.mjs
 
       - name: Install isolated SQL test dependencies
         run: npm ci --prefix tests/sql
