@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { restoreApplicationCatalog } from './recovery-catalog.mjs';
-import { ids,actor,seedApplication,closeAccount,consumeManually,linkedSnapshot,checkApplicationFlows } from './application-schema-checks.mjs';
+import { ids,actor,seedApplication,closeAccount,consumeManually,createQrOrder,reservePlaces,linkedSnapshot,checkApplicationFlows } from './application-schema-checks.mjs';
 
 const [catalogPath,binPath,pgPath,reportPath]=process.argv.slice(2);
 assert.ok(catalogPath && binPath && pgPath,'Pass sanitized fixture, PostgreSQL binaries and pg module');
@@ -184,17 +184,14 @@ try{
     assert.equal(outcome.error,undefined);assert.equal(outcome.value.ok,true);await assertState('linked',{sales:0});
   });
   const unlinked=db=>closeAccount(db,{reservation:null});
-  const newOrder=db=>db.query(`with o as(insert into pedidos_qr(id,restaurante_id,carta_id,mesa_id,mesa_session_id,total)
-    values('77000000-0000-4000-8000-000000000099',$1,$2,$3,$4,10) returning id)
-    insert into pedido_qr_items(pedido_id,producto_id,nombre_producto,precio_unitario,cantidad)
-    select id,$5,'Competing fictional product',10,1 from o`,[ids.restaurant,ids.card,ids.table,ids.session,ids.product]);
+  const newOrder=createQrOrder;
   await race('new order before QR close rejects stale account',async()=>{
-    await a.exec('begin');await newOrder(a);
+    await actor(a,null,'anon');await a.exec('begin');assert.equal((await newOrder(a)).ok,true);
     const outcome=await afterLock(()=>unlinked(b),()=>a.exec('commit'));
     assert.match(outcome.error?.message||'',/PEDIDOS_CAMBIADOS_ACTUALIZA|IMPORTE_CAMBIADO_ACTUALIZA/);assert.equal((await state()).closes,0);
   });
   await race('QR close before new order rejects obsolete session',async()=>{
-    await a.exec('begin');await unlinked(a);
+    await a.exec('begin');await unlinked(a);await actor(b,null,'anon');
     const outcome=await afterLock(()=>newOrder(b),()=>a.exec('commit'));
     assert.match(outcome.error?.message||'',/SESION_MESA_NO_VALIDA/);await assertState('unlinked',{sales:1});
   });
@@ -230,9 +227,7 @@ try{
     await a.query('update reservas_config set capacidad_vinculada_sala=$1 where restaurante_id=$2',[enabled,ids.restaurant]);
     await actor(a);
   };
-  const reserve=(db,people)=>db.query(`insert into reservas(restaurante_id,personas,estado,origen,inicio_at,fin_at,fecha_hora_reserva)
-    values($1,$2,'confirmada','panel_nativo',now()+interval '1 hour',now()+interval '150 minutes',
-      (now()+interval '1 hour') at time zone 'Europe/Madrid')`,[ids.restaurant,people]);
+  const reserve=reservePlaces;
   const block=db=>db.query('update sala_mesas set bloqueada=true where id=$1',[ids.table]);
   const enable=db=>db.query('update reservas_config set capacidad_vinculada_sala=true where restaurante_id=$1',[ids.restaurant]);
   const count=async()=>Number((await observer.query('select count(*)::int n from reservas')).rows[0].n);

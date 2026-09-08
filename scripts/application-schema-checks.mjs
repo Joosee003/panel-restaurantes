@@ -11,6 +11,7 @@ export const ids = {
   card:'7a000000-0000-4000-8000-000000000001',recipe:'7b000000-0000-4000-8000-000000000001',
   ingredient:'7c000000-0000-4000-8000-000000000001',operation:'7d000000-0000-4000-8000-000000000001',
 };
+export const qrTokens = {menu:'a'.repeat(32),table:'b'.repeat(48)};
 export async function actor(db,user=ids.user,role='authenticated',extra={}) {
   await db.exec('reset role');
   await db.query("select set_config('request.jwt.claims',$1,false),set_config('request.jwt.claim.sub',$2,false),set_config('request.jwt.claim.role',$3,false)",
@@ -37,8 +38,9 @@ export async function seedApplication(db) {
     update reservas_config set activo=true,capacidad_por_turno=20,duracion_minutos=90 where restaurante_id='${ids.restaurant}';
     insert into sala_zonas(id,restaurante_id,nombre) values('${ids.zone}','${ids.restaurant}','Rehearsal zone');
     insert into sala_mesas(id,restaurante_id,zona_id,nombre,capacidad,qr_session_id,qr_access_token,qr_expires_at)
-      values('${ids.table}','${ids.restaurant}','${ids.zone}','Rehearsal table',4,'${ids.session}','synthetic-qr-token',now()+interval '12 hours');
-    insert into cartas_digitales(id,restaurante_id,nombre,estado) values('${ids.card}','${ids.restaurant}','Rehearsal menu','activo');
+      values('${ids.table}','${ids.restaurant}','${ids.zone}','Rehearsal table',4,'${ids.session}','${qrTokens.table}',now()+interval '12 hours');
+    insert into cartas_digitales(id,restaurante_id,nombre,estado,public_token)
+      values('${ids.card}','${ids.restaurant}','Rehearsal menu','activa','${qrTokens.menu}');
     insert into carta_productos(id,carta_id,restaurante_id,nombre,precio)
       values('${ids.product}','${ids.card}','${ids.restaurant}','Rehearsal product',99);
     insert into clientes(id,restaurante_id,nombre,permite_whatsapp,permite_email)
@@ -69,6 +71,13 @@ export async function consumeManually(db) {
   return (await db.query("select public.registrar_consumo_reserva($1,$2,35.30,'tarjeta','rehearsal') result",
     [ids.reservation,ids.restaurant])).rows[0].result;
 }
+export async function createQrOrder(db) {
+  return (await db.query('select public.crear_pedido_mesa_qr_seguro($1,$2,$3,$4,$5::jsonb) result',
+    [qrTokens.menu,ids.table,qrTokens.table,'rehearsal',JSON.stringify([{producto_id:ids.product,cantidad:1,precio:1}])])).rows[0].result;
+}
+export const reservePlaces=(db,people)=>db.query(`insert into reservas(restaurante_id,personas,estado,origen,inicio_at,fin_at,fecha_hora_reserva)
+  values($1,$2,'confirmada','panel_nativo',now()+interval '1 hour',now()+interval '150 minutes',
+    (now()+interval '1 hour') at time zone 'Europe/Madrid')`,[ids.restaurant,people]);
 export async function linkedSnapshot(db) {
   await db.exec('reset role');
   const result=(await db.query(`select
@@ -93,6 +102,14 @@ export async function linkedSnapshot(db) {
 }
 export async function checkApplicationFlows(db,report) {
   const pass=message=>report.checks.push(message);
+  await seedApplication(db);
+  await actor(db,null,'anon');
+  const order=await createQrOrder(db);
+  assert.equal(order.ok,true);assert.equal(Number(order.total),99);
+  await actor(db);
+  await assert.rejects(closeAccount(db,{reservation:null}),/IMPORTE_CAMBIADO_ACTUALIZA/);
+  assert.equal((await linkedSnapshot(db)).closes,0);
+  pass('The real anonymous QR endpoint uses the server price and invalidates an account quoted before a new order.');
   await seedApplication(db);
   const first=await closeAccount(db);
   assert.equal(first.ok,true);
@@ -151,6 +168,14 @@ export async function checkApplicationFlows(db,report) {
   assert.equal(noLoyalty.visits,1);assert.equal(noLoyalty.sales,1);
   assert.deepEqual([noLoyalty.ledger_points,noLoyalty.balance_points,noLoyalty.customer_points],[0,0,0]);
   pass('Disabled loyalty preserves the visit and sale without issuing points.');
+  await seedApplication(db);
+  await db.exec('reset role');
+  await db.query('delete from reservas where id=$1',[ids.reservation]);
+  await db.query('update reservas_config set capacidad_vinculada_sala=true where restaurante_id=$1',[ids.restaurant]);
+  await actor(db);
+  await reservePlaces(db,3);
+  await assert.rejects(reservePlaces(db,2),/SLOT_NOT_AVAILABLE/);
+  pass('Authenticated booking creation follows actual RLS and rejects reservations exceeding linked room capacity.');
   await seedApplication(db);
   await db.exec('reset role');
   await db.query('update usuarios_restaurantes set demo_vista=true where user_id=$1',[ids.user]);
