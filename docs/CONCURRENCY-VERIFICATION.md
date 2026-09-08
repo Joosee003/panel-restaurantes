@@ -1,6 +1,12 @@
 # Verificación con conexiones simultáneas
 
-Estado a 8 de septiembre de 2026: **ampliada y preparada para GitHub Actions; ejecución real pendiente**.
+Estado a 8 de septiembre de 2026: **22 carreras reales superadas en PostgreSQL 17.6 con datos ficticios**.
+
+Evidencia: [trabajo SQL terminado correctamente](https://github.com/Joosee003/panel-restaurantes/actions/runs/34211333493/job/102012788183)
+del commit `b934e5ec9d73f18f95e23290cb3a209985934537`, a las 09:41 UTC.
+También pasaron las 160 comprobaciones de una conexión/Node y el trabajo de
+calidad con lint, auditoría de dependencias y compilación. Esto **no acredita el
+esquema completo de Supabase ni el recorrido con navegador**.
 
 `scripts/test-sql-concurrent.mjs` inicia un clúster PostgreSQL nuevo, crea datos
 ficticios y usa dos conexiones con identificadores de proceso diferentes. Una
@@ -47,8 +53,17 @@ Node y SQL de una conexión, después las carreras reales. Su límite es diez
 minutos. No despliega ni aplica cambios a otras bases.
 
 El resultado de `--self-check` y una ejecución pendiente no cuentan como
-concurrencia verificada. Debe constar el enlace al trabajo terminado y la salida
-`REAL two-connection race checks passed` con los identificadores de sus conexiones.
+concurrencia verificada. La ejecución enlazada terminó con
+`22 REAL two-connection race checks passed`. Sus conexiones fueron:
+
+| Grupo | Escritor A | Escritor B | Observador |
+| --- | --- | --- | --- |
+| Plazas | 2509 | 2510 | 2511 |
+| Cuenta QR | 2513 | 2514 | 2515 |
+| QR vinculado a reserva | 2517 | 2518 | 2519 |
+
+Los avisos de conexión terminada al detener el clúster corresponden al apagado
+del servidor ficticio después de completar las pruebas; el trabajo terminó con éxito.
 
 ## Cómo ejecutarla en un entorno autorizado
 
@@ -70,7 +85,7 @@ detiene el servidor y conserva ese directorio ficticio para revisar un fallo.
 No modifica producción ni otras bases locales. La salida sólo puede anunciar
 `REAL two-connection race checks passed` cuando todas las carreras han pasado.
 
-## Casos preparados
+## Casos superados en el esquema ficticio
 
 | Carrera | Resultado exigido |
 | --- | --- |
@@ -109,8 +124,8 @@ No modifica producción ni otras bases locales. La salida sólo puede anunciar
 - No comprueba navegador, desconexión del cliente, despliegue, cobro bancario,
   facturación ni recuperación de una copia de seguridad.
 
-No dar por cerrada la autorización para publicar hasta ejecutar las carreras,
-revisar el esquema completo y probar el recorrido de usuario correspondiente.
+La aprobación para publicar sigue pendiente de revisar el esquema completo,
+la restauración y el recorrido de usuario correspondiente.
 
 Referencia técnica: [bloqueos de PostgreSQL](https://www.postgresql.org/docs/17/explicit-locking.html)
 y [binarios locales de embedded-postgres](https://github.com/leinelissen/embedded-postgres).
