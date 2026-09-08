@@ -100,10 +100,10 @@ begin
   v_consent:=review_private.has_consent(r.restaurante_id,r.cliente_id);
   v_reason:=case
     when q.id is not null and q.cliente_id is distinct from r.cliente_id then 'review_customer_changed'
-    when r.atendida is not true or lower(coalesce(r.estado,'')) in ('cancelada','cancelado','no_show','no-show','no presentado','no_presentado') then 'visit_not_completed'
+    when r.atendida is false or lower(coalesce(r.estado,'')) not in ('confirmada','confirmado','ha venido','completada','completado') then 'visit_not_completed'
     when c.id is null then 'customer_missing'
     when c.ya_dejo_resena is true then 'review_confirmed'
-    when v_start is null or v_start>now() then 'visit_not_completed'
+    when v_start is null then 'visit_not_completed'
     when not exists(select 1 from public.restaurante_modulos m where m.restaurante_id=r.restaurante_id and m.resenas is true) then 'review_disabled'
     else null end;
   if v_reason is not null then
@@ -126,9 +126,9 @@ begin
     status=excluded.status,last_error=excluded.last_error,updated_at=now()
   returning * into q;
   if q.sent_at is not null then return q; end if;
-  -- Cancel an older waiting request when another visit for this same customer is recorded.
+  -- A future booking must not cancel the request for an earlier visit.
   update public.visit_review_requests set status='cancelled',last_error='newer_visit',updated_at=now()
-    where cliente_id=c.id and id<>q.id and scheduled_for<=q.scheduled_for and sent_at is null and status in ('ready','scheduled','blocked');
+    where v_start<=now() and cliente_id=c.id and id<>q.id and scheduled_for<=q.scheduled_for and sent_at is null and status in ('ready','scheduled','blocked');
   update public.reservation_webhook_deliveries d set status='cancelled',cancelled_at=now(),locked_at=null,lock_token=null,last_error='newer_visit',updated_at=now()
     where d.cliente_id=c.id and d.reservation_id<>r.id and d.event_type='visit.review_request' and d.status in ('pending','retrying','processing')
       and exists(select 1 from public.visit_review_requests oldq where oldq.reserva_id=d.reservation_id and oldq.last_error='newer_visit');
@@ -203,9 +203,7 @@ begin
       from public.reservas r join public.clientes c on c.id=r.cliente_id and c.restaurante_id=r.restaurante_id
       left join public.visit_review_requests q on q.reserva_id=r.id
       left join public.reservas_config rc on rc.restaurante_id=r.restaurante_id
-      where r.restaurante_id=p_restaurante_id and r.atendida is true
-        and lower(coalesce(r.estado,'')) not in ('cancelada','cancelado','no_show','no-show','no presentado','no_presentado')
-        and coalesce(r.inicio_at,r.fecha_hora_reserva at time zone coalesce(rc.zona_horaria,'Europe/Madrid'))<=now()
+      where r.restaurante_id=p_restaurante_id and (q.id is not null or r.atendida is true or r.resena_solicitada is true)
       order by coalesce(r.inicio_at,r.fecha_hora_reserva at time zone coalesce(rc.zona_horaria,'Europe/Madrid')) desc limit 250
     ) rows), '[]'::jsonb)) into v_result
   from public.restaurantes rr left join public.automatizaciones_config a on a.restaurante_id=rr.id
@@ -267,7 +265,7 @@ begin
   if c.ya_dejo_resena is true then raise exception 'REVIEW_ALREADY_CONFIRMED'; end if;
   if q.sent_at is not null then raise exception 'REVIEW_ALREADY_SENT'; end if;
   if not review_private.has_consent(r.restaurante_id,c.id) then raise exception 'REVIEW_CONSENT_MISSING'; end if;
-  if q.status='cancelled' or r.atendida is not true or lower(coalesce(r.estado,'')) in ('cancelada','cancelado','no_show','no-show','no presentado','no_presentado') then raise exception 'REVIEW_VISIT_NOT_COMPLETED'; end if;
+  if q.status='cancelled' or r.atendida is false or lower(coalesce(r.estado,'')) not in ('confirmada','confirmado','ha venido','completada','completado') then raise exception 'REVIEW_VISIT_NOT_COMPLETED'; end if;
   if q.scheduled_for>now() then raise exception 'REVIEW_NOT_DUE'; end if;
   if p_action='prepare' then
     if q.status='uncertain' or q.active_delivery_token is not null then raise exception 'REVIEW_DELIVERY_UNCERTAIN'; end if;
@@ -361,7 +359,6 @@ begin
   if p_review_whatsapp and coalesce((v_result->>'duplicate')::boolean,false) is false then
     select * into r from public.reservas where id=(v_result->>'reserva_id')::uuid;
     if r.cliente_id is null then raise exception 'REVIEW_CUSTOMER_MISSING'; end if;
-    update public.clientes set permite_whatsapp=true,updated_at=now() where id=r.cliente_id and restaurante_id=r.restaurante_id;
     insert into public.cliente_comunicaciones_consentimiento(restaurante_id,cliente_id,review_whatsapp,consent_source,consent_version)
       values(r.restaurante_id,r.cliente_id,true,'public_booking','review-whatsapp-v1')
       on conflict(restaurante_id,cliente_id) do update set review_whatsapp=true,revoked_at=null,consented_at=now(),
@@ -369,6 +366,9 @@ begin
         loyalty_whatsapp=case when cliente_comunicaciones_consentimiento.revoked_at is null then cliente_comunicaciones_consentimiento.loyalty_whatsapp else false end,
         loyalty_email=case when cliente_comunicaciones_consentimiento.revoked_at is null then cliente_comunicaciones_consentimiento.loyalty_email else false end,
         consent_source='public_booking',consent_version='review-whatsapp-v1',updated_at=now();
+    -- The reservation INSERT precedes consent. Schedule now, in this same transaction,
+    -- so the restaurant never has to mark attendance to trigger the request.
+    perform review_private.ensure_request(r.id,true);
   end if;
   return v_result;
 end;
@@ -395,7 +395,7 @@ begin
     return jsonb_build_object('allowed',false,'reason',case when q.active_delivery_token=p_lock_token then 'review_delivery_in_progress' else 'review_delivery_uncertain' end);
   end if;
   if q.sent_at is not null or q.status in ('prepared','uncertain','cancelled') or c.ya_dejo_resena is true then return jsonb_build_object('allowed',false,'reason','review_already_handled'); end if;
-  if r.atendida is not true or lower(coalesce(r.estado,'')) in ('cancelada','cancelado','no_show','no-show','no presentado','no_presentado') then return jsonb_build_object('allowed',false,'reason','visit_not_completed'); end if;
+  if r.atendida is false or lower(coalesce(r.estado,'')) not in ('confirmada','confirmado','ha venido','completada','completado') then return jsonb_build_object('allowed',false,'reason','visit_not_completed'); end if;
   if q.scheduled_for>now() then return jsonb_build_object('allowed',false,'reason','review_not_due'); end if;
   if not review_private.has_consent(r.restaurante_id,c.id) then return jsonb_build_object('allowed',false,'reason','review_consent_missing'); end if;
   if a.enabled is not true or a.review_enabled is not true or a.whatsapp_enabled is not true or a.delivery_mode is distinct from d.delivery_mode

@@ -58,12 +58,13 @@ export function reviewStage(request: ReviewRequest, now = Date.now()) {
   if (request.confirmed) return { key: "confirmed", label: "Reseña confirmada", tone: "green" } as const;
   if (request.google_opened_at) return { key: "opened", label: "Abrió el enlace de Google", tone: "blue" } as const;
   if (request.sent_at) return { key: "sent", label: "Petición enviada", tone: "slate" } as const;
-  if (request.status === "uncertain") return { key: "uncertain", label: "Comprobar envío", tone: "amber" } as const;
+  if (request.status === "uncertain") return { key: "uncertain", label: "GastroHelp está revisando el envío", tone: "amber" } as const;
   if (request.status === "cancelled") return { key: "cancelled", label: "Petición cancelada", tone: "slate" } as const;
   if (!request.consent) return { key: "blocked", label: "Sin permiso de WhatsApp", tone: "amber" } as const;
   if (new Date(request.scheduled_for).getTime() > now) return { key: "scheduled", label: "Programada tras la visita", tone: "slate" } as const;
-  if (request.status === "prepared") return { key: "prepared", label: "Mensaje preparado", tone: "amber" } as const;
-  return { key: "ready", label: request.previous_requests ? "Nueva visita: volver a pedir" : "Lista para pedir", tone: "blue" } as const;
+  if (request.status === "prepared") return { key: "prepared", label: "Envío pendiente de revisión", tone: "amber" } as const;
+  if (request.status === "blocked") return { key: "blocked", label: "Envío pendiente de activación", tone: "amber" } as const;
+  return { key: "ready", label: request.previous_requests ? "Nueva petición automática pendiente" : "Envío automático pendiente", tone: "blue" } as const;
 }
 
 export function canPrepareReview(request: ReviewRequest, now = Date.now()): boolean {

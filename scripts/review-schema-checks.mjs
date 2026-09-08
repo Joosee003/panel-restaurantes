@@ -31,7 +31,7 @@ export async function seedReviews(db) {
       values('${I.restaurant}','${I.customer}',true,'test_fixture','v1');`);
   await reviewActor(db);
 }
-export async function addReviewVisit(db,{id=I.reservation,hours=4,attended=true,state='confirmada',customer=I.customer}={}) {
+export async function addReviewVisit(db,{id=I.reservation,hours=4,attended=null,state='confirmada',customer=I.customer}={}) {
   await db.query(`insert into reservas(id,restaurante_id,cliente_id,nombre_cliente,telefono,estado,origen,personas,turno,inicio_at,fin_at,fecha_hora_reserva,atendida)
     values($1,$2,$3,'Cliente de prueba','+34600000001',$4,'panel_nativo',2,'comida',now()-make_interval(hours=>$5),
       now()-make_interval(hours=>$5)+interval '90 minutes',(now()-make_interval(hours=>$5)) at time zone 'Europe/Madrid',$6)`,[id,I.restaurant,customer,state,hours,attended]);
@@ -51,15 +51,15 @@ export async function checkReviewSchema(db) {
   const pass=name=>passed.push(name);
   await db.exec('alter role service_role bypassrls');
   await seedReviews(db);
-  await addReviewVisit(db,{hours:1,attended:false});
-  assert.equal(await requestRow(db),undefined);
-  await db.query('update reservas set atendida=true where id=$1',[I.reservation]);
+  await addReviewVisit(db,{hours:1});
   let q=await requestRow(db);
   assert.equal(q.status,'scheduled');
   const delta=(await db.query('select extract(epoch from (q.scheduled_for-r.inicio_at)) n from visit_review_requests q join reservas r on r.id=q.reserva_id')).rows[0].n;
   assert.equal(Number(delta),10800);
   await assert.rejects(reviewAction(db,'prepare'),/REVIEW_NOT_DUE/);
-  pass('Timer is three hours from the reservation, requires attendance and blocks early manual sends.');
+  assert.equal((await db.query('select atendida from reservas where id=$1',[I.reservation])).rows[0].atendida,null);
+  assert.equal(await claimReview(db),undefined);await reviewActor(db);
+  pass('Confirmed reservations schedule automatically without an attendance action and block sends before three hours.');
   await seedReviews(db);await addReviewVisit(db);
   const prepared=await reviewAction(db,'prepare');assert.equal(prepared.ok,true);
   q=await requestRow(db);assert.equal(q.status,'prepared');assert.equal(q.sent_at,null);
@@ -144,8 +144,26 @@ export async function checkReviewSchema(db) {
   await reviewActor(db,null,'service_role');assert.equal((await checkDelivery(db,event)).allowed,false);
   pass('A cancelled visit invalidates even a claimed automatic request.');
   await seedReviews(db);await addReviewVisit(db,{state:'no_show'});assert.equal(await requestRow(db),undefined);
-  await addReviewVisit(db,{id:second,hours:-3});assert.equal(await requestRow(db,second),undefined);
-  pass('No-shows and future visits do not create review requests.');
+  await addReviewVisit(db,{id:second,attended:false});assert.equal(await requestRow(db,second),undefined);
+  await addReviewVisit(db,{id:'76000000-0000-4000-8000-000000000003',state:'pendiente'});assert.equal(await requestRow(db,'76000000-0000-4000-8000-000000000003'),undefined);
+  pass('No-shows, explicit missed attendance and unconfirmed reservations cannot trigger requests.');
+  await seedReviews(db);await addReviewVisit(db,{hours:1});
+  await addReviewVisit(db,{id:second,hours:-24});
+  assert.equal((await requestRow(db,second)).status,'scheduled');
+  assert.equal((await requestRow(db)).status,'scheduled');
+  assert.equal(await claimReview(db),undefined);
+  await reviewActor(db);
+  await db.query("update reservas set inicio_at=now()-interval '4 hours',fin_at=now()-interval '150 minutes',fecha_hora_reserva=(now()-interval '4 hours') at time zone 'Europe/Madrid' where id=$1",[I.reservation]);
+  event=await claimReview(db);assert.ok(event);assert.equal(event.reservation_id,I.reservation);
+  assert.equal((await checkDelivery(db,event)).allowed,true);
+  await finishDelivery(db,event,'sent','wamid.without-attendance');
+  assert.equal((await db.query('select atendida from reservas where id=$1',[I.reservation])).rows[0].atendida,null);
+  assert.equal((await requestRow(db,second)).status,'scheduled');
+  pass('Future bookings preserve earlier requests; elapsed time alone allows delivery without marking attendance.');
+  await seedReviews(db);await addReviewVisit(db);event=await claimReview(db);
+  await reviewActor(db);await db.query('update reservas set atendida=false where id=$1',[I.reservation]);
+  await reviewActor(db,null,'service_role');assert.equal((await checkDelivery(db,event)).allowed,false);
+  pass('Recording a missed visit cancels a request even after a worker claimed it.');
   await seedReviews(db);await addReviewVisit(db,{hours:48});assert.ok(await requestRow(db));assert.equal(await claimReview(db),undefined);
   pass('Recording an old visit does not trigger a burst of historical automatic messages.');
   await seedReviews(db);await db.query('select save_visit_review_settings($1,$2,2,false)',[I.restaurant,'https://search.google.com/local/writereview?placeid=test']);
@@ -169,6 +187,11 @@ export async function checkReviewSchema(db) {
   assert.equal(consent.review_whatsapp,true);assert.equal(consent.revoked_at,null);
   assert.deepEqual([consent.loyalty_whatsapp,consent.loyalty_email,consent.review_email],[false,false,false]);
   assert.equal((await db.query('select cliente_id from reservas where id=$1',[optIn.reserva_id])).rows[0].cliente_id,I.customer);
+  const bookedRequest=await requestRow(db,optIn.reserva_id);
+  assert.equal(bookedRequest?.status,'scheduled',JSON.stringify(bookedRequest));
+  const queued=(await db.query("select status from reservation_webhook_deliveries where reservation_id=$1 and event_type='visit.review_request'",[optIn.reserva_id])).rows[0];
+  assert.equal(queued.status,'pending');
+  assert.equal((await db.query('select atendida from reservas where id=$1',[optIn.reserva_id])).rows[0].atendida,null);
   pass('The actual public booking transaction records optional consent, matches phone formatting variants and cannot change consent on retry or revive revoked promotion permissions.');
   return passed;
 }

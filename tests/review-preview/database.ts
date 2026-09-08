@@ -11,6 +11,9 @@ let archive:Blob;
 let pending:Promise<unknown>=Promise.resolve();
 let currentVisit='';
 let submitted=0;
+export type PreviewMessage={token:string;firstName:string;restaurantName:string};
+let lastMessage:PreviewMessage|null=null;
+export const receivedMessage=()=>lastMessage;
 export const exclusive=<T,>(operation:()=>Promise<T>):Promise<T>=>{
  const next=pending.then(operation,operation);pending=next.catch(()=>undefined);return next;
 };
@@ -33,22 +36,20 @@ export const rpc=(name:string,args:Record<string,unknown>)=>exclusive(async()=>{
 async function newVisit() {
  await actor();currentVisit=(await db.query<{id:string}>('select gen_random_uuid() id')).rows[0].id;
  await db.query(`insert into reservas(id,restaurante_id,cliente_id,nombre_cliente,telefono,estado,origen,personas,turno,inicio_at,fin_at,fecha_hora_reserva,atendida)
- values($1,$2,$3,'Cliente de prueba','+34600000001','confirmada','panel_nativo',2,'comida',now()-interval '1 hour',now()+interval '30 minutes',(now()-interval '1 hour') at time zone 'Europe/Madrid',false)`,[currentVisit,restaurant,customer]);
+ values($1,$2,$3,'Cliente de prueba','+34600000001','confirmada','panel_nativo',2,'comida',now()-interval '4 hours',now()-interval '150 minutes',(now()-interval '4 hours') at time zone 'Europe/Madrid',null)`,[currentVisit,restaurant,customer]);
 }
 export async function resetDatabase() {
  return exclusive(async()=>{
   if(!archive){const response=await fetch('./database.tar.gz');if(!response.ok)throw new Error('No se pudo cargar la base de prueba.');archive=await response.blob();}
   if(db)await db.close();
   db=new PGlite({loadDataDir:archive,extensions:{pgcrypto,uuid_ossp}});await db.waitReady;
-  submitted=0;await newVisit();
+  submitted=0;lastMessage=null;await newVisit();
  });
 }
-export async function control(action:'attend'|'due'|'return'|'cancel'|'consent'|'no-consent') {
+export async function control(action:'return'|'cancel'|'consent'|'no-consent') {
  return exclusive(async()=>{
   await actor();
   if(action==='return'){await newVisit();return;}
-  if(action==='attend')await db.query('update reservas set atendida=true where id=$1',[currentVisit]);
-  if(action==='due')await db.query("update reservas set inicio_at=now()-interval '4 hours',fin_at=now()-interval '150 minutes',fecha_hora_reserva=(now()-interval '4 hours') at time zone 'Europe/Madrid' where id=$1",[currentVisit]);
   if(action==='cancel')await db.query("update reservas set estado='cancelada' where id=$1",[currentVisit]);
   if(action==='consent'||action==='no-consent') {
    await actor('service_role');
@@ -71,6 +72,11 @@ export const automatic=()=>exclusive(async()=>{
  },{
   WHATSAPP_ACCESS_TOKEN:'fixture-only-no-external-access',WHATSAPP_PHONE_NUMBER_ID:'1',WHATSAPP_GRAPH_VERSION:'v25.0',
   WHATSAPP_REVIEW_TEMPLATE_NAME:'gastrohelp_opinion_tras_visita',WHATSAPP_REVIEW_TEMPLATE_LANGUAGE:'es',WHATSAPP_REVIEW_RESTAURANT_IDS:restaurant,
- },async()=>{submitted++;return new Response(JSON.stringify({messages:[{id:`fixture.accepted.${submitted}`}]}),{status:200});});
+ },async(_url,options)=>{
+  const body=JSON.parse(String(options?.body));
+  const components=body.template.components;
+  lastMessage={firstName:components[0].parameters[0].text,restaurantName:components[0].parameters[1].text,token:components[1].parameters[0].text};
+  submitted++;return new Response(JSON.stringify({messages:[{id:`fixture.accepted.${submitted}`}]}),{status:200});
+ });
  return {sent:submitted-before,total:submitted,message:JSON.stringify(report)};
 });
