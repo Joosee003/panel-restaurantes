@@ -2,6 +2,12 @@
 
 Estado a 8 de septiembre de 2026: **22 carreras reales superadas en PostgreSQL 17.6 con datos ficticios**.
 
+Ampliación posterior en el borrador: **26 carreras preparadas**, con cuatro
+casos de rentabilidad QR (reintento simultáneo y desactivación antes/después de
+confirmar o revertir). Montaje local comprobado; la ejecución real de esos cuatro
+casos nuevos espera el trabajo de CI correspondiente. La evidencia de debajo
+corresponde a las 22 anteriores.
+
 Evidencia: [trabajo SQL terminado correctamente](https://github.com/Joosee003/panel-restaurantes/actions/runs/34211333493/job/102012788183)
 del commit `b934e5ec9d73f18f95e23290cb3a209985934537`, a las 09:41 UTC.
 También pasaron las 160 comprobaciones de una conexión/Node y el trabajo de

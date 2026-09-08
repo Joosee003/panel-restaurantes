@@ -22,6 +22,7 @@ import {
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
 import { useRestaurante } from "../../../hooks/useRestaurante";
+import QrProfitability from "./components/QrProfitability";
 
 type PlatoRentabilidad = {
   id: string;
@@ -309,8 +310,10 @@ export default function RentabilidadPage() {
           <KpiCard dark={dark} icon={<Euro size={22} />} label="Beneficio medio" value={formatEuro(resumen.beneficioMedio)} helper="Por plato de carta" />
           <KpiCard dark={dark} icon={<Percent size={22} />} label="Margen medio" value={formatPercent(resumen.margenMedio)} helper={resumen.margenMedio >= 60 ? "Buen nivel" : "Revisar costes/precios"} />
           <KpiCard dark={dark} icon={<TrendingDown size={22} />} label="Platos a revisar" value={String(resumen.platosProblema.length)} helper="Margen bajo o pérdidas" />
-          <KpiCard dark={dark} icon={<ShoppingCart size={22} />} label="Beneficio real mes" value={formatEuro(resumen.beneficioMes)} helper={`${resumen.unidadesMes} unidades registradas`} />
+          <KpiCard dark={dark} icon={<ShoppingCart size={22} />} label="Margen manual del mes" value={formatEuro(resumen.beneficioMes)} helper={`${resumen.unidadesMes} unidades registradas manualmente · QR aparte`} />
         </div>
+
+        <QrProfitability restaurantId={restauranteId} />
 
         {errorMsg ? (
           <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-200">

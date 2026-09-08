@@ -14,17 +14,19 @@ Actualizado el 8 de septiembre de 2026. Rama `codex/connect-restaurant-services`
 5. **QR → reserva → cliente:** reserva elegida expresamente, misma mesa/restaurante/servicio y cliente ya asignado. Cierre, consumo neto sin propina, visita y puntos se guardan en una transacción. La fidelización debe estar activa para sumar puntos. No se deduce identidad ni se concede consentimiento de contacto. Un consumo manual previo requiere revisión.
 6. **Respuesta perdida:** petición con identificador estable guardada antes del envío. «Comprobar cierre pendiente» repite exactamente esa petición y recupera el mismo resultado. Una respuesta antigua no borra otra operación y un rechazo del reintento no demuestra que el intento anterior no se guardó.
 7. **Consumo manual:** corregida la diferencia entre puntos guardados y mostrados cuando no existe configuración propia de fidelización. Respuesta, reserva y notificación leen el movimiento realmente generado por el historial. Los clientes nuevos quedan sin permiso de marketing automático; se comprueba que el cliente asignado pertenece al restaurante antes de registrar la visita.
+8. **QR y rentabilidad:** activación expresa para futuros cierres, relación producto/receta del mismo restaurante y una venta por línea original. Guarda precio, descuento y coste estimado al cierre; los costes incompletos quedan pendientes. El informe QR está separado de las ventas manuales y se lee en una sola consulta. Los pedidos nuevos conservan el identificador de menú; su escandallo sigue pendiente.
 
-La pantalla requiere **`cerrar_mesa_qr_con_reserva`**, incluso sin reserva elegida. Aplicar y verificar primero `harden-qr-close.sql`, después `connect-qr-reservation.sql` y `align-manual-consumption-points.sql`, y solo entonces publicar la interfaz. Los cuatro SQL, incluido el ajuste opcional de plazas, siguen en `docs/sql`; no son migraciones aplicadas.
+La pantalla requiere **`cerrar_mesa_qr_con_reserva`**, incluso sin reserva elegida. Aplicar y verificar primero `harden-qr-close.sql`, después `connect-qr-reservation.sql`, `align-manual-consumption-points.sql`, `preserve-qr-menu-origin.sql` y `connect-qr-profitability.sql`, y solo entonces publicar la interfaz. Los seis SQL, incluido el ajuste opcional de plazas, siguen en `docs/sql`; no son migraciones aplicadas.
 
 ## Pruebas y límites
 
-Última pasada local: **160 comprobaciones pasan** (23 Node, 17 plazas, 61 cierre QR, 45 enlace a reserva y 14 consumo manual). Las comprobaciones del montaje del verificador de concurrencia no se incluyen en esa cifra.
+Última pasada local: **221 comprobaciones pasan** (23 Node, 17 plazas, 61 cierre QR, 45 enlace a reserva, 14 consumo manual, 22 origen de menús y 39 rentabilidad QR). Las comprobaciones del montaje del verificador de concurrencia no se incluyen en esa cifra.
 
 - Pruebas Node: cuentas, paginación, Sala, candidatos de reserva, importes, petición pendiente y respuesta antigua.
 - Pruebas SQL PGlite: plazas, permisos, cierre y consumo. Roles reales `anon`/`authenticated` sobre esquema ficticio, reversión completa, reintento idempotente, fidelización y consumo manual frente a QR.
 - TypeScript, ESLint de archivos cambiados, revisión independiente y compilación Next.js con valores ficticios y sin claves reales.
 - **22 carreras PostgreSQL 17.6 superadas** con dos escritores y observador de bloqueos en GitHub Actions. [Evidencia del commit b934e5e](https://github.com/Joosee003/panel-restaurantes/actions/runs/34211333493/job/102012788183). El trabajo de calidad también pasó lint, auditoría de dependencias y compilación. El entorno local continúa sin admitir PostgreSQL con su usuario actual.
+- Ampliado el verificador a **26 carreras** con reintento QR/rentabilidad y desactivación antes/después de confirmar o revertir. Montaje local comprobado; las cuatro nuevas esperan su ejecución real en CI.
 - La vista previa redirige al inicio de sesión de Vercel. No se ha pasado esa protección ni probado el recorrido autenticado.
 
 PGlite 0.5.8 usa esquema reducido y una conexión. No prueba el esquema completo, todas las políticas/disparadores de producción ni escrituras simultáneas. Compilar tampoco demuestra el recorrido del usuario.
@@ -38,6 +40,8 @@ GASTROHELP_SQL_TEST_ROOT=tests/sql node scripts/test-room-capacity.mjs
 node scripts/test-qr-close-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
 node scripts/test-qr-reservation-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
 node scripts/test-manual-consumption-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+node scripts/test-qr-menu-origin-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+node scripts/test-qr-profitability-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
 node scripts/test-sql-concurrent.mjs --self-check
 npx tsc --noEmit --incremental false
 ```
@@ -54,8 +58,8 @@ La consulta agregada de coherencia detectó un pedido abierto de demostración c
 
 ## Fuera de este bloque
 
-TheFork necesita acceso oficial y prueba. QR → rentabilidad necesita mapa explícito de productos/platos, identificador de menú y origen único por venta. Correcciones, devoluciones, cuentas divididas y mesas combinadas requieren diseño y pruebas separados. Las reservas sin cliente asignado o intervalo comprobable no se enlazan desde esta pantalla; pueden cerrarse sin vinculación.
+TheFork necesita acceso oficial y prueba. QR → rentabilidad necesita completar la relación real de productos/recetas, validar escandallos de menús y probar el recorrido completo antes de activar su registro. Correcciones, devoluciones, cuentas divididas y mesas combinadas requieren diseño y pruebas separados. Las reservas sin cliente asignado o intervalo comprobable no se enlazan desde esta pantalla; pueden cerrarse sin vinculación.
 
 Falta comprobar el uso real de web, TPV, turnos y cobros con Hispanos Grill.
 
-Detalles: [CONEXION-CIERRE-QR.md](CONEXION-CIERRE-QR.md), [ROOM-CAPACITY-CONNECTION.md](ROOM-CAPACITY-CONNECTION.md).
+Detalles: [CONEXION-CIERRE-QR.md](CONEXION-CIERRE-QR.md), [ROOM-CAPACITY-CONNECTION.md](ROOM-CAPACITY-CONNECTION.md), [CONEXION-QR-RENTABILIDAD.md](CONEXION-QR-RENTABILIDAD.md).

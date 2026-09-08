@@ -45,7 +45,54 @@ const linkedIds = Object.fromEntries([...idsDeclaration[1].matchAll(/([a-z]+):'(
   .map(([, key, value]) => [key, value]));
 assert.equal(Object.keys(linkedIds).length, 8, 'Linked fixture IDs changed; review the harness');
 const linkedSchema = literal(linkedSource, 'const schema=`', linkedIds);
-const linkedSeed = literal(linkedSource, 'await db.exec(`', linkedIds);
+const linkedSeed = literal(linkedSource, 'await db.exec(`', linkedIds)
+  .replace('insert into restaurante_modulos values',
+    'insert into restaurante_modulos(restaurante_id,camarero_digital,estado,reservas,clientes,fidelizacion) values');
+const profitIds = {
+  product: '90000000-0000-4000-8000-000000000001',
+  unmappedProduct: '90000000-0000-4000-8000-000000000002',
+  dish: 'a0000000-0000-4000-8000-000000000001',
+  ingredient: 'b0000000-0000-4000-8000-000000000001',
+  item: 'c0000000-0000-4000-8000-000000000001',
+  unmappedItem: 'c0000000-0000-4000-8000-000000000002',
+};
+// Keep capture disabled in the original 22 cases. The four added cases opt in
+// through the authenticated RPC and use explicit product/recipe identities.
+const profitSchema = `
+  alter table restaurante_modulos add column rentabilidad boolean not null default false;
+  alter table pedido_qr_items add column menu_id uuid;
+  create table carta_productos(id uuid primary key,restaurante_id uuid not null references restaurantes,
+    nombre text not null,precio numeric);
+  create table platos(id uuid primary key,restaurante_id uuid not null references restaurantes,
+    nombre text not null,precio_venta numeric,activo boolean not null default true);
+  create table ingredientes(id uuid primary key,restaurante_id uuid not null references restaurantes,
+    nombre text,coste_compra numeric,cantidad_compra numeric,merma_pct numeric,
+    activo boolean not null default true);
+  create table plato_ingredientes(id uuid primary key default gen_random_uuid(),
+    plato_id uuid not null references platos on delete cascade,
+    ingrediente_id uuid references ingredientes,cantidad_usada numeric);
+`;
+const profitSeed = `
+  reset role;
+  update restaurante_modulos set rentabilidad=true where restaurante_id='${linkedIds.restaurant}';
+  insert into carta_productos(id,restaurante_id,nombre,precio) values
+    ('${profitIds.product}','${linkedIds.restaurant}','Mapped catalogue product',99),
+    ('${profitIds.unmappedProduct}','${linkedIds.restaurant}','Unmapped catalogue product',88);
+  insert into platos(id,restaurante_id,nombre,precio_venta,activo)
+    values('${profitIds.dish}','${linkedIds.restaurant}','Mapped recipe',50,true);
+  insert into ingredientes(id,restaurante_id,nombre,coste_compra,cantidad_compra,merma_pct,activo)
+    values('${profitIds.ingredient}','${linkedIds.restaurant}','Fixture ingredient',8,2,20,true);
+  insert into plato_ingredientes(plato_id,ingrediente_id,cantidad_usada)
+    values('${profitIds.dish}','${profitIds.ingredient}',0.4);
+  delete from pedido_qr_items where pedido_id='${linkedIds.order}';
+  insert into pedido_qr_items(id,pedido_id,producto_id,nombre_producto,precio_unitario,cantidad) values
+    ('${profitIds.item}','${linkedIds.order}','${profitIds.product}','Fixture item',20.15,1),
+    ('${profitIds.unmappedItem}','${linkedIds.order}','${profitIds.unmappedProduct}',
+      'Unmapped order item',20.15,1);
+  set role authenticated;
+  select public.vincular_producto_qr_plato('${profitIds.product}','${profitIds.dish}');
+  select public.configurar_rentabilidad_qr('${linkedIds.restaurant}',true);
+`;
 const capacityReaders = await Promise.all([
   baseline('20260802161820_connect_booking_blocks_to_public_availability.sql', 'obtener_disponibilidad_reservas'),
   baseline('20260903203000_safe_manual_bookings_and_table_history.sql', 'obtener_disponibilidad_manual'),
@@ -56,6 +103,7 @@ const settings = (await baseline('20260715224047_native_booking_settings.sql', '
 const capacitySql = await read('docs/sql/connect-room-capacity.sql');
 const qrSql = await read('docs/sql/harden-qr-close.sql');
 const linkedSql = await read('docs/sql/connect-qr-reservation.sql');
+const profitSql = await read('docs/sql/connect-qr-profitability.sql');
 const historySql = await read('supabase/migrations/20260906143000_guard_loyalty_history_trigger.sql');
 const manualSql = await read('supabase/migrations/20260906142000_guard_loyalty_points_when_module_disabled.sql');
 const manualAlignmentSql = await read('docs/sql/align-manual-consumption-points.sql');
@@ -92,12 +140,45 @@ revoke all on function public.registrar_consumo_reserva(uuid,uuid,numeric,text,t
   from public,anon,authenticated,service_role;
 grant execute on function public.registrar_consumo_reserva(uuid,uuid,numeric,text,text)
   to authenticated,service_role;
-${linkedSql}`;
+${linkedSql}\n${profitSql}`;
 assert.match(capacitySql, /CAPACITY_BUSY/);
 assert.match(qrSql, /cerrar_mesa_qr_validada/);
 assert.match(linkedSql, /QR_CIERRE_EN_CURSO/);
 assert.match(linkedSchema, /trg_actualizar_visitas_cliente/);
 assert.match(linkedSeed, /truncate app_private\.qr_cierre_operaciones/);
+assert.match(profitSql, /qr_profitability_capture/);
+function assertProfitRows(rows, closeId) {
+  assert.equal(rows.length, 2, 'One immutable sale per original order item');
+  for (const row of rows) {
+    assert.equal(row.restaurante_id, linkedIds.restaurant);
+    assert.equal(row.cierre_id, closeId);
+    assert.equal(row.pedido_id, linkedIds.order);
+    assert.equal(row.menu_id, null);
+    assert.equal(row.cantidad, 1);
+    assert.equal(Number(row.precio_unitario), 20.15, 'Use the ordered price, not current catalogue price');
+    assert.equal(Number(row.ingreso_bruto), 20.15);
+    assert.equal(Number(row.descuento), 2.5);
+    assert.equal(Number(row.ingreso_total), 17.65, 'Allocated net income excludes the tip');
+    assert.ok(row.fecha);
+    assert.ok(Number.isFinite(new Date(row.creado_en).getTime()));
+  }
+  assert.equal(rows[0].id, profitIds.item);
+  assert.equal(rows[0].producto_id, profitIds.product);
+  assert.equal(rows[0].plato_id, profitIds.dish);
+  assert.equal(rows[0].nombre_producto, 'Fixture item');
+  assert.equal(rows[0].estado_coste, 'calculado');
+  assert.equal(Number(rows[0].coste_unitario), 2);
+  assert.equal(Number(rows[0].coste_total), 2);
+  assert.equal(Number(rows[0].beneficio_total), 15.65);
+  assert.equal(rows[1].id, profitIds.unmappedItem);
+  assert.equal(rows[1].producto_id, profitIds.unmappedProduct);
+  assert.equal(rows[1].plato_id, null);
+  assert.equal(rows[1].nombre_producto, 'Unmapped order item');
+  assert.equal(rows[1].estado_coste, 'sin_vinculo');
+  assert.equal(rows[1].coste_unitario, null);
+  assert.equal(rows[1].coste_total, null);
+  assert.equal(rows[1].beneficio_total, null);
+}
 if (process.argv[2] === '--self-check') {
   console.log('PASS fixture extraction and baseline signatures. NO database/concurrency checks executed.');
   process.exit(0);
@@ -110,6 +191,7 @@ if (process.argv[2] === '--fixture-check') {
     // This single backend validates only assembly/grants and fixture entry points.
     await fixture.exec('create role service_role');
     await fixture.exec(linkedSchema);
+    await fixture.exec(profitSchema);
     await fixture.exec(linkedPatch);
     await fixture.exec(linkedSeed);
     await fixture.exec('set role authenticated');
@@ -127,7 +209,15 @@ if (process.argv[2] === '--fixture-check') {
       [linkedIds.reservation, linkedIds.restaurant])).rows[0].result;
     assert.equal(manualFirst.ok, true); assert.equal(manualFirst.puntos_generados, 40);
     await assert.rejects(fixture.query(query, params), /CONSUMO_PREVIO_REQUIERE_REVISION/);
-    console.log('PASS assembled linked SQL fixture, authenticated entry points and replay. NO concurrency checks executed.');
+    await fixture.exec(linkedSeed);
+    await fixture.exec(profitSeed);
+    const profitClose = (await fixture.query(query, params)).rows[0].result;
+    assert.equal(profitClose.ok, true);
+    const profitRows = (await fixture.query('select * from ventas_qr order by id')).rows;
+    assertProfitRows(profitRows, profitClose.cierre_id);
+    assert.equal((await fixture.query(query, params)).rows[0].result.replayed, true);
+    assert.deepEqual((await fixture.query('select * from ventas_qr order by id')).rows, profitRows);
+    console.log('PASS assembled linked/profitability SQL fixture, authenticated entry points, snapshots and replay. NO concurrency checks executed.');
   } finally { await fixture.close(); }
   process.exit(0);
 }
@@ -355,7 +445,7 @@ try {
     });
   });
 
-  await group('linked_qr_fixture', removeRoles(linkedSchema), linkedPatch,
+  await group('linked_qr_fixture', `${removeRoles(linkedSchema)}\n${profitSchema}`, linkedPatch,
     async ({ a, b, observer, aPid, check, afterLock }) => {
       const ids = linkedIds;
       const otherOperation = '80000000-0000-4000-8000-000000000002';
@@ -368,6 +458,16 @@ try {
         await a.query(linkedSeed);
         await a.query('set role authenticated');
       }
+      async function resetProfit() {
+        await reset();
+        await a.query(profitSeed);
+      }
+      const configureProfit = (client, active) => client.query(
+        'select public.configurar_rentabilidad_qr($1::uuid,$2::boolean)', [ids.restaurant, active]);
+      const profitRows = async () => (await observer.query(
+        'select to_jsonb(v) sale from public.ventas_qr v order by id')).rows.map(row => row.sale);
+      const profitActive = async () => (await observer.query(
+        'select activa from public.qr_rentabilidad_config where restaurante_id=$1', [ids.restaurant])).rows[0].activa;
       const close = async (client, options = {}) => {
         const p = { operation: ids.operation, tip: '2', ...options };
         const { rows } = await client.query(`select public.cerrar_mesa_qr_con_reserva(
@@ -534,6 +634,47 @@ try {
         const closed = await assertVisit('linked');
         assert.equal((await close(a)).replayed, true);
         assert.deepEqual(await snapshot(), closed);
+      });
+      await check('QR profitability: simultaneous retry writes each item snapshot once and replays the complete close', async () => {
+        await resetProfit(); const before = await snapshot();
+        await a.query('begin'); const first = await close(a);
+        assert.deepEqual(await snapshot(), before, 'An unfinished close remains invisible to the observer');
+        assert.deepEqual(await profitRows(), [], 'Uncommitted sale snapshots must stay invisible');
+        await assertOperationLock(); await assert.rejects(close(b), inProgress);
+        await a.query('commit'); const closed = await assertVisit('linked');
+        const sales = await profitRows(); assertProfitRows(sales, first.cierre_id);
+        const replay = await close(b);
+        assert.equal(replay.replayed, true); assert.equal(replay.cierre_id, first.cierre_id);
+        assert.deepEqual(await snapshot(), closed);
+        assert.deepEqual(await profitRows(), sales, 'Retry must not duplicate or recompute sale snapshots');
+      });
+      await check('QR profitability: disabling capture waits for the close commit and preserves its snapshots', async () => {
+        await resetProfit(); await a.query('begin'); const first = await close(a);
+        const result = await afterLock(() => configureProfit(b, false), () => a.query('commit'));
+        assert.equal(result.error, undefined); assert.equal(await profitActive(), false);
+        const closed = await assertVisit('linked');
+        const sales = await profitRows(); assertProfitRows(sales, first.cierre_id);
+        assert.equal((await close(b)).replayed, true);
+        assert.deepEqual(await snapshot(), closed);
+        assert.deepEqual(await profitRows(), sales, 'Opt-out cannot erase a committed historical sale');
+      });
+      await check('QR profitability: rollback releases a waiting opt-out with no partial sale, then close respects opt-out', async () => {
+        await resetProfit(); const before = await snapshot();
+        await a.query('begin'); await close(a);
+        const result = await afterLock(() => configureProfit(b, false), () => a.query('rollback'));
+        assert.equal(result.error, undefined); assert.equal(await profitActive(), false);
+        assert.deepEqual(await snapshot(), before, 'Rollback must remove the close, visit and points together');
+        assert.deepEqual(await profitRows(), [], 'Rollback must remove every sale item');
+        const retry = await close(b);
+        assert.equal(retry.ok, true); assert.equal(retry.replayed, false);
+        await assertVisit('linked'); assert.deepEqual(await profitRows(), []);
+      });
+      await check('QR profitability: opt-out commit first prevents a waiting close from capturing obsolete enabled state', async () => {
+        await resetProfit(); await a.query('begin'); await configureProfit(a, false);
+        const result = await afterLock(() => close(b), () => a.query('commit'));
+        assert.equal(result.error, undefined); assert.equal(result.value.ok, true);
+        assert.equal(await profitActive(), false);
+        await assertVisit('linked'); assert.deepEqual(await profitRows(), []);
       });
     });
   console.log(`${passed} REAL two-connection race checks passed. Reduced synthetic schemas only; not a production-schema or browser E2E test.`);

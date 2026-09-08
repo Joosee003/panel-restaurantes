@@ -61,9 +61,9 @@ El esquema ficticio incluye el trigger actual de puntos y la función manual; **
 
 Pendientes: copia/restauración, entorno desechable con esquema completo y navegador autenticado. Ver [CONCURRENCY-VERIFICATION.md](CONCURRENCY-VERIFICATION.md): 22 carreras reales superadas en PostgreSQL 17.6 mediante GitHub Actions, con esquema ficticio. Debe repetirse el recorrido con todos los disparadores y permisos reales. Los conflictos exigen repetir la misma operación, no deducir éxito.
 
-## No conectado
+## Rentabilidad preparada en el borrador
 
-QR no escribe ventas de rentabilidad. `carta_productos` y `platos` necesitan mapa explícito del mismo restaurante, clave de origen por línea, coste de venta y reparto exacto de descuentos. No se unen por nombres. Los menús deben conservar `menu_id`. Sin coste/mapa el margen queda sin calcular, no con coste cero.
+La conexión opcional de [QR y rentabilidad](CONEXION-QR-RENTABILIDAD.md) añade una relación expresa entre `carta_productos` y `platos` del mismo restaurante. Al cerrar guarda una venta por línea original, precio registrado, reparto exacto de descuentos y coste de receta observado al cierre. Sin coste o relación, el margen queda pendiente. Los menús nuevos conservan `menu_id`; su escandallo sigue pendiente. La activación empieza apagada y solo afecta a cierres posteriores. Ambos SQL adicionales permanecen sin instalar.
 
 Tampoco quedan resueltos cuentas divididas, varios pagadores, mesas combinadas, devoluciones, TheFork ni pruebas con Hispanos Grill. «Mixto» solo anota un método, no el reparto entre pagadores.
 

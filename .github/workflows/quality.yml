@@ -72,6 +72,8 @@ jobs:
           node scripts/test-qr-close-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
           node scripts/test-qr-reservation-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
           node scripts/test-manual-consumption-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+          node scripts/test-qr-menu-origin-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+          node scripts/test-qr-profitability-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
 
       - name: Real PostgreSQL 17 concurrent operations
         run: >-
