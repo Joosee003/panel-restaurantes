@@ -1,6 +1,6 @@
 # Solicitudes de reseña después de una visita
 
-Cambio solicitado por Jose el 8 de septiembre de 2026. Implementación preparada en `codex/post-visit-reviews`; no se ha aplicado el SQL a producción ni se han enviado mensajes reales.
+Cambio solicitado por Jose el 8 de septiembre de 2026 y publicado con su autorización en la [PR 40](https://github.com/Joosee003/panel-restaurantes/pull/40), rama `codex/post-visit-reviews`. No se ha aplicado el SQL a producción ni se han enviado mensajes reales.
 
 ## Funcionamiento
 
@@ -71,4 +71,6 @@ La copia de catálogo es la misma fixture saneada de la revisión de servicios: 
 
 Verificado localmente: 10 pruebas de mensaje/transporte, 17 recorridos SQL, 5 comprobaciones por HTTP, lint y compilación con Webpack. Turbopack local no admite el enlace a dependencias fuera del worktree; CI instala dependencias normales y ejecuta la compilación estándar.
 
-Las 6 carreras entre conexiones independientes están incluidas en CI con PostgreSQL 17. El entorno local no permite arrancar el proceso con un usuario sin privilegios; su resultado debe comprobarse en CI. El navegador remoto tampoco pudo abrir el servidor local. La prueba HTTP usa las páginas y rutas reales con transporte RPC local sobre PGlite; no sustituye Supabase Auth/PostgREST, la interacción visual ni la prueba real de WhatsApp.
+El [control de CI del código publicado](https://github.com/Joosee003/panel-restaurantes/actions/runs/34249261320), commit `112f04939182d9113f98044a1e76763bf59cbdc6`, terminó correctamente: 10 pruebas de mensaje/transporte, 17 recorridos SQL, 6 carreras entre conexiones independientes con PostgreSQL 17, 5 comprobaciones por HTTP, lint, auditoría de dependencias de producción y compilación estándar. Vercel también completó la compilación de la vista previa de ese commit.
+
+La prueba HTTP usa las páginas y rutas reales con transporte RPC local sobre PGlite; no sustituye Supabase Auth/PostgREST, la interacción visual ni la prueba real de WhatsApp. La revisión de pantalla con una base aislada y la prueba autorizada de envío siguen pendientes.
