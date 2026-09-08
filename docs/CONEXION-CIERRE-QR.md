@@ -18,7 +18,10 @@ La cuenta se atribuye al titular elegido, no a cada comensal. El trigger existen
 
 ## Contrato y orden de instalación
 
-Primero `harden-qr-close.sql`, después `connect-qr-reservation.sql`, tras cumplir los requisitos de publicación.
+Primero `harden-qr-close.sql`, después `connect-qr-reservation.sql` y
+`align-manual-consumption-points.sql`, tras cumplir los requisitos de publicación.
+Este último corrige el consumo manual para leer los puntos reales, validar el
+restaurante del cliente y no conceder permisos de marketing al crear su ficha.
 
 ```text
 cerrar_mesa_qr_con_reserva(
@@ -56,7 +59,7 @@ Node comprueba identidad, importes, candidatos, paginación y recuperación. SQL
 
 El esquema ficticio incluye el trigger actual de puntos y la función manual; **no sustituye el esquema completo ni las pruebas simultáneas**. La simulación anónima reproduce escrituras, no todas las validaciones reales de QR, token, carta o menú.
 
-Pendientes: copia/restauración, entorno desechable con esquema completo, carreras reales y navegador autenticado. Ver [CONCURRENCY-VERIFICATION.md](CONCURRENCY-VERIFICATION.md). Debe comprobarse el orden de bloqueos entre módulo, reserva/cliente y mesa frente a las rutas antiguas. Los conflictos exigen repetir la misma operación, no deducir éxito.
+Pendientes: copia/restauración, entorno desechable con esquema completo, carreras reales y navegador autenticado. Ver [CONCURRENCY-VERIFICATION.md](CONCURRENCY-VERIFICATION.md): 22 carreras preparadas y trabajo aislado de GitHub Actions añadido. Debe comprobarse el orden de bloqueos entre módulo, reserva/cliente y mesa frente a las rutas antiguas. Los conflictos exigen repetir la misma operación, no deducir éxito.
 
 ## No conectado
 

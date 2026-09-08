@@ -36,3 +36,45 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+  sql-fixtures:
+    name: SQL fixtures and concurrent QR operations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tests/sql/package-lock.json
+
+      - name: Install pinned test dependencies
+        run: npm ci --prefix tests/sql --ignore-scripts --no-audit --no-fund
+
+      - name: Prepare PostgreSQL package libraries
+        working-directory: tests/sql/node_modules/@embedded-postgres/linux-x64
+        run: node scripts/hydrate-symlinks.js
+
+      - name: Client data and recovery checks
+        run: node --test tests/*.test.mjs
+
+      - name: SQL permissions and atomic operations
+        env:
+          GASTROHELP_SQL_TEST_ROOT: ${{ github.workspace }}/tests/sql
+        run: |
+          node scripts/test-room-capacity.mjs
+          node scripts/test-qr-close-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+          node scripts/test-qr-reservation-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+          node scripts/test-manual-consumption-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+
+      - name: Real PostgreSQL 17 concurrent operations
+        run: >-
+          node scripts/test-sql-concurrent.mjs
+          tests/sql/node_modules/@embedded-postgres/linux-x64/native/bin
+          tests/sql/node_modules/pg

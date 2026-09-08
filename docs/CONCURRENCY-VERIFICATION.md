@@ -1,11 +1,11 @@
 # Verificación con conexiones simultáneas
 
-Estado a 8 de septiembre de 2026: **preparada, no ejecutada**.
+Estado a 8 de septiembre de 2026: **ampliada y preparada para GitHub Actions; ejecución real pendiente**.
 
 `scripts/test-sql-concurrent.mjs` inicia un clúster PostgreSQL nuevo, crea datos
 ficticios y usa dos conexiones con identificadores de proceso diferentes. Una
-tercera conexión comprueba en `pg_stat_activity` que la operación está esperando
-un bloqueo antes de liberar la primera transacción. Las pruebas de capacidad
+tercera conexión comprueba en `pg_stat_activity` y `pg_blocking_pids` que la
+operación espera un bloqueo de la primera conexión antes de liberarlo. Las pruebas de capacidad
 comprueban además el rechazo inmediato `CAPACITY_BUSY` y el resultado del
 reintento después del `COMMIT`.
 
@@ -31,6 +31,24 @@ La comprobación de sintaxis de Node y `--self-check` sí pasaron. Este último 
 comprueba que se pueden leer los esquemas ficticios y las funciones base; **no
 prueba transacciones, bloqueos ni conexiones simultáneas**. El modo real devuelve
 código 2 cuando se inicia como `root`.
+
+## Ejecución en GitHub Actions
+
+El trabajo `SQL fixtures and concurrent QR operations` de
+`.github/workflows/quality.yml` usa el usuario ordinario del ejecutor
+`ubuntu-24.04`. Instala únicamente las dependencias de `tests/sql` con su
+`package-lock.json`: PGlite 0.5.8, pg 8.23.0 y PostgreSQL 17.6 empaquetado.
+La instalación desactiva scripts automáticos; un paso explícito restaura los
+enlaces de las bibliotecas del paquete PostgreSQL, revisado para esta prueba.
+
+El trabajo tiene permiso de lectura del repositorio, no conserva credenciales
+de checkout y no recibe claves ni URL de Supabase. Primero ejecuta las pruebas
+Node y SQL de una conexión, después las carreras reales. Su límite es diez
+minutos. No despliega ni aplica cambios a otras bases.
+
+El resultado de `--self-check` y una ejecución pendiente no cuentan como
+concurrencia verificada. Debe constar el enlace al trabajo terminado y la salida
+`REAL two-connection race checks passed` con los identificadores de sus conexiones.
 
 ## Cómo ejecutarla en un entorno autorizado
 
@@ -68,16 +86,26 @@ No modifica producción ni otras bases locales. La salida sólo puede anunciar
 | Cierre antes de una actualización de cocina | No modificar el pedido cobrado. |
 | Desactivación del módulo antes del cierre | Rechazar el registro de pago. |
 | Cierre antes de desactivar el módulo | Terminar el cierre antes de la desactivación. |
+| Consumo manual antes del cierre vinculado | Tras confirmar, rechazar el cierre sin otra visita ni puntos. |
+| Cierre vinculado antes del consumo manual | Tras confirmar, indicar consumo registrado sin duplicar. |
+| Consumo manual que revierte mientras espera el cierre | Permitir el cierre con una sola visita y movimiento de puntos. |
+| Cierre que revierte mientras espera el consumo manual | Permitir el consumo manual sin dejar cuenta cerrada. |
+| Mismo identificador, primera llamada sin confirmar | Indicar operación ocupada; tras confirmar, recuperar la misma respuesta. |
+| Mismo identificador, primera llamada revertida | El reintento puede completar la operación una sola vez. |
+| Dos identificadores diferentes para la misma reserva | Conservar un solo cierre y rechazar el segundo tras confirmar. |
+| Dos identificadores, primer cierre revertido | Completar el segundo sin registros del primero. |
+| Mismo identificador con datos de pago distintos | Rechazar tras confirmar el original, sin alterar su resultado. |
+| Cliente bloqueado por otra operación | Rechazar por ocupado, sin efectos, y permitir repetir tras liberar. |
 
 ## Límites que siguen abiertos
 
 - El programa usa esquemas reducidos extraídos de las pruebas existentes. No
   sustituye una prueba con todos los disparadores, políticas y funciones reales.
-- Las carreras se ejecutan con el propietario del clúster ficticio. Los permisos
-  de `anon` y `authenticated` deben comprobarse por separado; PGlite contiene
-  pruebas de esos roles, pero no demuestra la configuración RLS de producción.
-- No cubre todavía el cierre vinculado a una reserva frente al registro manual
-  de consumo, ni dos intentos simultáneos con el mismo identificador de operación.
+- Los esquemas, la identidad y el acceso a restaurantes son ficticios. Las
+  comprobaciones de roles no demuestran la configuración RLS de producción.
+- El grupo vinculado reproduce el envoltorio privado de consumo manual leído
+  del catálogo el 8 de septiembre de 2026. No sustituye comprobar la cadena
+  completa de permisos del proyecto real.
 - No comprueba navegador, desconexión del cliente, despliegue, cobro bancario,
   facturación ni recuperación de una copia de seguridad.
 

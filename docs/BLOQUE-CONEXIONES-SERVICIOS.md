@@ -3,7 +3,7 @@
 Actualizado el 8 de septiembre de 2026. Rama `codex/connect-restaurant-services`, base `b6ea46b`.
 [Propuesta en borrador #39](https://github.com/Joosee003/panel-restaurantes/pull/39).
 
-**Implementado y probado localmente; no instalado en Supabase ni publicado en producción.** No se ha activado el piloto de Hispanos Grill, enviado mensajes ni cambiado sus condiciones.
+**Implementado y probado localmente; no instalado en Supabase ni publicado en producción.** El piloto de Hispanos Grill sigue sin activarse; Jose ha enviado la propuesta y está pendiente de respuesta. Las condiciones comerciales vigentes se registran en Notion.
 
 ## Preparado
 
@@ -13,28 +13,31 @@ Actualizado el 8 de septiembre de 2026. Rama `codex/connect-restaurant-services`
 4. **Protección del servidor:** exige módulo QR activo; impide modificar cuentas y líneas finales, fabricar cierres o marcar directamente un pedido cobrado desde la API. Mantiene solo el refresco de fechas de los cuatro pedidos ficticios de demostración mediante su función propietaria, sin cambiar su contenido.
 5. **QR → reserva → cliente:** reserva elegida expresamente, misma mesa/restaurante/servicio y cliente ya asignado. Cierre, consumo neto sin propina, visita y puntos se guardan en una transacción. La fidelización debe estar activa para sumar puntos. No se deduce identidad ni se concede consentimiento de contacto. Un consumo manual previo requiere revisión.
 6. **Respuesta perdida:** petición con identificador estable guardada antes del envío. «Comprobar cierre pendiente» repite exactamente esa petición y recupera el mismo resultado. Una respuesta antigua no borra otra operación y un rechazo del reintento no demuestra que el intento anterior no se guardó.
+7. **Consumo manual:** corregida la diferencia entre puntos guardados y mostrados cuando no existe configuración propia de fidelización. Respuesta, reserva y notificación leen el movimiento realmente generado por el historial. Los clientes nuevos quedan sin permiso de marketing automático; se comprueba que el cliente asignado pertenece al restaurante antes de registrar la visita.
 
-La pantalla requiere **`cerrar_mesa_qr_con_reserva`**, incluso sin reserva elegida. Aplicar y verificar primero `harden-qr-close.sql`, después `connect-qr-reservation.sql` y solo entonces publicar la interfaz. Los tres SQL siguen en `docs/sql`; no son migraciones aplicadas.
+La pantalla requiere **`cerrar_mesa_qr_con_reserva`**, incluso sin reserva elegida. Aplicar y verificar primero `harden-qr-close.sql`, después `connect-qr-reservation.sql` y `align-manual-consumption-points.sql`, y solo entonces publicar la interfaz. Los cuatro SQL, incluido el ajuste opcional de plazas, siguen en `docs/sql`; no son migraciones aplicadas.
 
 ## Pruebas y límites
 
-Última pasada: **146 comprobaciones pasan** (23 Node, 17 plazas, 61 cierre QR y 45 enlace a reserva). Las comprobaciones estáticas del verificador de concurrencia no se incluyen en esa cifra.
+Última pasada local: **160 comprobaciones pasan** (23 Node, 17 plazas, 61 cierre QR, 45 enlace a reserva y 14 consumo manual). Las comprobaciones del montaje del verificador de concurrencia no se incluyen en esa cifra.
 
 - Pruebas Node: cuentas, paginación, Sala, candidatos de reserva, importes, petición pendiente y respuesta antigua.
 - Pruebas SQL PGlite: plazas, permisos, cierre y consumo. Roles reales `anon`/`authenticated` sobre esquema ficticio, reversión completa, reintento idempotente, fidelización y consumo manual frente a QR.
 - TypeScript, ESLint de archivos cambiados, revisión independiente y compilación Next.js con valores ficticios y sin claves reales.
-- Preparadas doce carreras PostgreSQL independientes. Solo comprobación estática ejecutada: el entorno deniega el cambio de usuario necesario para iniciar PostgreSQL. **No son carreras verificadas.**
+- Preparadas 22 carreras PostgreSQL independientes, con dos escritores y observador de bloqueos. El entorno local no admite iniciar PostgreSQL con su usuario; se ha añadido un trabajo aislado de GitHub Actions para ejecutarlas. **Pendientes del resultado real.**
 - La vista previa redirige al inicio de sesión de Vercel. No se ha pasado esa protección ni probado el recorrido autenticado.
 
 PGlite 0.5.8 usa esquema reducido y una conexión. No prueba el esquema completo, todas las políticas/disparadores de producción ni escrituras simultáneas. Compilar tampoco demuestra el recorrido del usuario.
 
-Comandos reproducibles con Node 24 y dependencias instaladas:
+Comandos reproducibles con Node 24 y dependencias de pruebas fijadas:
 
 ```sh
+npm ci --prefix tests/sql --ignore-scripts --no-audit --no-fund
 node --test tests/*.test.mjs
-GASTROHELP_SQL_TEST_ROOT=/ruta/dependencias node scripts/test-room-capacity.mjs
-node scripts/test-qr-close-sql.mjs /ruta/dependencias/node_modules/@electric-sql/pglite/dist/index.js
-node scripts/test-qr-reservation-sql.mjs /ruta/dependencias/node_modules/@electric-sql/pglite/dist/index.js
+GASTROHELP_SQL_TEST_ROOT=tests/sql node scripts/test-room-capacity.mjs
+node scripts/test-qr-close-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+node scripts/test-qr-reservation-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
+node scripts/test-manual-consumption-sql.mjs tests/sql/node_modules/@electric-sql/pglite/dist/index.js
 node scripts/test-sql-concurrent.mjs --self-check
 npx tsc --noEmit --incremental false
 ```
@@ -42,7 +45,7 @@ npx tsc --noEmit --incremental false
 ## Antes de publicar
 
 1. Disponer de copia recuperable y probar su restauración.
-2. Entorno desechable autorizado con esquema completo. Ejecutar [las carreras preparadas](CONCURRENCY-VERIFICATION.md); añadir enlace QR frente a consumo manual y dos llamadas con la misma operación.
+2. Ejecutar [las carreras preparadas](CONCURRENCY-VERIFICATION.md), incluido enlace QR frente a consumo manual y dos llamadas con la misma operación. Después repetir los recorridos en un entorno desechable autorizado con esquema completo.
 3. Revisar esquemas expuestos, permisos privados y predeterminados. El SQL retira `PUBLIC EXECUTE` de funciones futuras del rol creador en todos los esquemas, no de las existentes. Revisar otros roles creadores.
 4. Generar migraciones con la CLI tras validar los borradores. Instalar SQL antes de la interfaz y probar con dos sesiones de navegador, cambio de restaurante/fecha y desconexiones.
 5. Activar plazas solo con inventario de Sala completo. No activar el piloto sin acordar alcance y accesos.
