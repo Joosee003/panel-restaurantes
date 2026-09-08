@@ -1,5 +1,12 @@
 # Verificación con conexiones simultáneas
 
+Actualización posterior del 8 de septiembre: **también han pasado 26 carreras
+sobre el catálogo actual de la aplicación**, con sus políticas, permisos y
+disparadores, y 12 recorridos adicionales. Véase
+[esquema y recuperación](VERIFICACION-ESQUEMA-Y-COPIA-2026-09-08.md) para la
+evidencia del commit `0461b76`. El navegador sigue pendiente. El resto de este
+documento describe el verificador anterior sobre esquemas reducidos.
+
 Estado a 8 de septiembre de 2026: **26 carreras reales superadas en PostgreSQL 17.6 con datos ficticios**.
 
 Incluyen cuatro casos de rentabilidad QR: reintento simultáneo y desactivación
@@ -131,8 +138,10 @@ No modifica producción ni otras bases locales. La salida sólo puede anunciar
 - No comprueba navegador, desconexión del cliente, despliegue, cobro bancario,
   facturación ni recuperación de una copia de seguridad.
 
-La aprobación para publicar sigue pendiente de revisar el esquema completo,
-la restauración y el recorrido de usuario correspondiente.
+La aprobación para publicar sigue pendiente del recorrido en Supabase con
+navegador y de la recuperación de toda la plataforma. La reconstrucción del
+catálogo de aplicación y la restauración de los datos de agosto ya cuentan con
+la evidencia adicional enlazada al principio.
 
 Referencia técnica: [bloqueos de PostgreSQL](https://www.postgresql.org/docs/17/explicit-locking.html)
 y [binarios locales de embedded-postgres](https://github.com/leinelissen/embedded-postgres).
