@@ -49,4 +49,8 @@ try {
  outcome=await waiting(()=>finishDelivery(b,event,'sent','wamid.concurrent-fixture'),()=>a.exec('commit'));assert.equal(outcome.value,true);assert.ok((await requestRow(a)).sent_at);checks.push('A real acceptance that was already in flight remains auditable after confirmation.');
  console.log(JSON.stringify({status:'passed',engine:'PostgreSQL 17',concurrentChecks:checks},null,2));
 } catch(error){console.error(JSON.stringify({status:'failed',message:error.message,code:error.code,stack:error.stack}));process.exitCode=1;}
-finally {if(server?.pid){server.kill('SIGINT');}await Promise.allSettled(clients.map(c=>c.end()));}
+finally {
+ // Close clients before stopping PostgreSQL so shutdown cannot emit an unhandled client error.
+ await Promise.allSettled(clients.map(c=>c.end()));
+ if(server?.pid) server.kill('SIGINT');
+}
