@@ -42,11 +42,16 @@ Documentación oficial:
 - [Database Backups](https://supabase.com/docs/guides/platform/backups)
 - [Backup and Restore using the CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
 
-## Medida obligatoria antes de cobrar
+## Decisión sobre Pro y copias antes de ampliar el servicio
 
-- [ ] Pasar a Supabase Pro
-- [ ] Comprobar que aparece una copia diaria
-- [ ] Confirmar la retención de 7 días
+Pro no es un requisito técnico para cobrar ni para probar la aplicación.
+Es una opción recomendada para un servicio del que dependen restaurantes por
+sus copias diarias y por evitar las pausas por baja actividad. Free permite
+exportaciones propias, pero hay que mantenerlas y comprobar su recuperación.
+La decisión de contratar un plan requiere autorización de coste.
+
+- [ ] Elegir entre Pro y un procedimiento externo de copias mantenido y probado
+- [ ] Si se contrata Pro, comprobar la copia diaria y su retención de 7 días
 - [ ] Mantener además una copia lógica cifrada fuera de Supabase
 - [ ] Copiar por separado los archivos de Storage
 - [ ] Probar una restauración en un proyecto separado

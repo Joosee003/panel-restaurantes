@@ -137,3 +137,38 @@ recurso de pago. Se necesita confirmar el coste antes de hacerlo.
 
 Fuentes: [tarifas de Supabase](https://supabase.com/pricing) y
 [uso de ramas](https://supabase.com/docs/guides/platform/manage-your-usage/branching).
+
+## Revisión del coste tras la consulta de Jose
+
+Pro no es obligatorio para terminar las pruebas. La rama alojada descrita arriba
+es una opción de pago, pero Supabase también admite pruebas con sus servicios
+locales y en GitHub Actions. Esta alternativa requiere preparar Auth, API y el
+recorrido de navegador; las pruebas SQL ya terminadas no acreditan ese recorrido.
+El entorno de trabajo actual no dispone de Docker. No se ha cambiado de plan.
+
+La lectura actual del proyecto muestra 75.271.315 bytes de base de datos
+(PostgreSQL informa 72 MB), 3 usuarios de Auth y 11 archivos cuya suma de tamaños
+registrados es 1.240.243 bytes. La base queda por debajo de los 500 MB de Free.
+Estos datos no son una medición de CPU, tráfico mensual ni conexiones simultáneas.
+No hay motivo observado para contratar Pro por falta de espacio.
+
+Los 35 USD/mes corresponden a poner los dos proyectos actuales en una organización
+Pro con dos instancias Micro. No son el coste mínimo obligatorio para GastroHelp.
+Se puede plantear una organización Pro sólo para GastroHelp, desde 25 USD/mes,
+y mantener N8N en una organización Free. Supabase permite planes diferentes en
+organizaciones distintas; una transferencia exige revisar antes sus conexiones
+y condiciones. Crear más organizaciones Free no amplía el límite de dos
+proyectos gratuitos activos de la cuenta.
+
+Para las pruebas, la recomendación es preparar primero la alternativa sin
+suscripción adicional. Para el uso diario de reservas, clientes y puntos de
+restaurantes, Pro sólo para GastroHelp es una opción razonable por las copias
+diarias y la ausencia de pausas por baja actividad. Una copia reciente y
+recuperable sigue pendiente con cualquier plan; Pro tampoco incluye los
+binarios de Storage dentro de la copia de base de datos.
+
+Fuentes: [desarrollo local](https://supabase.com/docs/guides/local-development),
+[pruebas en CI](https://supabase.com/docs/guides/local-development/testing/overview),
+[facturación por organización](https://supabase.com/docs/guides/platform/billing-on-supabase),
+[transferencias](https://supabase.com/docs/guides/platform/project-transfer) y
+[copias](https://supabase.com/docs/guides/platform/backups).
