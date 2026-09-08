@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
 import { useRestaurante } from "../../../../hooks/useRestaurante";
+import QrProfitability from "../components/QrProfitability";
 
 type PlatoRentabilidad = {
   id: string;
@@ -468,7 +469,7 @@ export default function VentasPlatosPage() {
               </h1>
 
               <p className={`mt-2 text-sm leading-6 ${mutedTextClass}`}>
-                Registra unidades vendidas para calcular ingresos, costes y beneficio estimado por mes.
+                Registra aquí solo ventas manuales. Los cierres QR aparecen en su propio apartado y no debes volver a introducirlos en este formulario.
               </p>
             </div>
 
@@ -517,6 +518,9 @@ export default function VentasPlatosPage() {
           </div>
         )}
 
+        <QrProfitability restaurantId={restauranteId} showConfiguration />
+
+        <p className={`text-sm font-semibold ${mutedTextClass}`}>Los siguientes importes corresponden únicamente a ventas registradas manualmente.</p>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
           <div className={`${cardClass} p-5`}>
             <p className={`text-sm ${mutedTextClass}`}>Ingresos estimados mes</p>

@@ -2,6 +2,11 @@
 
 ## Estado actual
 
+- El 8 de septiembre se comprobó la integridad de la copia parcial del 11 de
+  agosto y se restauraron sus 691 registros públicos en una base nueva, con
+  comparación de valores y 75 relaciones verificadas. No contiene contraseñas,
+  sesiones ni los binarios de Storage: no acredita recuperar todo el servicio.
+  [Evidencia y límites](VERIFICACION-ESQUEMA-Y-COPIA-2026-09-08.md).
 - El proyecto de Supabase está en el plan Free.
 - No dispone de copias programadas ni de restauración desde el panel.
 - Supabase solo muestra la rama principal; no existe un entorno separado con datos para probar una recuperación.
@@ -26,16 +31,27 @@ Para cerrar esta diferencia:
 - [ ] Comparar el esquema restaurado con producción antes de aceptar la copia.
 - [ ] Decidir si la migración local sin equivalente ya está incluida bajo otro cambio remoto.
 
+El catálogo de aplicación capturado el 8 de septiembre ya permite ensayar las
+50 tablas actuales con funciones, políticas y disparadores. Se conserva en
+privado; GitHub recibe sólo una versión de estructura con literales sustituidos
+por datos ficticios. Sigue pendiente una exportación completa de plataforma,
+incluidos los permisos predeterminados, servicios de Auth y archivos de Storage.
+
 Documentación oficial:
 
 - [Database Backups](https://supabase.com/docs/guides/platform/backups)
 - [Backup and Restore using the CLI](https://supabase.com/docs/guides/platform/migrating-within-supabase/backup-restore)
 
-## Medida obligatoria antes de cobrar
+## Decisión sobre Pro y copias antes de ampliar el servicio
 
-- [ ] Pasar a Supabase Pro
-- [ ] Comprobar que aparece una copia diaria
-- [ ] Confirmar la retención de 7 días
+Pro no es un requisito técnico para cobrar ni para probar la aplicación.
+Es una opción recomendada para un servicio del que dependen restaurantes por
+sus copias diarias y por evitar las pausas por baja actividad. Free permite
+exportaciones propias, pero hay que mantenerlas y comprobar su recuperación.
+La decisión de contratar un plan requiere autorización de coste.
+
+- [ ] Elegir entre Pro y un procedimiento externo de copias mantenido y probado
+- [ ] Si se contrata Pro, comprobar la copia diaria y su retención de 7 días
 - [ ] Mantener además una copia lógica cifrada fuera de Supabase
 - [ ] Copiar por separado los archivos de Storage
 - [ ] Probar una restauración en un proyecto separado

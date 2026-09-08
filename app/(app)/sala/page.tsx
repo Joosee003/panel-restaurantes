@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../lib/supabaseClient";
 import { useTheme } from "../components/ThemeProvider";
 import { useRestaurante } from "../../hooks/useRestaurante";
+import { createSalaRefreshQueue, createSalaRequestScope } from "./sala-refresh";
 
 type Zona = {
   id: string;
@@ -425,6 +426,28 @@ export default function SalaPage() {
   const [mesaLibreDetalle, setMesaLibreDetalle] = useState<Mesa | null>(null);
   const [guardandoAccion, setGuardandoAccion] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [actualizando, setActualizando] = useState(false);
+  const [ultimaActualizacion, setUltimaActualizacion] = useState<Date | null>(null);
+  const [realtimeDisponible, setRealtimeDisponible] = useState(false);
+  const cargarSalaRef = useRef<(silent?: boolean) => Promise<void>>(async () => {});
+  const seleccionTurnoRef = useRef(turnoSeleccionado);
+  const seleccionFranjaRef = useRef(franjaSeleccionada);
+  const reservaDetalleIdRef = useRef(reservaDetalle?.id);
+
+  useEffect(() => {
+    seleccionTurnoRef.current = turnoSeleccionado;
+    seleccionFranjaRef.current = franjaSeleccionada;
+    reservaDetalleIdRef.current = reservaDetalle?.id;
+  }, [turnoSeleccionado, franjaSeleccionada, reservaDetalle?.id]);
+
+  const horarioComida = leerRangoTurno(restauranteData, "comida");
+  const horarioCena = leerRangoTurno(restauranteData, "cena");
+  const turnosConfigurados = useMemo(
+    () => construirTurnos({ horarios: { comida: horarioComida, cena: horarioCena } }),
+    [horarioComida, horarioCena],
+  );
+  const cargarSala = useCallback((silent = false) => cargarSalaRef.current(silent), []);
 
   const panelClass = isDark
     ? "rounded-3xl border border-slate-800 bg-slate-950 shadow-sm"
@@ -449,112 +472,189 @@ export default function SalaPage() {
   const subButtonActive =
     "rounded-xl border border-blue-600 bg-blue-600 px-3 py-2 text-sm font-black text-white shadow-sm";
 
-  const cargarSala = async (silent = false) => {
-    if (!silent) setLoading(true);
-
+  useEffect(() => {
+    const scope = createSalaRequestScope();
+    let disposed = false;
+    let tieneDatos = false;
+    let refreshTimer: ReturnType<typeof setTimeout> | null = null;
+    const requestTimeouts = new Set<ReturnType<typeof setTimeout>>();
     const rid = restauranteId;
+    const nuevosTurnos = turnosConfigurados;
 
-    if (!rid) {
-      setZonas([]);
-      setMesas([]);
-      setReservasDia([]);
-      setTurnos([]);
-      setTurnoSeleccionado(null);
-      setFranjaSeleccionada(0);
-      setLoading(false);
-      return;
+    // Never leave another restaurant or date's snapshot under the current heading.
+    setZonas([]);
+    setMesas([]);
+    setReservasDia([]);
+    setTurnos([]);
+    setReservaAbierta(null);
+    setReservaDetalle(null);
+    setMesaDetalle(null);
+    setMesaLibreDetalle(null);
+    setMensaje(null);
+    setErrorCarga(null);
+    setUltimaActualizacion(null);
+    setRealtimeDisponible(false);
+    setActualizando(false);
+    setLoading(loadingRestaurante || Boolean(rid));
+
+    if (loadingRestaurante || !rid) {
+      cargarSalaRef.current = async () => {};
+      return () => scope.dispose();
     }
-
-    const nuevosTurnos = construirTurnos(restauranteData);
-
-    const { data: zonasData, error: zonasError } = await supabase
-      .from("sala_zonas")
-      .select("id, nombre, orden, activa")
-      .eq("restaurante_id", rid)
-      .order("orden", { ascending: true });
-
-    const { data: mesasData, error: mesasError } = await supabase
-      .from("sala_mesas")
-      .select("id, nombre, capacidad, orden, activa, bloqueada, zona_id")
-      .eq("restaurante_id", rid)
-      .order("orden", { ascending: true });
 
     const inicioDia = dateFromInput(fechaKey);
     inicioDia.setHours(0, 0, 0, 0);
-
     const finDia = dateFromInput(fechaKey);
     finDia.setHours(23, 59, 59, 999);
 
-    const [reservasResult, configResult] = await Promise.all([
-      supabase
-        .from("reservas")
-        .select(
-          "id, mesa_id, nombre_cliente, telefono, personas, fecha_hora_reserva, inicio_at, fin_at, estado, origen, notas, atendida, consumo_total, puntos_generados"
-        )
-        .eq("restaurante_id", rid)
-        .gte("fecha_hora_reserva", toSqlDateTimeLocal(inicioDia))
-        .lte("fecha_hora_reserva", toSqlDateTimeLocal(finDia))
-        .order("fecha_hora_reserva", { ascending: true }),
-      supabase
-        .from("reservas_config")
-        .select("duracion_minutos")
-        .eq("restaurante_id", rid)
-        .maybeSingle(),
-    ]);
+    const fetchSnapshot = async (silent: boolean) => {
+      const request = scope.begin();
+      if (!request) return;
+      const { controller, isCurrent } = request;
+      const hadData = tieneDatos;
+      setActualizando(true);
+      if (!hadData) setLoading(true);
+      const timeout = setTimeout(() => controller.abort(), 15_000);
+      requestTimeouts.add(timeout);
 
-    const { data: reservasData, error: reservasError } = reservasResult;
-    const duracionConfigurada = Number(configResult.data?.duracion_minutos || 90);
+      try {
+        const [zonasResult, mesasResult, reservasResult, configResult] = await Promise.all([
+          supabase.from("sala_zonas")
+            .select("id, nombre, orden, activa")
+            .eq("restaurante_id", rid)
+            .order("orden", { ascending: true })
+            .abortSignal(controller.signal),
+          supabase.from("sala_mesas")
+            .select("id, nombre, capacidad, orden, activa, bloqueada, zona_id")
+            .eq("restaurante_id", rid)
+            .order("orden", { ascending: true })
+            .abortSignal(controller.signal),
+          supabase.from("reservas")
+            .select("id, mesa_id, nombre_cliente, telefono, personas, fecha_hora_reserva, inicio_at, fin_at, estado, origen, notas, atendida, consumo_total, puntos_generados")
+            .eq("restaurante_id", rid)
+            .gte("fecha_hora_reserva", toSqlDateTimeLocal(inicioDia))
+            .lte("fecha_hora_reserva", toSqlDateTimeLocal(finDia))
+            .order("fecha_hora_reserva", { ascending: true })
+            .abortSignal(controller.signal),
+          supabase.from("reservas_config")
+            .select("duracion_minutos")
+            .eq("restaurante_id", rid)
+            .abortSignal(controller.signal)
+            .maybeSingle(),
+        ]);
+        if (!isCurrent()) return;
+        if (zonasResult.error || mesasResult.error || reservasResult.error || configResult.error) {
+          throw new Error("SALA_REFRESH_FAILED");
+        }
 
-    if (zonasError || mesasError || reservasError) {
-      setMensaje("No se pudo cargar la sala completa. Revisa permisos o conexión.");
+        // Commit one complete snapshot. A failed reservation read must not make tables look free.
+        const reservasValidas = ((reservasResult.data ?? []) as ReservaSala[]).filter(
+          (r) => !estadoEsCancelado(r.estado) && !estadoEsNoShow(r.estado),
+        );
+        const nuevasMesas = (mesasResult.data ?? []) as Mesa[];
+        const duracionConfigurada = Number(configResult.data?.duracion_minutos || 90);
+        const duracionSegura = Number.isFinite(duracionConfigurada) && duracionConfigurada > 0
+          ? duracionConfigurada : 90;
+        const turnoInicial = elegirTurnoInicial(nuevosTurnos, reservasValidas, new Date());
+        const turnoElegido = nuevosTurnos.find((t) => t.key === seleccionTurnoRef.current)
+          ?? turnoInicial ?? nuevosTurnos[0];
+        setTurnos(nuevosTurnos);
+        setZonas((zonasResult.data ?? []) as Zona[]);
+        setMesas(nuevasMesas);
+        setReservasDia(reservasValidas);
+        setDuracionReservaMinutos(duracionSegura);
+        setTurnoSeleccionado(turnoElegido?.key ?? null);
+        setFranjaSeleccionada((prev) => {
+          if (!turnoElegido) return 0;
+          if (silent && hadData && prev >= 0 && prev < turnoElegido.franjas.length) return prev;
+          return indicePrimeraFranjaConReservas(turnoElegido, reservasValidas);
+        });
+        // Details contain server values, not editable drafts. Keep open selections current.
+        setReservaDetalle((prev) => prev ? reservasValidas.find((r) => r.id === prev.id) ?? null : null);
+        const reservaSeleccionada = reservasValidas.find((r) => r.id === reservaDetalleIdRef.current);
+        setMesaDetalle((prev) => prev
+          ? nuevasMesas.find((m) => m.id === reservaSeleccionada?.mesa_id) ?? null
+          : null);
+        setMesaLibreDetalle((prev) => {
+          if (!prev) return null;
+          const mesa = nuevasMesas.find((m) => m.id === prev.id);
+          const franja = turnoElegido?.franjas[seleccionFranjaRef.current];
+          if (!mesa?.activa || (franja && reservasValidas.some((r) =>
+            r.mesa_id === mesa.id && reservaDentroFranja(r, franja, duracionSegura),
+          ))) return null;
+          return mesa;
+        });
+        tieneDatos = true;
+        setUltimaActualizacion(new Date());
+        setErrorCarga(null);
+      } catch {
+        if (isCurrent()) {
+          setErrorCarga(tieneDatos
+            ? "No se pudo actualizar la sala. Los datos visibles pueden estar desactualizados; confirma la situación antes de asignar mesas."
+            : "No se pudo cargar la sala completa. Revisa permisos o conexión y pulsa Actualizar.");
+        }
+      } finally {
+        clearTimeout(timeout);
+        requestTimeouts.delete(timeout);
+        if (isCurrent()) {
+          setLoading(false);
+          setActualizando(false);
+        }
+      }
+    };
+
+    const refresh = createSalaRefreshQueue(fetchSnapshot, () => disposed);
+
+    cargarSalaRef.current = refresh;
+    void refresh();
+
+    const refreshVisible = () => {
+      if (disposed || document.visibilityState !== "visible") return;
+      // Coalesce a burst of reservation/table events into one full snapshot read.
+      if (refreshTimer) return;
+      refreshTimer = setTimeout(() => {
+        refreshTimer = null;
+        void refresh(true);
+      }, 250);
+    };
+    const markOffline = () => {
+      setRealtimeDisponible(false);
+      setErrorCarga("Sin conexión. La sala puede estar desactualizada; no des por libres las mesas sin comprobarlo.");
+    };
+    const channel = supabase.channel(`sala-${rid}-${fechaKey}`);
+    // DELETE filtering depends on replica identity. Polling covers deletions without a broad subscription.
+    for (const table of ["reservas", "sala_mesas"]) {
+      for (const event of ["INSERT", "UPDATE"] as const) {
+        channel.on("postgres_changes", {
+          event, schema: "public", table, filter: `restaurante_id=eq.${rid}`,
+        }, refreshVisible);
+      }
     }
-
-    const reservasValidas = ((reservasData ?? []) as ReservaSala[]).filter((r) => {
-      return !estadoEsCancelado(r.estado) && !estadoEsNoShow(r.estado);
+    channel.subscribe((status) => {
+      if (disposed) return;
+      setRealtimeDisponible(status === "SUBSCRIBED");
+      if (status === "SUBSCRIBED") refreshVisible();
     });
+    const interval = setInterval(refreshVisible, 45_000);
+    window.addEventListener("focus", refreshVisible);
+    window.addEventListener("online", refreshVisible);
+    window.addEventListener("offline", markOffline);
+    document.addEventListener("visibilitychange", refreshVisible);
 
-    const turnoInicial = elegirTurnoInicial(nuevosTurnos, reservasValidas, new Date());
-
-    setTurnos(nuevosTurnos);
-    setZonas((zonasData ?? []) as Zona[]);
-    setMesas((mesasData ?? []) as Mesa[]);
-    setReservasDia(reservasValidas);
-    setDuracionReservaMinutos(
-      Number.isFinite(duracionConfigurada) && duracionConfigurada > 0
-        ? duracionConfigurada
-        : 90,
-    );
-
-    setTurnoSeleccionado((prev) => {
-      if (prev && nuevosTurnos.some((t) => t.key === prev)) return prev;
-      return turnoInicial?.key ?? null;
-    });
-
-    setFranjaSeleccionada((prev) => {
-      const turnoUsado =
-        nuevosTurnos.find((t) => t.key === (turnoSeleccionado ?? turnoInicial?.key)) ??
-        turnoInicial ??
-        nuevosTurnos[0];
-
-      if (!turnoUsado) return 0;
-
-      if (silent && prev >= 0 && prev < turnoUsado.franjas.length) return prev;
-
-      return indicePrimeraFranjaConReservas(turnoUsado, reservasValidas);
-    });
-
-    setLoading(false);
-  };
-
-  useEffect(() => {
-    if (loadingRestaurante) {
-      setLoading(true);
-      return;
-    }
-
-    cargarSala();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [restauranteId, loadingRestaurante, fechaKey]);
+    return () => {
+      disposed = true;
+      scope.dispose();
+      cargarSalaRef.current = async () => {};
+      if (refreshTimer) clearTimeout(refreshTimer);
+      requestTimeouts.forEach(clearTimeout);
+      clearInterval(interval);
+      window.removeEventListener("focus", refreshVisible);
+      window.removeEventListener("online", refreshVisible);
+      window.removeEventListener("offline", markOffline);
+      document.removeEventListener("visibilitychange", refreshVisible);
+      void supabase.removeChannel(channel);
+    };
+  }, [restauranteId, loadingRestaurante, fechaKey, turnosConfigurados]);
 
   const zonasActivas = useMemo(() => {
     return [...zonas]
@@ -943,13 +1043,33 @@ export default function SalaPage() {
           </button>
           <button
             type="button"
-            onClick={() => cargarSala()}
-            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white hover:bg-blue-700"
+            onClick={() => cargarSala(true)}
+            disabled={actualizando || loadingRestaurante || !restauranteId}
+            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-wait disabled:opacity-60"
           >
-            Actualizar
+            {actualizando ? "Actualizando…" : "Actualizar"}
           </button>
         </div>
       </div>
+
+      {restauranteId && (
+        <p className={`text-xs ${mutedClass}`} role="status" aria-live="polite">
+          {ultimaActualizacion
+            ? `Última actualización: ${ultimaActualizacion.toLocaleTimeString("es-ES")}. `
+            : "Sala pendiente de cargar. "}
+          {realtimeDisponible
+            ? "Se comprueban los cambios recibidos y cada 45 segundos mientras esta pestaña está visible."
+            : "Sin conexión de cambios en directo; se intenta actualizar cada 45 segundos mientras esta pestaña está visible."}
+        </p>
+      )}
+
+      {errorCarga && (
+        <div role="alert" className={isDark
+          ? "rounded-2xl border border-amber-800 bg-amber-950/50 px-4 py-3 text-sm font-semibold text-amber-100"
+          : "rounded-2xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950"}>
+          {errorCarga}
+        </div>
+      )}
 
       {mensaje && (
         <div
@@ -1047,6 +1167,8 @@ export default function SalaPage() {
         <div className={`${panelClass} p-5`}>
           {loading ? (
             <p className={mutedClass}>Cargando sala...</p>
+          ) : errorCarga && !ultimaActualizacion ? (
+            <p className={mutedClass}>La disponibilidad de las mesas no está confirmada.</p>
           ) : !restauranteId ? (
             <div className="space-y-2">
               <p className="font-bold text-red-600">No se encontró restaurante activo.</p>

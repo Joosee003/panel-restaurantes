@@ -20,6 +20,9 @@ import {
   XCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { useRestaurante } from "../../../hooks/useRestaurante";
+import { FINAL_QR_STATES, qrBillKey, qrQuoteSignature, qrTotal, readAllActiveQrOrders } from "../../lib/qr-billing";
+import { clearStoredQrClose, eligibleQrReservations, parsePendingQrClose, pendingQrCloseKey, qrAdjustment, qrCloseError, qrCloseRejected, type PendingQrClose, type QrReservation } from "../../lib/qr-reservation";
 
 type PedidoItem = {
   id: string;
@@ -70,14 +73,7 @@ type MesaAbierta = {
   primerPedido: string;
 };
 
-const estadosFinales = new Set([
-  "cobrado",
-  "cobrada",
-  "cerrado",
-  "cerrada",
-  "cancelado",
-  "cancelada",
-]);
+const estadosFinales = new Set<string>(FINAL_QR_STATES);
 
 const columnasCocina = [
   {
@@ -176,6 +172,8 @@ function crearResumenItems(items: PedidoItem[]) {
 }
 
 export default function PedidosQRPage() {
+  const { data: restauranteActual, isLoading: cargandoRestaurante } = useRestaurante();
+  const restauranteId = restauranteActual?.id as string | undefined;
   const [pedidos, setPedidos] = useState<PedidoQR[]>([]);
   const [vista, setVista] = useState<TabVista>("cocina");
   const [cargando, setCargando] = useState(true);
@@ -189,10 +187,53 @@ export default function PedidosQRPage() {
   const [propinasMesa, setPropinasMesa] = useState<Record<string, string>>({});
   const [metodosPagoMesa, setMetodosPagoMesa] = useState<Record<string, string>>({});
   const [pantallaCompleta, setPantallaCompleta] = useState(false);
+  const [reservasMesa, setReservasMesa] = useState<Record<string, QrReservation[]>>({});
+  const [reservaElegida, setReservaElegida] = useState<Record<string, string>>({});
+  const [cargandoReservas, setCargandoReservas] = useState<string | null>(null);
+  const [errorReservas, setErrorReservas] = useState<Record<string, string>>({});
+  const [cierrePendiente, setCierrePendiente] = useState<PendingQrClose | null>(null);
+  const [errorRecuperacion, setErrorRecuperacion] = useState<string | null>(null);
+  const [resultadoCierre, setResultadoCierre] = useState<string | null>(null);
+  const [errorOperacion, setErrorOperacion] = useState<string | null>(null);
 
   const primeraCargaRef = useRef(true);
   const pedidosIdsRef = useRef<Set<string>>(new Set());
   const audioContextRef = useRef<AudioContext | null>(null);
+  const cargaRef = useRef<AbortController | null>(null);
+  const operacionRef = useRef<string | null>(null);
+  const vistaScopeRef = useRef<object>({});
+  const cierrePendienteRef = useRef<PendingQrClose | null>(null);
+  const recuperacionListaRef = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    vistaScopeRef.current = {};
+    recuperacionListaRef.current = false;
+    cierrePendienteRef.current = null;
+    queueMicrotask(() => {
+      if (!active) return;
+      setCierrePendiente(null);
+      setErrorRecuperacion(null);
+      setResultadoCierre(null);
+      setErrorOperacion(null);
+      setActualizandoId(null);
+      setReservasMesa({});
+      setReservaElegida({});
+      setErrorReservas({});
+      setCargandoReservas(null);
+      if (!restauranteId) return;
+      try {
+        const raw = sessionStorage.getItem(pendingQrCloseKey(restauranteId));
+        const pending = raw ? parsePendingQrClose(raw, restauranteId) : null;
+        cierrePendienteRef.current = pending;
+        setCierrePendiente(pending);
+        recuperacionListaRef.current = true;
+      } catch {
+        setErrorRecuperacion("No se puede comprobar si hay un cierre pendiente. Revisa el historial con soporte antes de registrar otro pago.");
+      }
+    });
+    return () => { active = false; recuperacionListaRef.current = false; vistaScopeRef.current = {}; };
+  }, [restauranteId]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -221,13 +262,14 @@ export default function PedidosQRPage() {
   }, []);
 
   const pedidosActivos = useMemo(
-    () => pedidos.filter((pedido) => !esEstadoFinal(pedido.estado)),
-    [pedidos]
+    () => pedidos.filter((pedido) => pedido.restaurante_id === restauranteId && !esEstadoFinal(pedido.estado)),
+    [pedidos, restauranteId]
   );
 
   const pedidosFinalizados = useMemo(
-    () => pedidos.filter((pedido) => esEstadoFinal(pedido.estado)),
-    [pedidos]
+    () => pedidos.filter((pedido) => pedido.restaurante_id === restauranteId && esEstadoFinal(pedido.estado))
+      .sort((a, b) => (b.updated_at || b.created_at).localeCompare(a.updated_at || a.created_at)),
+    [pedidos, restauranteId]
   );
 
   const pedidosNuevos = useMemo(
@@ -239,7 +281,7 @@ export default function PedidosQRPage() {
     const mapa = new Map<string, MesaAbierta>();
 
     pedidosActivos.forEach((pedido) => {
-      const mesaKey = String(pedido.mesa_id || pedido.mesa || "sin-mesa");
+      const mesaKey = qrBillKey(pedido);
       const mesaLabel = pedido.mesa ? `Mesa ${pedido.mesa}` : "Sin mesa";
       const actual = mapa.get(mesaKey);
       const itemsPedido = pedido.items || [];
@@ -266,11 +308,8 @@ export default function PedidosQRPage() {
       }
     });
 
-    return Array.from(mapa.values()).sort((a, b) => {
-      if (a.mesaKey === "sin-mesa") return 1;
-      if (b.mesaKey === "sin-mesa") return -1;
-      return Number(a.mesaKey) - Number(b.mesaKey);
-    });
+    return Array.from(mapa.values()).map((mesa) => ({ ...mesa, total: qrTotal(mesa.pedidos) }))
+      .sort((a, b) => a.mesaLabel.localeCompare(b.mesaLabel, "es", { numeric: true }) || a.primerPedido.localeCompare(b.primerPedido));
   }, [pedidosActivos]);
 
   const totalActivo = pedidosActivos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
@@ -395,14 +434,22 @@ export default function PedidosQRPage() {
     return { descuento, propina, metodoPago, totalFinal };
   }
 
-  const cargarPedidos = useCallback(async (silencioso = false) => {
+  const cargarPedidos = useCallback(async (silencioso = false): Promise<PedidoQR[] | null> => {
+    if (!restauranteId) return null;
+    // A slow background load must not be aborted by every polling tick.
+    if (silencioso && cargaRef.current) return null;
+    cargaRef.current?.abort();
+    const controller = new AbortController();
+    cargaRef.current = controller;
+    let timeoutReached = false;
+    const timeout = setTimeout(() => {
+      timeoutReached = true;
+      controller.abort();
+    }, 15000);
     if (!silencioso) setCargando(true);
-    setError(null);
 
     try {
-      const { data, error } = await supabase
-        .from("pedidos_qr")
-        .select(`
+      const select = `
           *,
           pedido_qr_items (
             id,
@@ -414,20 +461,40 @@ export default function PedidosQRPage() {
             notas,
             created_at
           )
-        `)
-        .order("created_at", { ascending: false })
-        .limit(120);
-
-      if (error) throw error;
+        `;
+      const [activosData, historial] = await Promise.all([
+        readAllActiveQrOrders<PedidoQRRow>(async (afterId, limit) => {
+          let query = supabase.from("pedidos_qr").select(select)
+            .eq("restaurante_id", restauranteId)
+            .not("estado", "in", `(${FINAL_QR_STATES.join(",")})`)
+            .order("id", { ascending: true }).limit(limit);
+          if (afterId) query = query.gt("id", afterId);
+          const response = await query.abortSignal(controller.signal);
+          if (response.error) throw response.error;
+          return (response.data || []) as unknown as PedidoQRRow[];
+        }),
+        supabase.from("pedidos_qr").select(select)
+          .eq("restaurante_id", restauranteId).in("estado", [...FINAL_QR_STATES])
+          .order("updated_at", { ascending: false, nullsFirst: false }).order("id", { ascending: false })
+          .limit(120).abortSignal(controller.signal),
+      ]);
+      if (historial.error) throw historial.error;
+      if (controller.signal.aborted) return null;
+      // An order can move from active to history between both reads. Keep only
+      // the final copy; the server validates the full bill again before closing.
+      const porId = new Map<string, PedidoQRRow>();
+      for (const row of [...activosData, ...((historial.data || []) as unknown as PedidoQRRow[])]) porId.set(row.id, row);
+      const data = Array.from(porId.values());
 
       const pedidosFormateados = ((data || []) as PedidoQRRow[]).map((pedido) => ({
         ...pedido,
         estado: normalizarEstado(pedido.estado),
         total: Number(pedido.total || 0),
         items: pedido.pedido_qr_items || [],
-      })) as PedidoQR[];
+      })).sort((a, b) => b.created_at.localeCompare(a.created_at) || b.id.localeCompare(a.id)) as PedidoQR[];
 
       const activos = pedidosFormateados.filter((pedido) => !esEstadoFinal(pedido.estado));
+      qrTotal(activos); // Reject invalid totals before displaying a payable bill.
       const idsActuales = new Set(activos.map((pedido) => pedido.id));
 
       if (!primeraCargaRef.current) {
@@ -443,25 +510,43 @@ export default function PedidosQRPage() {
       pedidosIdsRef.current = idsActuales;
       primeraCargaRef.current = false;
       setPedidos(pedidosFormateados);
+      setError(null);
+      return pedidosFormateados;
     } catch (err: unknown) {
+      if (controller.signal.aborted && !timeoutReached) return null;
       console.error(err);
-      setError(errorMessage(err, "No se pudieron cargar los pedidos"));
+      setError(timeoutReached
+        ? "La consulta ha tardado demasiado. Los pedidos no están actualizados; vuelve a cargarlos antes de registrar un pago."
+        : errorMessage(err, "No se pudieron cargar los pedidos"));
+      return null;
     } finally {
-      if (!silencioso) setCargando(false);
+      clearTimeout(timeout);
+      if (cargaRef.current === controller) {
+        cargaRef.current = null;
+        setCargando(false);
+      }
     }
-  }, [reproducirSonidoNuevoPedido]);
+  }, [reproducirSonidoNuevoPedido, restauranteId]);
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: string) {
+    if (operacionRef.current || !restauranteId) return;
+    const scope = vistaScopeRef.current;
+    operacionRef.current = pedidoId;
     setActualizandoId(pedidoId);
-    setError(null);
+    setErrorOperacion(null);
 
     try {
-      const { error } = await supabase
+      const { data: actualizado, error } = await supabase
         .from("pedidos_qr")
         .update({ estado: nuevoEstado, updated_at: new Date().toISOString() })
-        .eq("id", pedidoId);
+        .eq("id", pedidoId)
+        .eq("restaurante_id", restauranteId)
+        .not("estado", "in", `(${FINAL_QR_STATES.join(",")})`)
+        .select("id").maybeSingle();
 
       if (error) throw error;
+      if (!actualizado) throw new Error("El pedido ya ha cambiado o se ha cerrado. Actualiza antes de continuar.");
+      if (vistaScopeRef.current !== scope) return;
 
       setPedidos((actual) =>
         actual.map((pedido) =>
@@ -471,57 +556,172 @@ export default function PedidosQRPage() {
         )
       );
 
-      setTimeout(() => cargarPedidos(true), 250);
+      void cargarPedidos(true);
     } catch (err: unknown) {
+      if (vistaScopeRef.current !== scope) return;
       console.error(err);
-      setError(errorMessage(err, "No se pudo cambiar el estado del pedido"));
+      setErrorOperacion(errorMessage(err, "No se pudo cambiar el estado del pedido"));
     } finally {
-      setActualizandoId(null);
+      operacionRef.current = null;
+      if (vistaScopeRef.current === scope) setActualizandoId(null);
+    }
+  }
+
+  async function cargarReservasMesa(mesa: MesaAbierta) {
+    if (!restauranteId || !mesa.mesaId || cargandoReservas) return;
+    const scope = vistaScopeRef.current;
+    setCargandoReservas(mesa.mesaKey);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+    try {
+      const now = new Date().toISOString();
+      const { data, error } = await supabase.from("reservas")
+        .select("id, restaurante_id, mesa_id, cliente_id, nombre_cliente, estado, inicio_at, fin_at, consumo_registrado_en")
+        .eq("restaurante_id", restauranteId).eq("mesa_id", mesa.mesaId)
+        .in("estado", ["pendiente", "confirmada", "confirmado"])
+        .not("cliente_id", "is", null).is("consumo_registrado_en", null)
+        .lte("inicio_at", now).gt("fin_at", now)
+        .order("id", { ascending: true }).limit(101).abortSignal(controller.signal);
+      if (error) throw error;
+      if ((data?.length || 0) > 100) throw new Error("Demasiadas reservas candidatas. Revisa la mesa en Sala.");
+      if (vistaScopeRef.current !== scope) return;
+      const candidates = eligibleQrReservations(data || [], restauranteId, mesa.mesaId,
+        mesa.pedidos.map((order) => order.created_at), Date.now());
+      setReservasMesa((current) => ({ ...current, [mesa.mesaKey]: candidates }));
+      setErrorReservas((current) => ({ ...current, [mesa.mesaKey]: "" }));
+      // Refreshing never silently changes the employee's selection.
+    } catch {
+      if (vistaScopeRef.current !== scope) return;
+      setErrorReservas((current) => ({ ...current, [mesa.mesaKey]: "No se han podido comprobar las reservas. Actualiza antes de vincular una cuenta." }));
+    } finally {
+      clearTimeout(timeout);
+      if (vistaScopeRef.current === scope) setCargandoReservas(null);
+    }
+  }
+
+  async function enviarCierre(pending: PendingQrClose, scope: object, firstAttempt = false) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+    try {
+      const { data, error } = await supabase.rpc("cerrar_mesa_qr_con_reserva", pending.request).abortSignal(controller.signal);
+      if (error) {
+        if (/QR_CIERRE_EN_CURSO|OPERACION_REUTILIZADA_CON_OTROS_DATOS/.test(error.message)) {
+          throw new Error("La operación está en curso o necesita revisión. Conservamos su identificador; comprueba el cierre pendiente antes de registrar otro pago.");
+        }
+        if (qrCloseRejected(error.code)) {
+          // A rejected replay says nothing about an earlier uncertain attempt:
+          // its transaction could have committed before auth/schema changed.
+          if (!firstAttempt) throw new Error("No se puede recuperar la confirmación con el acceso actual. Conservamos el cierre pendiente: revisa la sesión y el historial con soporte, sin registrar otro pago.");
+          clearStoredQrClose(sessionStorage, pending);
+          if (vistaScopeRef.current === scope && cierrePendienteRef.current?.request.p_operacion_id === pending.request.p_operacion_id) {
+            cierrePendienteRef.current = null;
+            setCierrePendiente(null);
+          }
+          throw new Error(error.code === "PGRST202"
+            ? "El cierre conectado aún no está instalado. No se ha registrado el pago desde este panel."
+            : qrCloseError(error.message));
+        }
+        throw new Error("No se ha recibido confirmación. No registres otro pago: usa «Comprobar cierre pendiente» para recuperar la misma operación.");
+      }
+      const result = Array.isArray(data) ? data[0] : data;
+      if (result?.ok !== true || typeof result.cierre_id !== "string") {
+        throw new Error("La respuesta no confirma el cierre. Conservamos la operación para comprobarla sin duplicar el registro.");
+      }
+      clearStoredQrClose(sessionStorage, pending);
+      if (vistaScopeRef.current !== scope) return;
+      if (cierrePendienteRef.current?.request.p_operacion_id === pending.request.p_operacion_id) {
+        cierrePendienteRef.current = null;
+        setCierrePendiente(null);
+      }
+      setPedidos((current) => current.map((order) => pending.request.p_pedidos_ids.includes(order.id)
+        ? { ...order, estado: "cobrado", updated_at: new Date().toISOString() } : order));
+      setResultadoCierre(result.reserva_id
+        ? `Cuenta cerrada y consumo de ${formatearDinero(result.consumo_total)} vinculado a la reserva. Puntos registrados: ${Number(result.puntos_generados || 0)}. La propina no suma consumo ni puntos.`
+        : "Cuenta cerrada sin atribuir consumo a una reserva ni a un cliente.");
+      setVista("historial");
+      void cargarPedidos(true);
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  async function recuperarCierre() {
+    const pending = cierrePendienteRef.current;
+    if (!pending || pending.restaurantId !== restauranteId || operacionRef.current) return;
+    const scope = vistaScopeRef.current;
+    operacionRef.current = pending.request.p_operacion_id;
+    setActualizandoId(pending.request.p_operacion_id);
+    setErrorOperacion(null);
+    try {
+      // Do not reread/recalculate: a lost response must resend the frozen request.
+      await enviarCierre(pending, scope);
+    } catch (err) {
+      if (vistaScopeRef.current === scope) setErrorOperacion(errorMessage(err, "No se pudo comprobar el cierre. Conservamos la operación pendiente."));
+    } finally {
+      operacionRef.current = null;
+      if (vistaScopeRef.current === scope) setActualizandoId(null);
     }
   }
 
   async function cerrarMesa(mesa: MesaAbierta) {
-    if (!mesa.pedidos.length) return;
-
-    const { descuento, propina, metodoPago, totalFinal } = calcularMesaFinal(mesa);
-
-    const confirmar = window.confirm(
-      `¿Cerrar y cobrar ${mesa.mesaLabel}?\nTotal productos: ${formatearDinero(mesa.total)}\nDescuento: ${formatearDinero(descuento)}\nPropina: ${formatearDinero(propina)}\nA cobrar: ${formatearDinero(totalFinal)}\nPago: ${metodoPago}`
-    );
-
-    if (!confirmar) return;
-
+    if (!mesa.pedidos.length || operacionRef.current || cierrePendienteRef.current || !recuperacionListaRef.current) return;
+    const scope = vistaScopeRef.current;
+    operacionRef.current = mesa.mesaKey;
     const ids = mesa.pedidos.map((pedido) => pedido.id);
-    const restauranteId = mesa.pedidos[0]?.restaurante_id;
     setActualizandoId(mesa.mesaKey);
-    setError(null);
+    setErrorOperacion(null);
 
     try {
-      if (!restauranteId || !mesa.mesaId) {
+      const sessionId = mesa.pedidos[0]?.mesa_session_id;
+      if (!restauranteId || mesa.pedidos.some((pedido) => pedido.restaurante_id !== restauranteId)
+        || !mesa.mesaId || !sessionId) {
         throw new Error("Este pedido no está vinculado a una mesa protegida.");
       }
 
-      const { data, error } = await supabase.rpc("cerrar_mesa_qr_segura", {
+      const actualizados = await cargarPedidos();
+      if (!actualizados || vistaScopeRef.current !== scope) return;
+      const cuentaActual = actualizados.filter((pedido) => !esEstadoFinal(pedido.estado) && qrBillKey(pedido) === mesa.mesaKey);
+      if (qrQuoteSignature(cuentaActual) !== qrQuoteSignature(mesa.pedidos)) {
+        throw new Error("La cuenta ha cambiado. Revisa los pedidos y el importe actualizados antes de confirmar el pago.");
+      }
+      qrAdjustment(descuentosMesa[mesa.mesaKey] || "", mesa.total);
+      qrAdjustment(propinasMesa[mesa.mesaKey] || "", 10000);
+      const { descuento, propina, metodoPago, totalFinal } = calcularMesaFinal(mesa);
+      const selectedId = reservaElegida[mesa.mesaKey] || null;
+      const candidate = selectedId ? eligibleQrReservations(reservasMesa[mesa.mesaKey] || [], restauranteId,
+        mesa.mesaId, cuentaActual.map((order) => order.created_at), Date.now()).find((row) => row.id === selectedId) : null;
+      if (selectedId && (!candidate || errorReservas[mesa.mesaKey])) {
+        throw new Error("La reserva elegida ya no es una candidata comprobada. Revisa las reservas o elige expresamente «Sin reserva vinculada».");
+      }
+      const attribution = candidate
+        ? `Consumo de la cuenta: ${formatearDinero(mesa.total - descuento)}, sin propina, para ${candidate.nombre_cliente || "el titular de la reserva"}. No es el consumo individual de cada comensal.`
+        : "Sin reserva vinculada: no se asignará gasto ni puntos a ningún cliente.";
+      if (!window.confirm(
+        `¿Registrar el pago ya recibido y cerrar ${mesa.mesaLabel}?\nTotal productos: ${formatearDinero(mesa.total)}\nDescuento: ${formatearDinero(descuento)}\nPropina: ${formatearDinero(propina)}\nTotal recibido: ${formatearDinero(totalFinal)}\nPago: ${metodoPago}\n${attribution}\nEsto no realiza ningún cargo bancario.`,
+      )) return;
+
+      const pending: PendingQrClose = { restaurantId: restauranteId, request: {
+        p_operacion_id: crypto.randomUUID(),
         p_mesa_id: mesa.mesaId,
         p_pedidos_ids: ids,
+        p_mesa_session_id: sessionId,
+        p_total_esperado: mesa.total,
         p_descuento: descuento,
         p_propina: propina,
         p_metodo_pago: metodoPago,
         p_notas: `Cierre/cobro desde cocina QR. ${mesa.pedidos.length} pedido(s).`,
-      });
-
-      if (error) throw error;
-
-      const resultado = Array.isArray(data) ? data[0] : data;
-      if (!resultado?.ok) throw new Error("No se pudo confirmar el cierre de la mesa.");
-
-      setPedidos((actual) =>
-        actual.map((pedido) =>
-          ids.includes(pedido.id)
-            ? { ...pedido, estado: "cobrado", updated_at: new Date().toISOString() }
-            : pedido
-        )
-      );
+        p_reserva_id: selectedId,
+      } };
+      // Save before transmission. Storage failure must not start a write that
+      // cannot be retried safely after a refresh or uncertain network result.
+      const storedRequest = JSON.stringify(pending);
+      parsePendingQrClose(storedRequest, restauranteId);
+      sessionStorage.setItem(pendingQrCloseKey(restauranteId), storedRequest);
+      cierrePendienteRef.current = pending;
+      setCierrePendiente(pending);
+      setResultadoCierre(null);
+      await enviarCierre(pending, scope, true);
+      if (vistaScopeRef.current !== scope) return;
 
       setDescuentosMesa((actual) => {
         const copia = { ...actual };
@@ -539,27 +739,46 @@ export default function PedidosQRPage() {
         return copia;
       });
 
-      setVista("historial");
-      setTimeout(() => cargarPedidos(true), 250);
     } catch (err: unknown) {
+      if (vistaScopeRef.current !== scope) return;
       console.error(err);
-      setError(errorMessage(err, "No se pudo cerrar la mesa"));
+      setErrorOperacion(errorMessage(err, "No se pudo cerrar la mesa"));
     } finally {
-      setActualizandoId(null);
+      operacionRef.current = null;
+      if (vistaScopeRef.current === scope) setActualizandoId(null);
     }
   }
 
   useEffect(() => {
     let activo = true;
     queueMicrotask(() => {
-      if (activo) void cargarPedidos();
+      if (!activo) return;
+      if (!restauranteId) {
+        if (!cargandoRestaurante) {
+          setCargando(false);
+          setError("No hay un restaurante seleccionado para consultar sus pedidos.");
+        }
+        return;
+      }
+      primeraCargaRef.current = true;
+      pedidosIdsRef.current = new Set();
+      void cargarPedidos();
     });
-    const interval = setInterval(() => void cargarPedidos(true), 3000);
+    const refresh = () => { if (document.visibilityState === "visible") void cargarPedidos(true); };
+    const interval = setInterval(refresh, 10000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("online", refresh);
+    document.addEventListener("visibilitychange", refresh);
     return () => {
       activo = false;
       clearInterval(interval);
+      cargaRef.current?.abort();
+      cargaRef.current = null;
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("online", refresh);
+      document.removeEventListener("visibilitychange", refresh);
     };
-  }, [cargarPedidos]);
+  }, [cargarPedidos, cargandoRestaurante, restauranteId]);
 
   function getEstadoClass(estado: string) {
     const normalizado = normalizarEstado(estado);
@@ -878,6 +1097,19 @@ export default function PedidosQRPage() {
           </div>
         </div>
 
+        {errorRecuperacion && <p role="alert" className="mt-5 rounded-2xl bg-red-50 p-4 font-bold text-red-800">{errorRecuperacion}</p>}
+        {errorOperacion && <p role="alert" className="mt-5 rounded-2xl bg-red-50 p-4 font-bold text-red-800">{errorOperacion}</p>}
+        {cierrePendiente?.restaurantId === restauranteId && (
+          <section role="status" className="mt-5 rounded-2xl border border-amber-400 bg-amber-50 p-4 text-amber-950">
+            <p className="font-black">Hay un cierre pendiente de confirmar.</p>
+            <p className="mt-1 text-sm">No vuelvas a cobrar. La comprobación recupera la misma operación, con los mismos importes y reserva, sin crear otro cierre.</p>
+            <button onClick={recuperarCierre} disabled={actualizandoId !== null} className="mt-3 rounded-xl bg-amber-950 px-4 py-2 font-bold text-white disabled:opacity-50">
+              Comprobar cierre pendiente
+            </button>
+          </section>
+        )}
+        {resultadoCierre && <p role="status" className="mt-5 rounded-2xl bg-green-50 p-4 font-bold text-green-900">{resultadoCierre}</p>}
+
         <section className="mt-6 grid gap-4 md:grid-cols-4">
           <div className={normalCardClass}>
             <p className={`text-sm font-black ${mutedTextClass}`}>Activos</p>
@@ -1029,6 +1261,30 @@ export default function PedidosQRPage() {
                   </div>
 
                   <div className={isDark ? "mt-5 rounded-3xl bg-white/5 p-4 ring-1 ring-white/10" : "mt-5 rounded-3xl bg-white p-4 ring-1 ring-slate-200"}>
+                    <div className="mb-5">
+                      <label className="block">
+                        <span className={`mb-2 block text-sm font-black ${mainTextClass}`}>Vincular consumo a una reserva (opcional)</span>
+                        <select value={reservaElegida[mesa.mesaKey] || ""}
+                          onChange={(event) => setReservaElegida((current) => ({ ...current, [mesa.mesaKey]: event.target.value }))}
+                          disabled={actualizandoId !== null || Boolean(cierrePendiente)}
+                          className={isDark ? "w-full rounded-xl border border-white/10 bg-slate-950 p-3 text-white" : "w-full rounded-xl border border-slate-200 bg-white p-3 text-slate-900"}>
+                          <option value="">Sin reserva vinculada</option>
+                          {reservaElegida[mesa.mesaKey] && !(reservasMesa[mesa.mesaKey] || []).some((row) => row.id === reservaElegida[mesa.mesaKey]) && (
+                            <option value={reservaElegida[mesa.mesaKey]} disabled>Reserva anterior no disponible: revisa la selección</option>
+                          )}
+                          {(reservasMesa[mesa.mesaKey] || []).map((row) => (
+                            <option value={row.id} key={row.id}>{row.nombre_cliente || "Titular de la reserva"} · {formatearFecha(row.inicio_at)} · {row.id.slice(0, 8)}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <button onClick={() => cargarReservasMesa(mesa)} disabled={!mesa.mesaId || cargandoReservas !== null || actualizandoId !== null}
+                        className={`mt-2 text-sm font-bold underline ${secondaryTextClass}`}>
+                        {cargandoReservas === mesa.mesaKey ? "Comprobando reservas…" : "Buscar reservas de esta mesa"}
+                      </button>
+                      <p className={`mt-2 text-xs ${mutedTextClass}`}>Solo reservas del servicio actual, con cliente asignado y sin consumo. La cuenta completa se atribuye a su titular; no se reparten consumos entre comensales. No incluye propina.</p>
+                      {reservasMesa[mesa.mesaKey]?.length === 0 && <p className={`mt-2 text-sm ${mutedTextClass}`}>No hay reservas compatibles comprobadas. Revisa la asignación y el horario en Sala, o cierra sin vincular.</p>}
+                      {errorReservas[mesa.mesaKey] && <p role="alert" className="mt-2 text-sm text-amber-600">{errorReservas[mesa.mesaKey]}</p>}
+                    </div>
                     <div className="grid gap-3 md:grid-cols-3">
                       <label className="block">
                         <span className={`mb-1 block text-xs font-black uppercase ${mutedTextClass}`}>Descuento €</span>
@@ -1076,11 +1332,15 @@ export default function PedidosQRPage() {
                       <Printer className="h-4 w-4" />
                       Imprimir cuenta
                     </button>
-                    <button onClick={() => cerrarMesa(mesa)} disabled={actualizandoId === mesa.mesaKey} className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
+                    <button onClick={() => cerrarMesa(mesa)} disabled={actualizandoId !== null || Boolean(cierrePendiente) || Boolean(errorRecuperacion) || !mesa.mesaId || !mesa.pedidos[0]?.mesa_session_id} className="flex items-center justify-center gap-2 rounded-2xl bg-green-600 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
                       {actualizandoId === mesa.mesaKey ? <Loader2 className="h-4 w-4 animate-spin" /> : <CreditCard className="h-4 w-4" />}
-                      Cerrar y cobrar
+                      Registrar pago y cerrar
                     </button>
                   </div>
+                  <p className={`mt-3 text-xs ${mutedTextClass}`}>Registra únicamente un pago ya recibido. No realiza cargos bancarios ni emite una factura.</p>
+                  {(!mesa.mesaId || !mesa.pedidos[0]?.mesa_session_id) && (
+                    <p className="mt-2 text-sm font-bold text-amber-600">Pedido sin sesión protegida. Revisa su origen con soporte antes de registrar el cierre.</p>
+                  )}
                 </article>
               );
             })}
