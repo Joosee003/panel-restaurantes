@@ -80,3 +80,11 @@ jobs:
           node scripts/test-sql-concurrent.mjs
           tests/sql/node_modules/@embedded-postgres/linux-x64/native/bin
           tests/sql/node_modules/pg
+
+      - name: Captured application schema and 26 concurrent operations
+        run: >-
+          node scripts/test-application-concurrent.mjs
+          tests/fixtures/application-catalog-2026-09-08.json
+          tests/sql/node_modules/@embedded-postgres/linux-x64/native/bin
+          tests/sql/node_modules/pg
+          /tmp/gastrohelp-application-concurrency.json
