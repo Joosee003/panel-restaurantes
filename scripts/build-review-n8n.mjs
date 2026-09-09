@@ -1,6 +1,7 @@
 import {prepareReviewWebhook,reviewProviderReceipt} from '../lib/reviews/n8n-review-contract.mjs';
+import {GASTROHELP_PHONE_NUMBER_ID} from '../lib/whatsapp/channel.mjs';
 
-const settings={enabled:false,templateApproved:false,restaurantIds:[],phoneNumberId:'',templateName:'gastrohelp_opinion_tras_visita',language:'es'};
+const settings={enabled:false,templateApproved:false,restaurantIds:[],phoneNumberId:GASTROHELP_PHONE_NUMBER_ID,templateName:'gastrohelp_opinion_tras_visita',language:'es'};
 const prepareCode=prepareReviewWebhook.toString()+'\nconst settings='+JSON.stringify(settings)+';\nreturn [{json:prepareReviewWebhook($input.first().json,settings)}];';
 const receiptCode=reviewProviderReceipt.toString()+"\nreturn [{json:reviewProviderReceipt($input.first().json,$('Validar visita y activación').item.json)}];";
 const code=`import {workflow,node,trigger,ifElse,sticky,newCredential,expr} from '@n8n/workflow-sdk';
