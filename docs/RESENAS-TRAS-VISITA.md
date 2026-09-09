@@ -20,7 +20,7 @@ La solicitud pide una opinión honesta, sin seleccionar clientes según la valor
 
 Se usa la cola existente `reservation_webhook_deliveries`, con el identificador estable `visit.review_request:<reserva>`. Al cumplirse el plazo, el despachador comprueba de nuevo asistencia, permiso y confirmación, y manda el evento al flujo de n8n «Reseñas · Ha venido → WhatsApp». n8n envía la plantilla mediante su nodo WhatsApp Business Cloud y devuelve el identificador aceptado por WhatsApp. El servidor guarda el resultado en el panel. Las notificaciones de reservas y fidelización conservan su transporte actual.
 
-El flujo está [guardado en n8n](https://n8n.gastrohelp.es/workflow/gJEAvv5L445d69FS), publicado por Jose y con la activación interna de envíos reales deshabilitada. Su código se genera con `node scripts/build-review-n8n.mjs`. Las funciones de validación y acuse de `lib/reviews/n8n-review-contract.mjs` se incluyen en los nodos y se prueban junto al transporte. La ejecución manual 69568 superó el modo de prueba y no ejecutó el nodo de envío.
+El flujo está [publicado en n8n](https://n8n.gastrohelp.es/workflow/gJEAvv5L445d69FS), con la activación interna de envíos reales deshabilitada. Su código se genera con `node scripts/build-review-n8n.mjs`. Las funciones de validación y acuse de `lib/reviews/n8n-review-contract.mjs` se incluyen en los nodos y se prueban junto al transporte. El 9 de septiembre la ejecución HTTP 69573 confirmó la entrada desde el panel con nombre y teléfono correctos, sin ejecutar WhatsApp. Evidencias y reserva preparada en [PRUEBA-WEBHOOK-RESENAS.md](PRUEBA-WEBHOOK-RESENAS.md).
 
 El envío exige:
 
@@ -35,7 +35,7 @@ El envío exige:
 | `WHATSAPP_REVIEW_RESTAURANT_IDS` | UUID de restaurantes autorizados para WhatsApp real, separados por comas; vacío impide envíos |
 | `N8N_REVIEW_TEST_RESTAURANT_IDS` | UUID de restaurantes autorizados para probar HTTP con n8n sin WhatsApp; vacío mantiene la prueba local |
 
-Estas variables no llevan prefijo `NEXT_PUBLIC_`. El token de Meta queda en la credencial WhatsApp de n8n. En «Validar visita y activación» se configuran el emisor, nombre e idioma de la plantilla aprobada y restaurantes autorizados; `enabled` y `templateApproved` permanecen en falso hasta la validación. El conector asignó credenciales existentes de Header Auth y WhatsApp; no se han leído ni copiado sus valores. La pantalla comprueba la configuración sin exponer credenciales. La configuración por sí sola no acredita un envío real.
+Estas variables no llevan prefijo `NEXT_PUBLIC_`. El token de Meta queda en la credencial WhatsApp de n8n. En «Validar visita y activación» se configuran el emisor, nombre e idioma de la plantilla aprobada y restaurantes autorizados; `enabled` y `templateApproved` permanecen en falso hasta la validación. El webhook usa ahora la credencial exclusiva `GastroHelp · Entrada de reseñas`, con la misma clave guardada como Secret en Vercel; las credenciales anteriores conservan sus valores. La pantalla comprueba la configuración sin exponer credenciales. La configuración por sí sola no acredita un envío real.
 
 La plantilla necesita dos parámetros de cuerpo (primer nombre y restaurante) y un botón URL con `https://panel.gastrohelp.es/r/{{1}}`. El parámetro del botón es únicamente el UUID aleatorio de la petición. Texto propuesto para someter a aprobación:
 
@@ -70,11 +70,11 @@ npm run build
 
 La copia de catálogo es la misma fixture saneada de la revisión de servicios: 50 tablas públicas, 5 vistas, 102 funciones, 60 triggers y 242 políticas. No contiene filas de clientes ni credenciales. Se reutiliza el restaurador de esa revisión para probar las funciones con los permisos y triggers de la aplicación.
 
-En esta corrección: 18 pruebas de transporte/contrato n8n y 24 recorridos SQL comprobados localmente, junto con lint y TypeScript. La compilación estándar, 6 pruebas de concurrencia PostgreSQL y 5 comprobaciones HTTP también forman parte de CI.
+El [CI 34330513405](https://github.com/Joosee003/panel-restaurantes/actions/runs/34330513405) de la PR 41 superó 24 pruebas de transporte/contrato n8n, 24 recorridos SQL, 6 de concurrencia PostgreSQL y 5 HTTP, junto con lint, auditoría y compilación. Después se comprobó la llamada del panel desplegado al webhook de n8n y la cancelación y bloqueo de peticiones al confirmar una reseña.
 
 El [control de CI del código publicado](https://github.com/Joosee003/panel-restaurantes/actions/runs/34249261320), commit `112f04939182d9113f98044a1e76763bf59cbdc6`, terminó correctamente: 10 pruebas de mensaje/transporte, 17 recorridos SQL, 6 carreras entre conexiones independientes con PostgreSQL 17, 5 comprobaciones por HTTP, lint, auditoría de dependencias de producción y compilación estándar. Vercel también completó la compilación de la vista previa de ese commit.
 
-La prueba HTTP usa páginas y rutas reales con transporte RPC local sobre PGlite; no sustituye Supabase Auth/PostgREST ni una recepción real. La versión del panel simplificado anterior a esta corrección ya superó la revisión visual de escritorio, diálogo de confirmación y móvil de 390 píxeles. La corrección de asistencia y n8n debe revisarse sobre su propio despliegue antes de producción.
+La prueba HTTP de CI usa páginas y rutas reales con transporte RPC local sobre PGlite; no sustituye Supabase Auth/PostgREST ni una recepción real. La revisión visual de escritorio, diálogo de confirmación y móvil de 390 píxeles ya se completó. La asistencia se verificó con rol autenticado, y la conexión de producción con el evento de la reserva y la ejecución n8n 69573. El ensayo HTTP no acredita recepción de WhatsApp.
 
 ## Aclaración de Jose: asistencia y n8n
 
@@ -82,7 +82,7 @@ Jose precisó que quería recuperar «Ha venido» como señal para la automatiza
 
 La revisión del historial confirmó el antiguo POST del panel a `/webhook/resena-email`. La implementación activa lo había sustituido por trigger de asistencia, cola y «Reservas nativas · Avisos», que actualmente prepara correos. No se reactiva esa entrada antigua. El nuevo flujo de reseñas usa autenticación, plantilla WhatsApp y acuse verificable, conservando el envío desde la asistencia.
 
-El programador existente de Supabase `gastrohelp-automation-dispatch` está activo cada minuto. Se comprobó mediante lectura que llama a `trigger_automation_panel_dispatch`, que apunta a `/api/automations/dispatch` y usa un nonce; sus cinco últimas ejecuciones figuraban como correctas. No se ha cambiado este programador. La migración y el despliegue se completaron el 9 de septiembre. Continúan pendientes la conexión del webhook por variables de Vercel y la configuración de WhatsApp real.
+El programador existente de Supabase `gastrohelp-automation-dispatch` está activo cada minuto. Llama a `trigger_automation_panel_dispatch`, que apunta a `/api/automations/dispatch` y usa un nonce. No se ha cambiado este programador. La migración, el despliegue y la conexión del webhook por variables de Vercel se completaron el 9 de septiembre. La ejecución 69573 recibió el evento programado por esta cola. Continúan pendientes la configuración de WhatsApp real y la recepción autorizada.
 
 ## Vista preparada para Jose
 
