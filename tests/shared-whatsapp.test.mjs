@@ -7,6 +7,7 @@ import {PGlite} from '@electric-sql/pglite';
 import {NextRequest} from 'next/server.js';
 import {GASTROHELP_PHONE_NUMBER_ID} from '../lib/whatsapp/channel.mjs';
 import {prepareReviewWebhook} from '../lib/reviews/n8n-review-contract.mjs';
+import {prepareSharedMessage,prepareSharedReply,sameOwnerPhone} from '../lib/whatsapp/n8n-shared-contract.mjs';
 
 const require=createRequire(import.meta.url);
 const db=new PGlite();
@@ -139,4 +140,24 @@ test('review requests for two restaurants use the same sender with their own nam
  });
  assert.ok(outputs.every(o=>o.send&&o.phoneNumberId===GASTROHELP_PHONE_NUMBER_ID));
  assert.notEqual(outputs[0].restaurantName,outputs[1].restaurantName);assert.notEqual(outputs[0].token,outputs[1].token);
+});
+
+test('n8n forwards the sender, quoted message and safe test mode without a default restaurant',()=>{
+ const input={metadata:{phone_number_id:GASTROHELP_PHONE_NUMBER_ID},contacts:[{profile:{name:'Jose'},wa_id:'447700900124'}],
+  messages:[{id:'fixture',from:'447700900124',timestamp:'1788969781',text:{body:'RESERVAR local-b'},context:{id:'wamid.previous'}}],
+  mode:'test',suppressDelivery:true,restaurantId:a};
+ const prepared=prepareSharedMessage(input,GASTROHELP_PHONE_NUMBER_ID);
+ assert.equal(prepared.validMessage,true);assert.equal(prepared.replyToMessageId,'wamid.previous');assert.equal(prepared.restaurantId,undefined);
+ assert.equal(prepared.mode,'test');assert.equal(prepareSharedReply({route:'error'},prepared).deliver,false);
+ assert.equal(prepareSharedMessage({...input,metadata:{phone_number_id:'wrong'}},GASTROHELP_PHONE_NUMBER_ID).validMessage,false);
+ assert.equal(prepareSharedMessage({...input,suppressDelivery:false},GASTROHELP_PHONE_NUMBER_ID).mode,'router');
+});
+
+test('owner review access requires the full normalized phone, never just matching final digits',()=>{
+ assert.equal(sameOwnerPhone('34600000001','600 000 001'),true);
+ assert.equal(sameOwnerPhone('+34600000001','0034600000001'),true);
+ assert.equal(sameOwnerPhone('44600000001','34600000001'),false);
+ assert.equal(sameOwnerPhone('1234600000001','34600000001'),false);
+ assert.equal(sameOwnerPhone('447700900124','7700900124'),false);
+ assert.equal(sameOwnerPhone('',''),false);
 });
