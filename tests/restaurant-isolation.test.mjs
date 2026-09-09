@@ -170,3 +170,12 @@ test('kitchen service isolates orders for an agency account with access to both 
     await assert.rejects(getPedidosByRestaurante(''),/Selecciona/);
   } finally { db.from=from; }
 });
+
+test('reputation rejects an explicit foreign URL and recovers a stale preference after login', () => {
+  const { selectOpinionRestaurant }=load('lib/opiniones/restaurantSelection.ts');
+  const a={restaurante_id:'restaurant-a'}, b={restaurante_id:'restaurant-b'};
+  assert.equal(selectOpinionRestaurant([b],'restaurant-a','restaurant-b'),null);
+  assert.equal(selectOpinionRestaurant([b],null,'restaurant-a'),b);
+  assert.equal(selectOpinionRestaurant([a,b],'restaurant-b','restaurant-a'),b);
+  assert.equal(selectOpinionRestaurant([a,b],null,'unknown'),null);
+});

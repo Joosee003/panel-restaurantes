@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { HISPANOS_BRAND } from "@/lib/opiniones/hispanos-brand";
+import { selectOpinionRestaurant } from "@/lib/opiniones/restaurantSelection";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 import ReputationElite from "./ReputationElite";
 
@@ -79,17 +80,18 @@ function ReputationSuiteContent() {
 
       const requestedRestaurant = new URLSearchParams(window.location.search).get("restaurante");
       const storedRestaurant = window.sessionStorage.getItem(REPUTATION_RESTAURANT_KEY);
-      const selectedRestaurant = requestedRestaurant || storedRestaurant;
-      const selectedConfig = selectedRestaurant
-        ? configs.find((item) => item.restaurante_id === selectedRestaurant)
-        : configs.length === 1
-          ? configs[0]
-          : null;
+      const selectedConfig = selectOpinionRestaurant(configs, requestedRestaurant, storedRestaurant);
 
       if (!selectedConfig) {
+        if (requestedRestaurant) {
+          setError("No tienes acceso al restaurante solicitado.");
+          return;
+        }
         window.location.replace("/reputacion/seleccionar");
         return;
       }
+
+      window.sessionStorage.setItem(REPUTATION_RESTAURANT_KEY, selectedConfig.restaurante_id);
 
       const { data: restaurant, error: restaurantError } = await supabase
         .from("restaurantes")

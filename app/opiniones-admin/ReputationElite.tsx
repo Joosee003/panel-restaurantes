@@ -26,6 +26,7 @@ import {
   type ReactNode,
 } from "react";
 import { useRouter } from "next/navigation";
+import { selectOpinionRestaurant } from "@/lib/opiniones/restaurantSelection";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 import AspectLabelsEditor from "./AspectLabelsEditor";
 import ReputationMaterials from "./ReputationMaterials";
@@ -95,14 +96,14 @@ export default function ReputationElite() {
     }
     const requestedRestaurant = new URLSearchParams(window.location.search).get("restaurante");
     const storedRestaurant = window.sessionStorage.getItem(REPUTATION_RESTAURANT_KEY);
-    const selectedRestaurant = requestedRestaurant || storedRestaurant;
-    const selectedConfig = selectedRestaurant
-      ? configResult.data.find((item) => item.restaurante_id === selectedRestaurant)
-      : configResult.data.length === 1
-        ? configResult.data[0]
-        : null;
+    const selectedConfig = selectOpinionRestaurant(configResult.data, requestedRestaurant, storedRestaurant);
 
     if (!selectedConfig) {
+      if (requestedRestaurant) {
+        setError("No tienes acceso al restaurante solicitado.");
+        setLoading(false);
+        return;
+      }
       window.location.replace("/reputacion/seleccionar");
       return;
     }

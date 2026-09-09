@@ -23,7 +23,7 @@ El acceso a los datos sigue comprobándose en Supabase; guardar un ID en el nave
 
 ## Verificación
 
-- Ocho pruebas automáticas ejecutan el componente React de separación y el código de selección real: A → B → A, formulario pendiente, respuesta tardía, cambio de usuario, cierre de sesión, selección por pestaña, denegación/error de permisos y cocina con dos restaurantes.
+- Nueve pruebas automáticas ejecutan el componente React de separación y el código de selección real: A → B → A, formulario pendiente, respuesta tardía, cambio de usuario, cierre de sesión, selección por pestaña, denegación/error de permisos cocina con dos restaurantes y selección de reputación tras cambiar de cuenta.
 - Estas pruebas se añaden al CI existente, que también comprueba el flujo de reseñas.
 - TypeScript y lint comprobados localmente.
 - Comprobación real en Supabase bajo los roles autenticados de Hispanos Grill y la demo pública: **47 tablas/vistas por cuenta, cero registros ajenos**. Se ven registros propios en ambas cuentas (376 y 543 referencias agregadas, incluyendo vistas; no son clientes únicos).
