@@ -37,6 +37,9 @@ jobs:
       - name: Review message and transport tests
         run: node --test tests/review-flow.test.mjs tests/n8n-review-contract.test.mjs
 
+      - name: Shared WhatsApp restaurant routing and private SQL state
+        run: node --test tests/shared-whatsapp.test.mjs
+
       - name: Install isolated SQL test dependencies
         run: npm ci --prefix tests/sql
 
