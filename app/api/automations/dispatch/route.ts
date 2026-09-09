@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin";
+import { deliverVisitReview } from "@/lib/reviews/review-delivery";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -167,6 +168,12 @@ async function permissionsFor(event: AutomationEvent) {
 }
 
 async function deliverEvent(event: AutomationEvent) {
+  if (event.event_type === "visit.review_request") {
+    return deliverVisitReview(event, async (name, args) => {
+      const { data, error } = await getSupabaseAdmin().rpc(name, args);
+      return { data, error };
+    }, process.env);
+  }
   try {
     const payload = { ...(event.payload || {}) };
     const rawCustomer =

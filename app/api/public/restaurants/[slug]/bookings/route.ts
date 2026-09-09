@@ -20,6 +20,7 @@ type BookingBody = {
   privacyInformed?: unknown;
   conditionsAccepted?: unknown;
   legalVersion?: unknown;
+  reviewWhatsapp?: unknown;
 };
 
 type BookingRpcResult = {
@@ -149,7 +150,7 @@ export async function POST(
       );
     }
 
-    const { data, error } = await supabase.rpc("crear_reserva_publica_con_aceptacion", {
+    const { data, error } = await supabase.rpc("crear_reserva_publica_con_resena", {
       p_slug: slug,
       p_inicio_at: start,
       p_personas: party,
@@ -161,6 +162,7 @@ export async function POST(
       p_privacidad_informada: privacyInformed,
       p_condiciones_aceptadas: conditionsAccepted,
       p_version_legal: BOOKING_LEGAL_VERSION,
+      p_review_whatsapp: body.reviewWhatsapp === true,
     });
 
     if (error) {

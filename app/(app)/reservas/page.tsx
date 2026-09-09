@@ -17,6 +17,7 @@ import {
   RefreshCw,
   Search,
   Table2,
+  UserCheck,
   UserX,
   X,
 } from "lucide-react";
@@ -73,6 +74,12 @@ type ReservaQueryRow = Omit<Reserva, "cliente"> & {
 type RegistrarConsumoResult = {
   ok?: boolean;
   error?: string;
+};
+
+type MarcarAsistenciaResult = {
+  reserva_id: string;
+  cliente_id: string | null;
+  atendida: boolean;
 };
 
 type Bloqueo = {
@@ -179,6 +186,16 @@ function mensajeErrorMesa(message: string | undefined) {
   return "No se pudo actualizar la mesa.";
 }
 
+function mensajeErrorAsistencia(message: string) {
+  if (message.includes("RESERVA_AUN_NO_INICIADA")) return "Podrás marcar la asistencia a partir de la hora reservada.";
+  if (message.includes("RESERVA_CANCELADA")) return "Esta reserva está cancelada. No se puede marcar como realizada.";
+  if (message.includes("RESERVA_NO_SHOW")) return "Esta reserva ya está marcada como no asistida.";
+  if (message.includes("ASISTENCIA_CLIENTE_INVALIDO")) return "Revisa los datos del cliente antes de marcar la asistencia.";
+  if (message.includes("ASISTENCIA_ACCESS_DENIED")) return "No tienes permiso para marcar la asistencia en este restaurante.";
+  if (message.includes("RESERVA_NO_ENCONTRADA")) return "La reserva ya no está disponible. Actualiza la lista.";
+  return "No se pudo guardar la asistencia. Vuelve a intentarlo.";
+}
+
 function estadoLabel(reserva: Reserva) {
   if (reserva.estado === "cancelada") return "Cancelada";
   if (reserva.consumo_registrado_en) return "Consumo registrado";
@@ -263,7 +280,9 @@ function StatCard({ label, value, sub, icon }: { label: string; value: string | 
 function ReservaCard({
   reserva,
   mesas,
+  saving,
   onEstado,
+  onHaVenido,
   onNoShow,
   onRegistrarConsumo,
   fidelizacionActiva,
@@ -272,7 +291,9 @@ function ReservaCard({
 }: {
   reserva: Reserva;
   mesas: Mesa[];
+  saving: boolean;
   onEstado: (reserva: Reserva, estado: EstadoReserva) => void;
+  onHaVenido: (reserva: Reserva) => void;
   onNoShow: (reserva: Reserva, valor: boolean | null) => void;
   onRegistrarConsumo: (reserva: Reserva) => void;
   fidelizacionActiva: boolean;
@@ -314,6 +335,7 @@ function ReservaCard({
           <label className="text-[11px] font-black uppercase tracking-wide text-slate-500">Mesa</label>
           <select
             value={reserva.mesa_id || ""}
+            disabled={saving}
             onChange={(e) => onMesa(reserva, e.target.value || null)}
             className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100"
           >
@@ -333,24 +355,32 @@ function ReservaCard({
 
       <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
         {reserva.estado === "pendiente" ? (
-          <button onClick={() => onEstado(reserva, "confirmada")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700">
-            <Check size={16} /> Confirmar
+          <button disabled={saving} onClick={() => onEstado(reserva, "confirmada")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
+            <Check size={16} /> Confirmar reserva
+          </button>
+        ) : null}
+        {(reserva.estado === "pendiente" || reserva.estado === "confirmada") &&
+        reserva.atendida !== true &&
+        reserva.atendida !== false &&
+        !reserva.consumo_registrado_en ? (
+          <button disabled={saving} onClick={() => onHaVenido(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60">
+            <UserCheck size={16} /> Ha venido
           </button>
         ) : null}
         {!ESTADOS_FINALES.has(reserva.estado) ? (
-          <button onClick={() => onEstado(reserva, "cancelada")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100">
+          <button disabled={saving} onClick={() => onEstado(reserva, "cancelada")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-60">
             <X size={16} /> Cancelar
           </button>
         ) : null}
         {(reserva.estado === "confirmada" || reserva.estado === "ha venido" || reserva.atendida === true) &&
         reserva.atendida !== false &&
         !reserva.consumo_registrado_en ? (
-          <button onClick={() => onRegistrarConsumo(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100">
+          <button disabled={saving} onClick={() => onRegistrarConsumo(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60">
             <Banknote size={16} /> Registrar consumo
           </button>
         ) : null}
         {reserva.estado === "confirmada" && !reserva.consumo_registrado_en && reserva.atendida !== false ? (
-          <button onClick={() => onNoShow(reserva, false)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100">
+          <button disabled={saving} onClick={() => onNoShow(reserva, false)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-60">
             <UserX size={16} /> No-show
           </button>
         ) : null}
@@ -400,6 +430,7 @@ export default function ReservasPage() {
 
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const autoRefreshPausadoRef = useRef(false);
+  const asistenciaEnCursoRef = useRef(false);
 
   const bloqueoEnEdicion = useMemo(() => {
     return (
@@ -618,6 +649,43 @@ export default function ReservasPage() {
     }
     setSaving(null);
     void cargarTodo({ silent: true });
+  };
+
+  const marcarHaVenido = async (reserva: Reserva) => {
+    if (!restauranteId || reserva.restaurante_id !== restauranteId || saving || asistenciaEnCursoRef.current) return;
+    if (ESTADOS_FINALES.has(reserva.estado) || reserva.atendida !== null || reserva.consumo_registrado_en) return;
+
+    asistenciaEnCursoRef.current = true;
+    setSaving(reserva.id);
+    setError(null);
+
+    try {
+      const { data, error: rpcError } = await supabase.rpc("marcar_asistencia_reserva", {
+        p_reserva_id: reserva.id,
+        p_asistio: true,
+      });
+      if (rpcError) throw rpcError;
+
+      const result = data as MarcarAsistenciaResult | null;
+      if (result?.reserva_id !== reserva.id || result.atendida !== true) {
+        throw new Error("ASISTENCIA_NO_GUARDADA");
+      }
+
+      setReservas((prev) => prev.map((r) => r.id === reserva.id ? {
+        ...r,
+        atendida: true,
+        cliente_id: result.cliente_id,
+      } : r));
+      await cargarTodo({ silent: true });
+    } catch (cause) {
+      const message = typeof cause === "object" && cause !== null && "message" in cause
+        ? String(cause.message)
+        : "";
+      setError(mensajeErrorAsistencia(message));
+    } finally {
+      asistenciaEnCursoRef.current = false;
+      setSaving(null);
+    }
   };
 
   const abrirConsumo = (reserva: Reserva) => {
@@ -984,7 +1052,7 @@ export default function ReservasPage() {
                   <Badge className="border-slate-200 bg-slate-50 text-slate-600">{items.length} reserva{items.length === 1 ? "" : "s"}</Badge>
                 </div>
                 <div className="space-y-3">
-                  {items.map((r) => <ReservaCard key={r.id} reserva={r} mesas={mesas} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} />)}
+                  {items.map((r) => <ReservaCard key={r.id} reserva={r} mesas={mesas} saving={Boolean(saving)} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onHaVenido={marcarHaVenido} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} />)}
                 </div>
               </section>
             )) : (
@@ -1044,7 +1112,7 @@ export default function ReservasPage() {
             <p className="text-sm text-slate-500">{reservasFiltradas.length} reservas visibles con los filtros actuales.</p>
           </div>
           <div className="divide-y divide-slate-100">
-            {reservasFiltradas.map((r) => <div key={r.id} className="p-4"><ReservaCard reserva={r} mesas={mesas} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} /></div>)}
+            {reservasFiltradas.map((r) => <div key={r.id} className="p-4"><ReservaCard reserva={r} mesas={mesas} saving={Boolean(saving)} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onHaVenido={marcarHaVenido} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} /></div>)}
             {!reservasFiltradas.length ? <div className="p-10 text-center text-sm font-semibold text-slate-500">No hay reservas con estos filtros.</div> : null}
           </div>
         </div>

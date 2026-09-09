@@ -71,6 +71,10 @@ function LegalContent({ restaurant, document }: { restaurant: PublicRestaurant; 
         <Section title="Destinatarios y proveedores">
           <p>Los datos no se venden. Pueden acceder proveedores tecnológicos que trabajan por cuenta del restaurante, como GastroHelp, alojamiento y base de datos, con las medidas y acuerdos correspondientes. También podrán comunicarse cuando exista una obligación legal.</p>
         </Section>
+        <Section title="Peticiones de opinión por WhatsApp">
+          <p>Si marcas la casilla opcional al reservar, el restaurante podrá enviarte por WhatsApp una petición de opinión después de tus visitas, mientras no conste una reseña confirmada. Esta elección no es necesaria para reservar y no da permiso para enviarte promociones.</p>
+          <p>El enlace del mensaje permite dejar de recibir estas peticiones. Si pulsas el botón para ir a Google, se registra la apertura del enlace para que el restaurante pueda revisar si has publicado una reseña. Esa apertura no indica tu valoración ni confirma que hayas escrito una reseña. WhatsApp y Google tratan los datos de uso de sus servicios según sus propias condiciones.</p>
+        </Section>
         <Section title="Tus derechos">
           <p>Puedes solicitar acceso, rectificación, supresión, oposición, limitación o portabilidad escribiendo a <Value>{legal.privacyEmail || legal.email || restaurant.email}</Value>. También puedes presentar una reclamación ante la Agencia Española de Protección de Datos.</p>
         </Section>

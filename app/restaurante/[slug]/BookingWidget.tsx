@@ -168,6 +168,10 @@ export default function BookingWidget({
     if (!selectedSlot || submitting) return;
 
     const form = new FormData(event.currentTarget);
+    if (form.get("reviewWhatsapp") === "on" && !String(form.get("phone") || "").trim()) {
+      setSubmitError("Indica tu teléfono si quieres recibir la petición de reseña por WhatsApp.");
+      return;
+    }
     setSubmitting(true);
     setSubmitError("");
 
@@ -187,6 +191,7 @@ export default function BookingWidget({
             company: String(form.get("company") || ""),
             idempotencyKey,
             privacyInformed: form.get("privacyInformed") === "on",
+            reviewWhatsapp: form.get("reviewWhatsapp") === "on",
             conditionsAccepted: form.get("conditionsAccepted") === "on",
             legalVersion: "2026-08-03",
           }),
@@ -510,6 +515,11 @@ export default function BookingWidget({
               <span>
                 Acepto las <a href={conditionsPath} target="_blank" rel="noreferrer" className="font-black text-slate-800 underline underline-offset-2">condiciones de reserva</a> de {restaurantName}.
               </span>
+            </label>
+
+            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500">
+              <input name="reviewWhatsapp" type="checkbox" className="mt-1 h-4 w-4" />
+              <span>Quiero recibir por WhatsApp una petición para compartir mi opinión después de mis visitas a {restaurantName}. Es opcional y puedo dejar de recibirlas desde el enlace del mensaje.</span>
             </label>
 
             {submitError ? (
