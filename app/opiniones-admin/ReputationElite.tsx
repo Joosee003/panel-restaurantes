@@ -94,7 +94,7 @@ export default function ReputationElite() {
       return;
     }
     const requestedRestaurant = new URLSearchParams(window.location.search).get("restaurante");
-    const storedRestaurant = window.localStorage.getItem(REPUTATION_RESTAURANT_KEY);
+    const storedRestaurant = window.sessionStorage.getItem(REPUTATION_RESTAURANT_KEY);
     const selectedRestaurant = requestedRestaurant || storedRestaurant;
     const selectedConfig = selectedRestaurant
       ? configResult.data.find((item) => item.restaurante_id === selectedRestaurant)
@@ -108,7 +108,7 @@ export default function ReputationElite() {
     }
 
     const restaurantId = selectedConfig.restaurante_id as string;
-    window.localStorage.setItem(REPUTATION_RESTAURANT_KEY, restaurantId);
+    window.sessionStorage.setItem(REPUTATION_RESTAURANT_KEY, restaurantId);
     const [restaurantResult, opinionsResult, eventsResult] = await Promise.all([
       supabase.from("restaurantes").select("id,nombre").eq("id", restaurantId).single(),
       supabase
@@ -153,8 +153,9 @@ export default function ReputationElite() {
   }, [opinions, query]);
 
   async function updateOpinion(id: string, patch: Partial<Opinion>) {
+    if (!restaurant || !opinions.some((opinion) => opinion.id === id && opinion.restaurante_id === restaurant.id)) return;
     setSaving(true);
-    const { error: updateError } = await supabase.from("opiniones_qr").update(patch).eq("id", id);
+    const { error: updateError } = await supabase.from("opiniones_qr").update(patch).eq("id", id).eq("restaurante_id", restaurant.id);
     if (updateError) setError("No se pudo guardar el cambio.");
     else {
       setOpinions((current) => current.map((item) => item.id === id ? { ...item, ...patch } : item));
@@ -227,8 +228,9 @@ export default function ReputationElite() {
         {tab === "insights" && <InsightsPanel insights={insights} metrics={metrics} />}
         {tab === "materiales" && <ReputationMaterials config={config} restaurant={restaurant} />}
         {tab === "ajustes" && <SettingsPanel config={config} saving={saving} save={async (draft) => {
+          if (draft.id !== config.id || draft.restaurante_id !== restaurant.id) return;
           setSaving(true);
-          const { error: updateError } = await supabase.from("opinion_config").update({ headline: draft.headline, subheadline: draft.subheadline, feedback_email: draft.feedback_email || null, feedback_whatsapp: draft.feedback_whatsapp || null, low_rating_threshold: draft.low_rating_threshold, auto_open_google: draft.auto_open_google, google_delay_ms: draft.google_delay_ms }).eq("id", draft.id);
+          const { error: updateError } = await supabase.from("opinion_config").update({ headline: draft.headline, subheadline: draft.subheadline, feedback_email: draft.feedback_email || null, feedback_whatsapp: draft.feedback_whatsapp || null, low_rating_threshold: draft.low_rating_threshold, auto_open_google: draft.auto_open_google, google_delay_ms: draft.google_delay_ms }).eq("id", draft.id).eq("restaurante_id", restaurant.id);
           if (updateError) setError("No se pudieron guardar los ajustes."); else setConfig(draft);
           setSaving(false);
         }} />}

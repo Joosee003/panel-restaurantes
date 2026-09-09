@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
+import { setActiveRestaurant } from "../(app)/lib/activeRestaurant";
 import {
   DEMO_MODE_KEY,
   DEMO_STORAGE_KEY,
@@ -10,8 +11,9 @@ import {
 } from "../(app)/lib/supabaseClient";
 
 function clearPanelSessionStorage() {
-  window.localStorage.removeItem("gastrohelp_restaurante_activo");
+  setActiveRestaurant(null);
   window.localStorage.removeItem("gastrohelp_opinion_restaurante_activo");
+  window.sessionStorage.removeItem("gastrohelp_opinion_restaurante_activo");
   window.localStorage.removeItem(DEMO_STORAGE_KEY);
   window.sessionStorage.removeItem(DEMO_MODE_KEY);
 

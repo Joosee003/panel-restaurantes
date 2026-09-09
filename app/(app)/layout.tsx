@@ -9,6 +9,7 @@ import RequireLandscape from "./components/RequireLandscape";
 import AuthGuard from "./components/AuthGuard";
 import DemoModeGuard from "./components/DemoModeGuard";
 import ModuleRouteGuard from "./components/ModuleRouteGuard";
+import RestaurantScope from "./components/RestaurantScope";
 
 const pageNames: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -36,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }, [pathname]);
 
   return (
-    <AuthGuard>
+    <RestaurantScope><AuthGuard>
       <ThemeProvider>
         {isLogin ? (
           <>{children}</>
@@ -85,6 +86,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </RequireLandscape>
         )}
       </ThemeProvider>
-    </AuthGuard>
+    </AuthGuard></RestaurantScope>
   );
 }

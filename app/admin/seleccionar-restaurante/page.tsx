@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../../(app)/lib/supabaseClient";
 
-const STORAGE_KEY = "gastrohelp_restaurante_activo";
+import { setActiveRestaurant } from "../../(app)/lib/activeRestaurant";
 
 type Restaurant = {
   id: string;
@@ -49,7 +49,7 @@ export default function SelectRestaurantPage() {
   }, [query, restaurants]);
 
   function enterRestaurant(restaurantId: string) {
-    window.localStorage.setItem(STORAGE_KEY, restaurantId);
+    setActiveRestaurant(restaurantId);
     router.push("/dashboard");
     router.refresh();
   }

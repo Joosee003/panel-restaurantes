@@ -20,6 +20,8 @@ import {
   XCircle,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
+import { useRestaurante } from "../../../hooks/useRestaurante";
+import { getPedidosByRestaurante } from "../../../services/pedidos.service";
 
 type PedidoItem = {
   id: string;
@@ -176,6 +178,8 @@ function crearResumenItems(items: PedidoItem[]) {
 }
 
 export default function PedidosQRPage() {
+  const { data: restauranteActual, isLoading: loadingRestaurante, error: restaurantError } = useRestaurante();
+  const restauranteId = restauranteActual?.id ?? null;
   const [pedidos, setPedidos] = useState<PedidoQR[]>([]);
   const [vista, setVista] = useState<TabVista>("cocina");
   const [cargando, setCargando] = useState(true);
@@ -396,29 +400,19 @@ export default function PedidosQRPage() {
   }
 
   const cargarPedidos = useCallback(async (silencioso = false) => {
+    if (!restauranteId) {
+      if (!loadingRestaurante) {
+        setPedidos([]);
+        setCargando(false);
+        setError(restaurantError ? "No se pudo comprobar el restaurante." : "Selecciona un restaurante para ver sus pedidos.");
+      }
+      return;
+    }
     if (!silencioso) setCargando(true);
     setError(null);
 
     try {
-      const { data, error } = await supabase
-        .from("pedidos_qr")
-        .select(`
-          *,
-          pedido_qr_items (
-            id,
-            pedido_id,
-            producto_id,
-            nombre_producto,
-            precio_unitario,
-            cantidad,
-            notas,
-            created_at
-          )
-        `)
-        .order("created_at", { ascending: false })
-        .limit(120);
-
-      if (error) throw error;
+      const data = await getPedidosByRestaurante(restauranteId);
 
       const pedidosFormateados = ((data || []) as PedidoQRRow[]).map((pedido) => ({
         ...pedido,
@@ -449,9 +443,10 @@ export default function PedidosQRPage() {
     } finally {
       if (!silencioso) setCargando(false);
     }
-  }, [reproducirSonidoNuevoPedido]);
+  }, [reproducirSonidoNuevoPedido, restauranteId, loadingRestaurante, restaurantError]);
 
   async function cambiarEstado(pedidoId: string, nuevoEstado: string) {
+    if (!restauranteId || !pedidos.some((p) => p.id === pedidoId && p.restaurante_id === restauranteId)) return;
     setActualizandoId(pedidoId);
     setError(null);
 
@@ -459,7 +454,8 @@ export default function PedidosQRPage() {
       const { error } = await supabase
         .from("pedidos_qr")
         .update({ estado: nuevoEstado, updated_at: new Date().toISOString() })
-        .eq("id", pedidoId);
+        .eq("id", pedidoId)
+        .eq("restaurante_id", restauranteId);
 
       if (error) throw error;
 
@@ -481,7 +477,7 @@ export default function PedidosQRPage() {
   }
 
   async function cerrarMesa(mesa: MesaAbierta) {
-    if (!mesa.pedidos.length) return;
+    if (!restauranteId || !mesa.pedidos.length || mesa.pedidos.some((p) => p.restaurante_id !== restauranteId)) return;
 
     const { descuento, propina, metodoPago, totalFinal } = calcularMesaFinal(mesa);
 
@@ -492,7 +488,6 @@ export default function PedidosQRPage() {
     if (!confirmar) return;
 
     const ids = mesa.pedidos.map((pedido) => pedido.id);
-    const restauranteId = mesa.pedidos[0]?.restaurante_id;
     setActualizandoId(mesa.mesaKey);
     setError(null);
 

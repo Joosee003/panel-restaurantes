@@ -116,7 +116,7 @@ export default function SelectReputationRestaurantPage() {
   }, [query, restaurants]);
 
   function enterRestaurant(restaurantId: string) {
-    window.localStorage.setItem(STORAGE_KEY, restaurantId);
+    window.sessionStorage.setItem(STORAGE_KEY, restaurantId);
     router.push(`/opiniones-admin?restaurante=${encodeURIComponent(restaurantId)}`);
     router.refresh();
   }

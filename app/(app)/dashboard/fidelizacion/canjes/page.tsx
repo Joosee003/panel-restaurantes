@@ -213,6 +213,7 @@ export default function CanjesPage() {
       const { data: clientesData, error: clientesErr } = await supabase
         .from("clientes")
         .select("id,nombre,telefono")
+        .eq("restaurante_id", rid)
         .in("id", clienteIds);
 
       if (clientesErr) throw clientesErr;

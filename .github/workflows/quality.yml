@@ -31,6 +31,9 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Restaurant and session isolation
+        run: node --test tests/restaurant-isolation.test.mjs
+
       - name: Review message and transport tests
         run: node --test tests/review-flow.test.mjs tests/n8n-review-contract.test.mjs
 

@@ -756,7 +756,7 @@ export default function SalaPage() {
     const { error } = await supabase
       .from("reservas")
       .update({ estado: "ha venido" })
-      .eq("id", reservaId);
+      .eq("id", reservaId).eq("restaurante_id", restauranteId);
 
     setGuardandoAccion(false);
 
@@ -786,7 +786,7 @@ export default function SalaPage() {
     const { error } = await supabase
       .from("reservas")
       .update({ estado: "no-show", mesa_id: null })
-      .eq("id", reservaId);
+      .eq("id", reservaId).eq("restaurante_id", restauranteId);
 
     setGuardandoAccion(false);
 
@@ -808,7 +808,7 @@ export default function SalaPage() {
     const { error } = await supabase
       .from("sala_mesas")
       .update({ bloqueada })
-      .eq("id", mesa.id);
+      .eq("id", mesa.id).eq("restaurante_id", restauranteId);
 
     setGuardandoAccion(false);
 
