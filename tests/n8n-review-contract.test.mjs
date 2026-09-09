@@ -19,8 +19,27 @@ test('n8n blocks wrong events, missing consent and invalid destinations before W
 });
 test('n8n test mode never reaches WhatsApp, even with active settings',()=>{
  const testInput={headers:{...input.headers,'x-gastrohelp-delivery-mode':'test'},body:{...input.body,deliveryMode:'test',suppressDelivery:true}};
- assert.deepEqual(prepareReviewWebhook(testInput,settings),{ok:true,eventId:id,deliveryMode:'test',outcome:'test',send:false});
+ assert.deepEqual(prepareReviewWebhook(testInput,settings),{ok:true,eventId:id,deliveryMode:'test',outcome:'test',send:false,
+  preview:{firstName:'Cliente',phone:'34600000001',restaurantName:'Restaurante de prueba'}});
  assert.equal(prepareReviewWebhook({...testInput,body:{...testInput.body,suppressDelivery:false}},settings).send,false);
+});
+test('n8n preserves contact-free test handshakes and validates any supplied contact',()=>{
+ const {review,...bodyWithoutReview}=input.body;
+ const testInput={headers:{...input.headers,'x-gastrohelp-delivery-mode':'test'},body:{...bodyWithoutReview,deliveryMode:'test',suppressDelivery:true,whatsappAllowed:false}};
+ assert.deepEqual(prepareReviewWebhook(testInput,{}),{ok:true,eventId:id,deliveryMode:'test',outcome:'test',send:false});
+ for(const invalid of [null,[],{},'contact',{...review,phone:'invalid'},{...review,phone:34600000001},
+  {...review,name:'  '},{...review,restaurantName:''},{...review,token:'invalid'}]) {
+  const reply=prepareReviewWebhook({...testInput,body:{...testInput.body,review:invalid}},settings);
+  assert.equal(reply.send,false);assert.equal(reply.ok,false);assert.equal(reply.outcome,'blocked');
+  assert.equal(reply.error,'review_contact_invalid');assert.equal(reply.preview,undefined);
+ }
+});
+test('n8n returns only normalized preview fields in a personalized test, without sender configuration',()=>{
+ const testInput={headers:{...input.headers,'x-gastrohelp-delivery-mode':'test'},body:{...input.body,deliveryMode:'test',suppressDelivery:true,
+  review:{...input.body.review,name:'  Cliente\n Prueba ',restaurantName:' Restaurante\n de prueba '}}};
+ const reply=prepareReviewWebhook(testInput,{enabled:false,templateApproved:false,phoneNumberId:'private-sender',templateName:'private-template'});
+ assert.deepEqual(reply,{ok:true,eventId:id,deliveryMode:'test',outcome:'test',send:false,
+  preview:{firstName:'Cliente',phone:'34600000001',restaurantName:'Restaurante de prueba'}});
 });
 test('n8n returns provider acceptance only for a genuine message identifier and accepted status',()=>{
  const request={eventId:id};

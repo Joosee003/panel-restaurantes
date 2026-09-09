@@ -61,6 +61,77 @@ test('Test delivery does not contact n8n or claim a real send',async()=>{
  assert.equal(state.calls[1].args.p_message_id,null);
  assert.equal((await delivery.sendReviewTemplate(event,{...allowed,deliveryMode:'test'},env,forbidden)).outcome,'blocked');
 });
+test('An explicitly enabled HTTP test validates personalized data through n8n without contacting WhatsApp',async()=>{
+ const state=mockRpc({...allowed,deliveryMode:'test',name:'  Cliente   Prueba\n',restaurantName:' Restaurante\n de prueba '});
+ const testEnv={...env,WHATSAPP_REVIEW_RESTAURANT_IDS:'',N8N_REVIEW_TEST_RESTAURANT_IDS:` other, ${event.restaurante_id} `};
+ let webhookCalls=0;let providerCalls=0;
+ const transport=async(url,options)=>{
+  webhookCalls++;assert.equal(url,env.N8N_REVIEW_WEBHOOK_URL);
+  const body=JSON.parse(options.body);
+  assert.deepEqual(body,{
+   event:'visit.review_request',automationEventId:event.event_id,restaurantId:event.restaurante_id,
+   deliveryMode:'test',suppressDelivery:true,whatsappAllowed:false,
+   review:{token,name:'Cliente',phone:'34600000001',restaurantName:'Restaurante de prueba'},
+  });
+  assert.equal(options.headers['X-GastroHelp-Delivery-Mode'],'test');
+  assert.equal(options.headers['X-GastroHelp-Webhook-Secret'],env.N8N_REVIEW_WEBHOOK_SECRET);
+  assert.equal(options.redirect,'error');assert.equal(options.cache,'no-store');assert.ok(options.signal instanceof AbortSignal);
+  const reply=prepareReviewWebhook({body,headers:Object.fromEntries(new Headers(options.headers))},{enabled:true,templateApproved:true,restaurantIds:[event.restaurante_id]});
+  if(reply.send)providerCalls++;
+  assert.deepEqual(reply,{ok:true,eventId:event.event_id,deliveryMode:'test',outcome:'test',send:false,
+   preview:{firstName:'Cliente',phone:'34600000001',restaurantName:'Restaurante de prueba'}});
+  return Response.json(reply);
+ };
+ assert.equal((await delivery.deliverVisitReview(event,state.rpc,testEnv,transport)).status,'test');
+ assert.equal(webhookCalls,1);assert.equal(providerCalls,0);
+ assert.equal(state.calls[1].args.p_outcome,'test');assert.equal(state.calls[1].args.p_message_id,null);
+});
+test('HTTP test activation is independent of live sends and requires safe connection settings',async()=>{
+ for(const testEnv of [env,{...env,N8N_REVIEW_TEST_RESTAURANT_IDS:'other'},{...env,N8N_REVIEW_TEST_RESTAURANT_IDS:'*'}]) {
+  const state=mockRpc({...allowed,deliveryMode:'test'});
+  assert.equal((await delivery.deliverVisitReview(event,state.rpc,testEnv,forbidden)).status,'test');
+ }
+ for(const change of [{N8N_REVIEW_WEBHOOK_SECRET:''},{N8N_REVIEW_WEBHOOK_SECRET:'bad\r\nheader'},
+  {N8N_REVIEW_WEBHOOK_URL:'https://n8n.gastrohelp.es.evil.invalid/webhook/test'},
+  {N8N_REVIEW_WEBHOOK_URL:'https://n8n.gastrohelp.es/webhook-test/review'}]) {
+  const state=mockRpc({...allowed,deliveryMode:'test'});
+  const testEnv={...env,N8N_REVIEW_TEST_RESTAURANT_IDS:event.restaurante_id,...change};
+  assert.equal((await delivery.deliverVisitReview(event,state.rpc,testEnv,forbidden)).status,'blocked');
+  assert.equal(state.calls[1].args.p_error,'n8n_review_test_not_configured');
+ }
+ const liveState=mockRpc(allowed);
+ assert.equal((await delivery.deliverVisitReview(event,liveState.rpc,
+  {...env,WHATSAPP_REVIEW_RESTAURANT_IDS:'',N8N_REVIEW_TEST_RESTAURANT_IDS:event.restaurante_id},forbidden)).status,'blocked');
+});
+test('HTTP test receipts cannot claim a message send or accept unverified personalization',async()=>{
+ const testEnv={...env,N8N_REVIEW_TEST_RESTAURANT_IDS:event.restaurante_id};
+ const ack={ok:true,eventId:event.event_id,deliveryMode:'test',outcome:'test',send:false,
+  preview:{firstName:'Cliente',phone:'34600000001',restaurantName:allowed.restaurantName}};
+ for(const response of [
+  {...ack,eventId:'another'},accepted,{...ack,deliveryMode:'live'},{...ack,outcome:'sent'},
+  {...ack,send:true},{...ack,send:undefined},{...ack,messageId:'wamid.fixture'},
+  {...ack,provider:'whatsapp'},{...ack,preview:undefined},
+  {...ack,preview:{...ack.preview,phone:'34600000002'}},
+  {...ack,preview:{...ack.preview,firstName:'Wrong'}},
+  {...ack,preview:{...ack.preview,restaurantName:'Another restaurant'}},
+ ]) {
+  const state=mockRpc({...allowed,deliveryMode:'test'});let calls=0;
+  const result=await delivery.deliverVisitReview(event,state.rpc,testEnv,async()=>{calls++;return Response.json(response);});
+  assert.equal(result.status,'uncertain',JSON.stringify(response));assert.equal(calls,1);
+  assert.equal(state.calls[1].args.p_outcome,'uncertain');assert.equal(state.calls[1].args.p_message_id,null);
+ }
+ for(const status of [401,500]) {
+  const state=mockRpc({...allowed,deliveryMode:'test'});
+  assert.equal((await delivery.deliverVisitReview(event,state.rpc,testEnv,async()=>Response.json(ack,{status}))).status,'uncertain');
+ }
+});
+test('A confirmed review or lost lock blocks the HTTP test before contact data leaves the panel',async()=>{
+ for(const reason of ['review_already_handled','review_consent_missing','delivery_lock_lost']) {
+  const state=mockRpc({allowed:false,reason});
+  const result=await delivery.deliverVisitReview(event,state.rpc,{...env,N8N_REVIEW_TEST_RESTAURANT_IDS:event.restaurante_id},forbidden);
+  assert.equal(result.status,reason==='delivery_lock_lost'?'skipped':'blocked');
+ }
+});
 test('A current SQL recheck can cancel delivery before any external call',async()=>{
  const state=mockRpc({allowed:false,reason:'review_consent_missing'});
  assert.equal((await delivery.deliverVisitReview(event,state.rpc,env,forbidden)).status,'blocked');
