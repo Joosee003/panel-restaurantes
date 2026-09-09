@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
+import { setActiveRestaurant } from "../lib/activeRestaurant";
 import {
   defaultRestaurantModules,
   parseRestaurantModules,
@@ -202,7 +203,7 @@ export default function Sidebar({
     ) : null;
 
   const cerrarSesion = async () => {
-    window.localStorage.removeItem("gastrohelp_restaurante_activo");
+    setActiveRestaurant(null);
     await supabase.auth.signOut({ scope: "local" });
     router.replace("/login");
     router.refresh();

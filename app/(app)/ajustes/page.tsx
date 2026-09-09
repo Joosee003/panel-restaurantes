@@ -408,7 +408,7 @@ export default function AjustesPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from("sala_zonas").update(payload).eq("id", zonaId);
+    const { error } = await supabase.from("sala_zonas").update(payload).eq("id", zonaId).eq("restaurante_id", restauranteId);
 
     if (error) {
       console.log("Error actualizando zona:", error);
@@ -431,7 +431,7 @@ export default function AjustesPage() {
     const ok = window.confirm("¿Seguro que quieres borrar esta zona?");
     if (!ok) return;
 
-    const { error } = await supabase.from("sala_zonas").delete().eq("id", zonaId);
+    const { error } = await supabase.from("sala_zonas").delete().eq("id", zonaId).eq("restaurante_id", restauranteId);
 
     if (error) {
       console.log("Error borrando zona:", error);
@@ -507,7 +507,7 @@ export default function AjustesPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase.from("sala_mesas").update(payload).eq("id", mesaId);
+    const { error } = await supabase.from("sala_mesas").update(payload).eq("id", mesaId).eq("restaurante_id", restauranteId);
 
     if (error) {
       console.log("Error actualizando mesa:", error);
@@ -523,7 +523,7 @@ export default function AjustesPage() {
     const ok = window.confirm("¿Seguro que quieres borrar esta mesa? Si tiene reservas antiguas, mejor desactívala.");
     if (!ok) return;
 
-    const { error } = await supabase.from("sala_mesas").delete().eq("id", mesaId);
+    const { error } = await supabase.from("sala_mesas").delete().eq("id", mesaId).eq("restaurante_id", restauranteId);
 
     if (error) {
       console.log("Error borrando mesa:", error);

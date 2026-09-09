@@ -62,11 +62,13 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
       if (!mounted) return;
 
       if (event === "SIGNED_OUT" || !session) {
+        setAllowed(false);
         router.replace(`/login?next=${encodeURIComponent(pathname)}`);
         return;
       }
 
       if (event === "SIGNED_IN" || event === "USER_UPDATED") {
+        setAllowed(false);
         window.setTimeout(runCheck, 0);
       }
     });

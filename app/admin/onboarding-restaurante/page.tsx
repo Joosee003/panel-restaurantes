@@ -1,5 +1,6 @@
 "use client";
 
+import { getActiveRestaurant, setActiveRestaurant } from "../../(app)/lib/activeRestaurant";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -110,7 +111,6 @@ type Paso = {
   accion?: ReactNode;
 };
 
-const STORAGE_KEY = "gastrohelp_restaurante_activo";
 
 const categoriasBase = [
   {
@@ -289,7 +289,7 @@ export default function OnboardingRestaurantePage() {
 
     setRestaurantes(lista);
 
-    const guardado = typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
+    const guardado = getActiveRestaurant();
     const inicial = lista.find((r) => r.id === guardado)?.id || lista[0]?.id || "";
     setRestauranteId(inicial);
 
@@ -352,8 +352,7 @@ export default function OnboardingRestaurantePage() {
   function seleccionarRestaurante(id: string) {
     setRestauranteId(id);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, id);
-      window.dispatchEvent(new Event("storage"));
+      setActiveRestaurant(id);
     }
   }
 

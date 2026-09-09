@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { calcularOcupacion, type TramoOcupacion } from "../lib/ocupacion";
-import { supabase } from "../lib/supabaseClient";
+import { useRestaurante } from "../../hooks/useRestaurante";
 
 export default function OcupacionPage() {
-  const [restauranteId, setRestauranteId] = useState<string | null>(null);
+  const { data: restaurante } = useRestaurante();
+  const restauranteId = restaurante?.id ?? null;
 
   // valores calculados
   const [totalDia, setTotalDia] = useState(0);
@@ -15,22 +16,6 @@ export default function OcupacionPage() {
   // detalle por tramos
   const [tramosComida, setTramosComida] = useState<TramoOcupacion[]>([]);
   const [tramosCena, setTramosCena] = useState<TramoOcupacion[]>([]);
-
-  /* ===== OBTENER RESTAURANTE ===== */
-  useEffect(() => {
-    const cargarRestaurante = async () => {
-      const { data, error } = await supabase
-        .from("restaurantes")
-        .select("id")
-        .limit(1)
-        .single();
-
-      if (error || !data) return;
-      setRestauranteId(data.id);
-    };
-
-    cargarRestaurante();
-  }, []);
 
   /* ===== OCUPACIÓN (UNA SOLA FUENTE DE VERDAD) ===== */
   useEffect(() => {

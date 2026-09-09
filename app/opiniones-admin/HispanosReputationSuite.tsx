@@ -17,6 +17,7 @@ import {
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { HISPANOS_BRAND } from "@/lib/opiniones/hispanos-brand";
+import { selectOpinionRestaurant } from "@/lib/opiniones/restaurantSelection";
 import { getOpinionesBrowserClient } from "@/lib/opiniones/supabase";
 import ReputationElite from "./ReputationElite";
 
@@ -30,6 +31,20 @@ type SuiteBrand = {
 };
 
 export default function HispanosReputationSuite() {
+  const client = useMemo(() => getOpinionesBrowserClient(), []);
+  const [userId, setUserId] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user.id ?? null);
+      if (!session) window.location.replace("/reputacion/acceso");
+    });
+    return () => subscription.unsubscribe();
+  }, [client]);
+  if (!userId) return <div className="p-8 text-center" role="status">Comprobando acceso…</div>;
+  return <ReputationSuiteContent key={userId} />;
+}
+
+function ReputationSuiteContent() {
   const supabase = useMemo(() => getOpinionesBrowserClient(), []);
   const [brand, setBrand] = useState<SuiteBrand | null>(null);
   const [canSwitch, setCanSwitch] = useState(false);
@@ -64,19 +79,19 @@ export default function HispanosReputationSuite() {
       }
 
       const requestedRestaurant = new URLSearchParams(window.location.search).get("restaurante");
-      const storedRestaurant = window.localStorage.getItem(REPUTATION_RESTAURANT_KEY);
-      const selectedRestaurant = requestedRestaurant || storedRestaurant;
-      const selectedConfig = selectedRestaurant
-        ? configs.find((item) => item.restaurante_id === selectedRestaurant)
-          ?? (configs.length === 1 ? configs[0] : null)
-        : configs.length === 1
-          ? configs[0]
-          : null;
+      const storedRestaurant = window.sessionStorage.getItem(REPUTATION_RESTAURANT_KEY);
+      const selectedConfig = selectOpinionRestaurant(configs, requestedRestaurant, storedRestaurant);
 
       if (!selectedConfig) {
+        if (requestedRestaurant) {
+          setError("No tienes acceso al restaurante solicitado.");
+          return;
+        }
         window.location.replace("/reputacion/seleccionar");
         return;
       }
+
+      window.sessionStorage.setItem(REPUTATION_RESTAURANT_KEY, selectedConfig.restaurante_id);
 
       const { data: restaurant, error: restaurantError } = await supabase
         .from("restaurantes")

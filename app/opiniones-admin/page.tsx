@@ -8,6 +8,9 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-export default function OpinionesAdminPage() {
-  return <HispanosReputationSuite />;
+export default async function OpinionesAdminPage({ searchParams }: {
+  searchParams: Promise<{ restaurante?: string }>;
+}) {
+  const { restaurante } = await searchParams;
+  return <HispanosReputationSuite key={restaurante || "assigned"} />;
 }

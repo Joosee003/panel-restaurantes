@@ -367,14 +367,15 @@ export default function ClienteFichaPage() {
   const cumple = cliente ? diasHastaCumple(cliente.fecha_nacimiento) : null;
 
   async function guardarFicha() {
-    if (!cliente) return;
+    if (!cliente || !restauranteId || cliente.restaurante_id !== restauranteId) return;
     setGuardando(true);
 
     const limpias = etiquetas.map((t) => t.trim()).filter(Boolean);
     const { error } = await supabase
       .from("clientes")
       .update({ notas_internas: notas || null, etiquetas: limpias })
-      .eq("id", cliente.id);
+      .eq("id", cliente.id)
+      .eq("restaurante_id", restauranteId);
 
     if (error) alert(error.message || "No se pudo guardar");
     else setCliente({ ...cliente, notas_internas: notas || null, etiquetas: limpias });

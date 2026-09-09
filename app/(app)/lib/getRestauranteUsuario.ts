@@ -1,16 +1,18 @@
 import { supabase } from "./supabaseClient";
-
-const STORAGE_KEY = "gastrohelp_restaurante_activo";
+import { getActiveRestaurant, setActiveRestaurant } from "./activeRestaurant";
 
 export async function getRestauranteUsuario(): Promise<string | null> {
+  const seleccionado = getActiveRestaurant();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) return null;
+  if (!user || getActiveRestaurant() !== seleccionado) return null;
 
-  const seleccionado =
-    typeof window !== "undefined" ? window.localStorage.getItem(STORAGE_KEY) : null;
+  const stillCurrent = async () => {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user.id === user.id && getActiveRestaurant() === seleccionado;
+  };
 
   if (seleccionado) {
     const { data: puedeAcceder, error: accesoError } = await supabase.rpc(
@@ -18,13 +20,15 @@ export async function getRestauranteUsuario(): Promise<string | null> {
       { p_restaurante_id: seleccionado },
     );
 
-    if (!accesoError && puedeAcceder === true) {
+    // Never let a delayed check put the previous restaurant back on screen.
+    if (!(await stillCurrent())) return null;
+    if (accesoError) throw accesoError;
+    if (puedeAcceder === true) {
       return seleccionado;
     }
 
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(STORAGE_KEY);
-    }
+    setActiveRestaurant(null);
+    return null;
   }
 
   const { data, error } = await supabase
@@ -37,9 +41,8 @@ export async function getRestauranteUsuario(): Promise<string | null> {
 
   if (error || !data?.restaurante_id) return null;
 
-  if (typeof window !== "undefined") {
-    window.localStorage.setItem(STORAGE_KEY, data.restaurante_id);
-  }
+  if (!(await stillCurrent())) return null;
+  setActiveRestaurant(data.restaurante_id);
 
   return data.restaurante_id;
 }

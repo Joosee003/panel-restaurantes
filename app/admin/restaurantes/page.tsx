@@ -1,5 +1,6 @@
 "use client";
 
+import { setActiveRestaurant } from "../../(app)/lib/activeRestaurant";
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import {
@@ -191,7 +192,6 @@ type CheckItem = {
   critical?: boolean;
 };
 
-const STORAGE_KEY = "gastrohelp_restaurante_activo";
 
 const modulos = [
   { key: "reservas", label: "Reservas", icon: CalendarDays },
@@ -1046,7 +1046,7 @@ export default function AdminRestaurantesPage() {
   }
 
   function usarEnPanel(restauranteId: string) {
-    localStorage.setItem(STORAGE_KEY, restauranteId);
+    setActiveRestaurant(restauranteId);
     setCopiado("Restaurante activo seleccionado");
     setTimeout(() => setCopiado(null), 1600);
   }

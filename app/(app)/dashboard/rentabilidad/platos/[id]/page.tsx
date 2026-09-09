@@ -17,6 +17,7 @@ import {
   PencilLine,
   TriangleAlert,
 } from "lucide-react";
+import { useRestaurante } from "../../../../../hooks/useRestaurante";
 import { supabase } from "../../../../lib/supabaseClient";
 
 type Plato = {
@@ -155,6 +156,8 @@ export default function PlatoDetallePage() {
   const [relaciones, setRelaciones] = useState<PlatoIngrediente[]>([]);
   const [rentabilidad, setRentabilidad] = useState<RentabilidadRow | null>(null);
 
+  const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
+  const restauranteId = restauranteActual?.id ?? null;
   const [loading, setLoading] = useState(true);
   const [savingPlato, setSavingPlato] = useState(false);
   const [savingRelacion, setSavingRelacion] = useState(false);
@@ -189,7 +192,10 @@ export default function PlatoDetallePage() {
   };
 
   const cargarDatos = useCallback(async () => {
-    if (!platoId) return;
+    if (!platoId || !restauranteId) {
+      if (!loadingRestaurante) { setLoading(false); setError("No se pudo comprobar el restaurante."); }
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -198,6 +204,7 @@ export default function PlatoDetallePage() {
       .from("platos")
       .select("*")
       .eq("id", platoId)
+      .eq("restaurante_id", restauranteId)
       .single();
 
     if (platoRes.error || !platoRes.data) {
@@ -268,7 +275,7 @@ export default function PlatoDetallePage() {
     }
 
     setLoading(false);
-  }, [platoId]);
+  }, [platoId, restauranteId, loadingRestaurante]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void cargarDatos(), 0);
@@ -315,7 +322,7 @@ export default function PlatoDetallePage() {
   }, [nuevoIngrediente]);
 
   const guardarPlato = async () => {
-    if (!plato) return;
+    if (!plato || plato.restaurante_id !== restauranteId) return;
 
     clearMessages();
 
@@ -354,7 +361,7 @@ export default function PlatoDetallePage() {
   };
 
   const agregarIngrediente = async () => {
-    if (!plato) return;
+    if (!plato || plato.restaurante_id !== restauranteId) return;
 
     clearMessages();
 
@@ -392,6 +399,7 @@ export default function PlatoDetallePage() {
   };
 
   const guardarCantidadRelacion = async (relacionId: string) => {
+    if (!plato || plato.restaurante_id !== restauranteId) return;
     clearMessages();
 
     const valor = toNumber(cantidadesEditables[relacionId]);
@@ -420,6 +428,7 @@ export default function PlatoDetallePage() {
   };
 
   const borrarRelacion = async (id: string) => {
+    if (!plato || plato.restaurante_id !== restauranteId) return;
     const ok = window.confirm("¿Seguro que quieres quitar este ingrediente del plato?");
     if (!ok) return;
 
@@ -441,7 +450,7 @@ export default function PlatoDetallePage() {
   };
 
   const crearIngredienteRapido = async () => {
-    if (!plato) return;
+    if (!plato || plato.restaurante_id !== restauranteId) return;
 
     clearMessages();
 
@@ -519,7 +528,7 @@ export default function PlatoDetallePage() {
   };
 
   const borrarPlato = async () => {
-    if (!plato) return;
+    if (!plato || plato.restaurante_id !== restauranteId) return;
 
     const ok = window.confirm("¿Seguro que quieres borrar este plato?");
     if (!ok) return;
