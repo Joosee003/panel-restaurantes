@@ -1,6 +1,6 @@
 # Solicitudes de reseña después de una visita
 
-Cambio solicitado por Jose el 8 de septiembre de 2026 y publicado con su autorización en la [PR 40](https://github.com/Joosee003/panel-restaurantes/pull/40), rama `codex/post-visit-reviews`. No se ha aplicado el SQL a producción ni se han enviado mensajes reales.
+Cambio solicitado por Jose el 8 de septiembre de 2026 y publicado con su autorización en la [PR 40](https://github.com/Joosee003/panel-restaurantes/pull/40), rama `codex/post-visit-reviews`. El SQL se aplicó a producción el 9 de septiembre (versión remota 20260909075421) y la PR 40 se fusionó en main 45d24735. No se han enviado mensajes reales.
 
 ## Funcionamiento
 
@@ -20,7 +20,7 @@ La solicitud pide una opinión honesta, sin seleccionar clientes según la valor
 
 Se usa la cola existente `reservation_webhook_deliveries`, con el identificador estable `visit.review_request:<reserva>`. Al cumplirse el plazo, el despachador comprueba de nuevo asistencia, permiso y confirmación, y manda el evento al flujo de n8n «Reseñas · Ha venido → WhatsApp». n8n envía la plantilla mediante su nodo WhatsApp Business Cloud y devuelve el identificador aceptado por WhatsApp. El servidor guarda el resultado en el panel. Las notificaciones de reservas y fidelización conservan su transporte actual.
 
-El flujo está [guardado en n8n](https://n8n.gastrohelp.es/workflow/gJEAvv5L445d69FS), inactivo y con la activación interna deshabilitada. Su código se genera con `node scripts/build-review-n8n.mjs`. Las funciones de validación y acuse de `lib/reviews/n8n-review-contract.mjs` se incluyen en los nodos y se prueban junto al transporte. La ejecución manual 69568 superó el modo de prueba y no ejecutó el nodo de envío.
+El flujo está [guardado en n8n](https://n8n.gastrohelp.es/workflow/gJEAvv5L445d69FS), publicado por Jose y con la activación interna de envíos reales deshabilitada. Su código se genera con `node scripts/build-review-n8n.mjs`. Las funciones de validación y acuse de `lib/reviews/n8n-review-contract.mjs` se incluyen en los nodos y se prueban junto al transporte. La ejecución manual 69568 superó el modo de prueba y no ejecutó el nodo de envío.
 
 El envío exige:
 
@@ -32,7 +32,8 @@ El envío exige:
 | --- | --- |
 | `N8N_REVIEW_WEBHOOK_URL` | Webhook de producción del flujo de reseñas: `https://n8n.gastrohelp.es/webhook/gastrohelp-review-after-visit` |
 | `N8N_REVIEW_WEBHOOK_SECRET` | Valor de la credencial Header Auth de ese flujo, cabecera `X-GastroHelp-Webhook-Secret` |
-| `WHATSAPP_REVIEW_RESTAURANT_IDS` | UUID de restaurantes autorizados, separados por comas; vacío impide envíos |
+| `WHATSAPP_REVIEW_RESTAURANT_IDS` | UUID de restaurantes autorizados para WhatsApp real, separados por comas; vacío impide envíos |
+| `N8N_REVIEW_TEST_RESTAURANT_IDS` | UUID de restaurantes autorizados para probar HTTP con n8n sin WhatsApp; vacío mantiene la prueba local |
 
 Estas variables no llevan prefijo `NEXT_PUBLIC_`. El token de Meta queda en la credencial WhatsApp de n8n. En «Validar visita y activación» se configuran el emisor, nombre e idioma de la plantilla aprobada y restaurantes autorizados; `enabled` y `templateApproved` permanecen en falso hasta la validación. El conector asignó credenciales existentes de Header Auth y WhatsApp; no se han leído ni copiado sus valores. La pantalla comprueba la configuración sin exponer credenciales. La configuración por sí sola no acredita un envío real.
 
@@ -42,7 +43,7 @@ La plantilla necesita dos parámetros de cuerpo (primer nombre y restaurante) y 
 
 Botón: «Compartir mi opinión». Consultar los [componentes de plantillas de Meta](https://developers.facebook.com/documentation/business-messaging/whatsapp/templates/components/) y la [API de mensajes](https://developers.facebook.com/documentation/business-messaging/whatsapp/reference/whatsapp-business-phone-number/message-api).
 
-Solo un acuse de n8n con el mismo evento, modo `live`, proveedor `whatsapp`, resultado `sent` e identificador `wamid` registra aceptación. Un HTTP 200 genérico no cuenta como envío. No se afirma entrega al teléfono ni lectura. El modo de prueba del servidor no llama a n8n; el modo de prueba interno de n8n no llega al nodo WhatsApp. Un timeout, error de servidor o respuesta sin identificador queda pendiente de revisión por GastroHelp; no se reintenta automáticamente. El nodo WhatsApp tampoco tiene reintentos activados. Si falla el guardado de la aceptación, el token de envío impide repetir el mensaje. Un mensaje ya en tránsito no puede retirarse al confirmar una reseña o una baja.
+Solo un acuse de n8n con el mismo evento, modo `live`, proveedor `whatsapp`, resultado `sent` e identificador `wamid` registra aceptación. Un HTTP 200 genérico no cuenta como envío. No se afirma entrega al teléfono ni lectura. Por defecto el modo de prueba del servidor no llama a n8n. Con N8N_REVIEW_TEST_RESTAURANT_IDS, URL y secreto configurados, envía un POST test con suppressDelivery=true y whatsappAllowed=false; exige un acuse test correlacionado y la vista previa del mismo nombre, teléfono y restaurante. Nunca registra ese acuse como envío real. El modo de prueba de n8n no llega al nodo WhatsApp. La conexión se documenta en PRUEBA-WEBHOOK-RESENAS.md. Un timeout, error de servidor o respuesta sin identificador queda pendiente de revisión por GastroHelp; no se reintenta automáticamente. El nodo WhatsApp tampoco tiene reintentos activados. Si falla el guardado de la aceptación, el token de envío impide repetir el mensaje. Un mensaje ya en tránsito no puede retirarse al confirmar una reseña o una baja.
 
 ## Aplicación y reversión
 
@@ -81,7 +82,7 @@ Jose precisó que quería recuperar «Ha venido» como señal para la automatiza
 
 La revisión del historial confirmó el antiguo POST del panel a `/webhook/resena-email`. La implementación activa lo había sustituido por trigger de asistencia, cola y «Reservas nativas · Avisos», que actualmente prepara correos. No se reactiva esa entrada antigua. El nuevo flujo de reseñas usa autenticación, plantilla WhatsApp y acuse verificable, conservando el envío desde la asistencia.
 
-El programador existente de Supabase `gastrohelp-automation-dispatch` está activo cada minuto. Se comprobó mediante lectura que llama a `trigger_automation_panel_dispatch`, que apunta a `/api/automations/dispatch` y usa un nonce; sus cinco últimas ejecuciones figuraban como correctas. No se ha cambiado este programador. La integración nueva continúa pendiente de migración, despliegue y configuración de WhatsApp real.
+El programador existente de Supabase `gastrohelp-automation-dispatch` está activo cada minuto. Se comprobó mediante lectura que llama a `trigger_automation_panel_dispatch`, que apunta a `/api/automations/dispatch` y usa un nonce; sus cinco últimas ejecuciones figuraban como correctas. No se ha cambiado este programador. La migración y el despliegue se completaron el 9 de septiembre. Continúan pendientes la conexión del webhook por variables de Vercel y la configuración de WhatsApp real.
 
 ## Vista preparada para Jose
 
@@ -93,4 +94,4 @@ Al abrir se crea una reserva ficticia, se marca «Ha venido» usando el mismo RP
 2. En «Opciones de esta prueba», simular otra visita: si sigue sin confirmar se enviará otra petición; si está confirmada, no se enviará.
 3. Las opciones plegadas también permiten comprobar duplicados, simular una baja o reiniciar. Cada pestaña mantiene su propia prueba y recargar comienza de nuevo.
 
-La revisión visual y las pruebas locales no sustituyen la comprobación con Supabase Auth/PostgREST ni la recepción real en WhatsApp. Están preparados el transporte hacia n8n, el flujo inactivo, la migración y `docs/whatsapp-review-template.json`. La plantilla es una propuesta, no una aprobación de Meta. Falta completar la activación y comprobar la recepción con un destino autorizado.
+La revisión visual y las pruebas locales no sustituyen la comprobación con Supabase Auth/PostgREST ni la recepción real en WhatsApp. Están publicados el transporte, el flujo de n8n y la migración; la configuración de envíos reales sigue deshabilitada. La propuesta está en `docs/whatsapp-review-template.json`. La plantilla es una propuesta, no una aprobación de Meta. Falta completar la activación y comprobar la recepción con un destino autorizado.
