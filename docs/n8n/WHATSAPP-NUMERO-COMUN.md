@@ -37,3 +37,13 @@ La selección está guardada por número emisor y teléfono de cliente. El motor
 Generador del motor común: `node scripts/build-shared-chatbot-n8n.mjs`. La credencial Header Auth debe ser la existente **GastroHelp Chatbot Webhook**. El generador de reseñas conserva **GastroHelp · Entrada de reseñas**, una credencial distinta. No copiar ni rotar sus valores al configurar este recorrido.
 
 Las tablas no almacenan texto ni copias de respuestas: solo estado e identificadores de mensajes. La limpieza existente del chatbot elimina deduplicación a los siete días y selecciones caducadas hace más de un día. El motor solo admite mensajes con antigüedad máxima de un día.
+
+## Comprobación publicada del 9 de septiembre
+
+- PR 44 fusionada; producción `0d29707e125c45ef3f45f61bea6a8b4b7cd59e4f`, despliegue `dpl_ES4GrvF76zMju7kvnLJetfKMYXnW` READY. CI 34376434142 correcto.
+- Ejecución 69578: el motor común consulta la API publicada para La Reserva y DEMOOOO con el mismo teléfono sintético. Devuelve sus dos identificadores y nombres correctos, en modo test y sin modificar reservas.
+- Ejecución 69581: recorrido completo por el router activo; subejecuciones 69582 y 69584. Ambas terminan sin enviar WhatsApp. Las pruebas sintéticas no acreditan recepción en un teléfono.
+- Las dos demos tienen rutas pilot para el teléfono autorizado de Jose. DEMOOOO tiene habilitado el módulo chatbot para esa prueba. No se activó el chatbot para Hispanos Grill ni ningún local real.
+- La entrada Meta conserva las respuestas citadas y ejecuta el router una vez por mensaje, también cuando Meta entrega varios juntos. La validación de firma se conserva.
+- La consulta privada de opiniones exige igualdad del teléfono completo normalizado. Una coincidencia solo en los últimos dígitos no autoriza acceso. Si varios locales coinciden en el texto, se solicita una selección. La ausencia de configuración de reputación no detiene el chatbot.
+- Las 14 pruebas de `shared-whatsapp.test.mjs` incluyen el contrato del router y el acceso por teléfono. Las credenciales de chatbot y reseñas siguen siendo distintas; ambas seleccionadas mediante las conexiones existentes.
