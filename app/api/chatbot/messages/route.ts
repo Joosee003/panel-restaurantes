@@ -21,6 +21,7 @@ type RequestBody = {
   name?: unknown;
   text?: unknown;
   mode?: unknown;
+  startNewConversation?: unknown;
 };
 
 type RestaurantRow = {
@@ -268,8 +269,8 @@ export async function POST(request: NextRequest) {
   try {
     const savedState = begin.state || "";
     const result = await runChatbotTurn({
-      state: isChatbotState(savedState) ? savedState : "idle",
-      draft: begin.draft && typeof begin.draft === "object" ? begin.draft : {},
+      state: body.startNewConversation === true ? "idle" : isChatbotState(savedState) ? savedState : "idle",
+      draft: body.startNewConversation === true ? {} : begin.draft && typeof begin.draft === "object" ? begin.draft : {},
       text,
       phone,
       contactName: begin.contactName || name,

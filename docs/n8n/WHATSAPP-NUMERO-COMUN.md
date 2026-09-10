@@ -19,12 +19,16 @@ Entrada Meta `WjZpYVB99OUxiYzi` → router `wEhIpYsLyJt8wmDf` → motor común `
 
 Cada restaurante tiene su código en `whatsapp_restaurant_routes`. La activación exige también `restaurante_modulos.chatbot` y estado activo. Las rutas pilot solo se muestran a los teléfonos autorizados. No activar un local real sin completar sus datos y comprobar una reserva, cambio y cancelación de ese local.
 
-Ejemplos de entrada al mismo número:
+Los enlaces con texto preparado siguen siendo opcionales:
 
 - La Reserva: `https://wa.me/34643416157?text=RESERVAR%20la-reserva-demo`
 - DEMOOOO: `https://wa.me/34643416157?text=RESERVAR%20restaurante-demo`
 
-Sin código se pregunta el restaurante. `CAMBIAR RESTAURANTE` borra la selección. El contexto caduca tras 30 minutos. Un código desconocido, una respuesta a un mensaje sin contexto identificable o una ruta desactivada no pueden usar el restaurante anterior.
+El cliente puede escribir normalmente. Si falta el local, se pregunta su nombre, sin códigos. Se reconoce el nombre completo dentro de una frase, y la parte anterior a «·» en los nombres de demostración. Los nombres se comparan por palabras completas, sin tildes ni diferencias entre mayúsculas y minúsculas. Si coinciden varios locales o se menciona uno desconocido, se pide concretar; no se elige por aproximación.
+
+«Cambiar de restaurante» abre una nueva selección. El contexto activo caduca tras 30 minutos sin actividad o al cambiar el día en España. Durante los siguientes siete días se puede proponer el último restaurante, pero se exige una respuesta antes de seleccionarlo. Un «sí» solo confirma el local y empieza un proceso nuevo: nunca confirma ni recupera una reserva pendiente anterior. Si rechaza la propuesta, se solicita otro nombre.
+
+Mientras se pregunta el nombre se conserva únicamente la intención (reserva, cambio, cancelación, carta, horario, dirección o atención personal). Las preguntas posteriores recogen los datos de la reserva. Una respuesta citada sin contexto identificable o una ruta desactivada no pueden usar automáticamente el restaurante anterior.
 
 La selección está guardada por número emisor y teléfono de cliente. El motor mantiene estado y reservas por restaurante y teléfono. Cada respuesta empieza con el nombre del local. Los mensajes se deduplican antes de seleccionar restaurante, incluso si el cliente ha cambiado de local; un bloqueo impide cambiarlo durante otro turno. Las tablas y funciones de selección solo son accesibles desde el servidor.
 
@@ -36,7 +40,7 @@ La selección está guardada por número emisor y teléfono de cliente. El motor
 
 Generador del motor común: `node scripts/build-shared-chatbot-n8n.mjs`. La credencial Header Auth debe ser la existente **GastroHelp Chatbot Webhook**. El generador de reseñas conserva **GastroHelp · Entrada de reseñas**, una credencial distinta. No copiar ni rotar sus valores al configurar este recorrido.
 
-Las tablas no almacenan texto ni copias de respuestas: solo estado e identificadores de mensajes. La limpieza existente del chatbot elimina deduplicación a los siete días y selecciones caducadas hace más de un día. El motor solo admite mensajes con antigüedad máxima de un día.
+Las tablas de selección no almacenan el texto del cliente ni copias de respuestas: solo estado, identificadores y una intención de una lista cerrada. La limpieza existente elimina deduplicación a los siete días y contactos caducados hace más de siete días; borra la sugerencia y la intención al caducar el contexto. El motor solo admite mensajes con antigüedad máxima de un día.
 
 ## Comprobación publicada del 9 de septiembre
 
@@ -47,3 +51,12 @@ Las tablas no almacenan texto ni copias de respuestas: solo estado e identificad
 - La entrada Meta conserva las respuestas citadas y ejecuta el router una vez por mensaje, también cuando Meta entrega varios juntos. La validación de firma se conserva.
 - La consulta privada de opiniones exige igualdad del teléfono completo normalizado. Una coincidencia solo en los últimos dígitos no autoriza acceso. Si varios locales coinciden en el texto, se solicita una selección. La ausencia de configuración de reputación no detiene el chatbot.
 - Las 14 pruebas de `shared-whatsapp.test.mjs` incluyen el contrato del router y el acceso por teléfono. Las credenciales de chatbot y reseñas siguen siendo distintas; ambas seleccionadas mediante las conexiones existentes.
+
+
+## Conversación sin códigos — 10 de septiembre
+
+La API común decide el local antes de llamar al motor. `startNewConversation` descarta el borrador antiguo al seleccionar o confirmar un restaurante. El motor procesa la intención desde el estado inicial; los turnos siguientes mantienen el estado del restaurante seleccionado. No cambia la configuración pilot/live ni el emisor.
+
+Migración `20260910160709_natural_whatsapp_restaurant_selection.sql`: añade el recuerdo del último local, la sugerencia pendiente y una intención limitada. La función de cierre nueva conserva la validación y el bloqueo originales; solo `service_role` puede utilizarla. La firma de cierre anterior sigue disponible durante el despliegue.
+
+23 pruebas con la API, SQL local y el motor real cubren mensajes normales, nombre dentro de una frase, selección ambigua, vuelta otro día, confirmación del local, negativa, cambio de local, desactivación, duplicados y aislamiento. Se comprueba que «cancelar la reserva» no se interprete como el restaurante «La Reserva».
