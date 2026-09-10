@@ -65,3 +65,14 @@ Migración `20260910160709_natural_whatsapp_restaurant_selection.sql`: añade el
 Publicación PR 46: producción `1791ecc37116dbdaa7f30f8f9f9cd3275ddfabd1`, CI 34500275132 correcto. Ejecuciones n8n 69649 y 69657: siete turnos cada una por el motor publicado, sin envío de mensajes; entrada normal, nombre del local, personas, cambio entre las dos demos y vuelta con confirmación. Cada sesión conserva el restaurante correcto.
 
 El número común usa el nombre del local registrado en el panel tanto en la selección como en la respuesta. El chatbot propio de la web conserva su nombre público. Esto evita que un demo presente dos nombres distintos en el mismo mensaje.
+
+
+## Saludo y nombre de la demo — corrección del 10 de septiembre
+
+Un saludo pregunta con qué restaurante quiere hablar el cliente y qué necesita. Elegir el local o confirmar el último abre el asistente sin iniciar una reserva. Si el mensaje anterior ya pedía carta, horario o reserva, se conserva esa intención. Un nuevo saludo descarta la intención pendiente anterior.
+
+Los nombres admiten diferencias de mayúsculas, tildes, puntuación y letras repetidas. «demo» identifica DEMOOOO por el nombre completo normalizado; no selecciona La Reserva solo por contener la palabra Demo dentro de su nombre. Si dos locales tienen el mismo nombre tras normalizarlo, se pide aclaración.
+
+El asistente pregunta en qué puede ayudar y atiende carta, horarios, ubicación, reservas y atención personal. Solo inicia el proceso de reserva cuando el cliente lo pide. Volver a saludar deja atrás un borrador incompleto; una conversación transferida al equipo sigue bajo su atención.
+
+Validación: 27 pruebas locales de API, SQL y motor, incluida la secuencia de la captura de Jose, las variantes del nombre, el saludo al volver, carta antes de reservar y nombres coincidentes.
