@@ -59,7 +59,7 @@ const reset=async()=>{await db.exec('truncate whatsapp_inbox_contacts,whatsapp_i
 test('unidentified clients and invalid codes never fall back to a restaurant',async()=>{
  await reset(); let result=await send(payload('hola'));assert.match(result.reply,/Dime su nombre/);assert.doesNotMatch(result.reply,/código|RESERVAR local-a/);assert.equal(engineCalls.length,0);
  await send(payload('RESERVAR local-a'));assert.equal(engineCalls[0].restaurantId,a);
- result=await send(payload('RESERVAR desconocido'));assert.match(result.reply,/En qué restaurante/);
+ result=await send(payload('RESERVAR desconocido'));assert.match(result.reply,/Con qué restaurante/);
  await send(payload('2'));assert.equal(engineCalls.length,1);
 });
 test('same number and customer switch A → B with isolated engine calls, server mode and named replies',async()=>{
@@ -166,7 +166,7 @@ test('owner review access requires the full normalized phone, never just matchin
 
 test('normal reservation messages ask for a restaurant then continue without codes',async()=>{
  await reset();let result=await send(payload('Hola, quiero hacer una reserva'));
- assert.match(result.reply,/En qué restaurante/);assert.doesNotMatch(result.reply,/código|RESERVAR local/);assert.equal(engineCalls.length,0);
+ assert.match(result.reply,/Con qué restaurante/);assert.doesNotMatch(result.reply,/código|RESERVAR local/);assert.equal(engineCalls.length,0);
  result=await send(payload('En Local B, por favor'));
  assert.equal(result.restaurantId,b);assert.equal(engineCalls.at(-1).text,'reservar');assert.equal(engineCalls.at(-1).startNewConversation,true);
  await send(payload('4'));assert.equal(engineCalls.at(-1).restaurantId,b);assert.equal(engineCalls.at(-1).text,'4');assert.equal(engineCalls.at(-1).startNewConversation,false);
@@ -188,7 +188,7 @@ test('returning customers explicitly confirm their last restaurant in a fresh co
  assert.equal(engineCalls.at(-1).text,'reservar');assert.equal(engineCalls.at(-1).startNewConversation,true);
  await db.exec("update whatsapp_inbox_contacts set expires_at=now()-interval '1 minute'");
  result=await send(payload('sí'));assert.equal(result.restaurantId,undefined);assert.equal(engineCalls.length,2);
- result=await send(payload('No'));assert.match(result.reply,/En qué restaurante/);
+ result=await send(payload('No'));assert.match(result.reply,/Con qué restaurante/);
  result=await send(payload('hola'));assert.doesNotMatch(result.reply,/última vez/);assert.equal(engineCalls.length,2);
  await send(payload('Local B'));assert.equal(engineCalls.at(-1).restaurantId,b);
 });
@@ -225,7 +225,7 @@ test('La Reserva short name is recognized without confusing ordinary booking wor
  assert.equal(routing.selectChatbotRestaurant('La Reserva',restaurants,null).restaurant?.id,a);
  assert.equal(routing.selectChatbotRestaurant('Quiero cancelar la reserva',restaurants,null).restaurant,null);
  assert.equal(routing.selectChatbotRestaurant('quiero cambiar la reserva',restaurants,b).restaurant?.id,b);
- assert.equal(routing.selectChatbotRestaurant('DEMOOOOO',restaurants,null).restaurant,null);
+ assert.equal(routing.selectChatbotRestaurant('DEMOOOOO',restaurants,null).restaurant?.id,b);
 });
 
 test('the real booking handler starts fresh after restaurant confirmation and keeps ordinary turns intact',async()=>{
@@ -255,4 +255,52 @@ test('the real booking handler starts fresh after restaurant confirmation and ke
  const direct=await (await invoke('reservar',true,false)).json();assert.match(direct.reply,/Web de prueba/);
  savedState='booking_party';await invoke('4',false);
  saved=calls.filter(c=>c.name==='complete_chatbot_turn').at(-1).args;assert.equal(saved.p_state,'booking_date');assert.equal(saved.p_draft.party,4);
+});
+
+test('greeting and selecting a restaurant do not request a booking',async()=>{
+ await reset();let result=await send(payload('hola buenas'));
+ assert.match(result.reply,/Con qué restaurante/);assert.match(result.reply,/en qué puedo ayudarte/i);
+ assert.doesNotMatch(result.reply,/quieres reservar|cuántas personas/);assert.equal(engineCalls.length,0);
+ result=await send(payload('Local B'));
+ assert.equal(result.restaurantId,b);assert.equal(engineCalls.at(-1).text,'hola');
+ await send(payload('quiero ver la carta'));assert.equal(engineCalls.at(-1).text,'quiero ver la carta');
+ await send(payload('Quiero reservar'));assert.equal(engineCalls.at(-1).text,'Quiero reservar');
+});
+test('returning without a booking request only opens the restaurant assistant',async()=>{
+ await reset();await send(payload('Local A'));
+ await db.exec("update whatsapp_inbox_contacts set expires_at=now()-interval '1 minute'");
+ await send(payload('hola buenas'));await send(payload('sí'));
+ assert.equal(engineCalls.at(-1).text,'hola');assert.equal(engineCalls.at(-1).startNewConversation,true);
+ await reset();await send(payload('quiero reservar'));await send(payload('hola buenas'));await send(payload('Local B'));
+ assert.equal(engineCalls.at(-1).text,'hola');
+});
+test('demo name variations match whole names and ambiguous normalized names demand selection',()=>{
+ const restaurants=[{id:a,name:'La Reserva · Demo GastroHelp',code:'la-reserva-demo',mode:'pilot'},{id:b,name:'DEMOOOO',code:'restaurante-demo',mode:'pilot'}];
+ for(const text of ['demo','Demo','demoo','demooo','DEMOoooo','el demo','restaurante demo','hola, demo']){
+  const result=routing.selectChatbotRestaurant(text,restaurants,null);
+  assert.equal(result.restaurant?.id,b,text);assert.equal(result.engineText,'hola',text);
+ }
+ assert.equal(routing.selectChatbotRestaurant('quiero ver la carta del demo',restaurants,null).engineText,'carta');
+ assert.equal(routing.selectChatbotRestaurant('quiero reservar en demo',restaurants,null).engineText,'reservar');
+ assert.equal(routing.selectChatbotRestaurant('no quiero reservar en demo',restaurants,null).restaurant,null);
+ assert.equal(routing.selectChatbotRestaurant('puedo comer sin gluten en demo',restaurants,null).engineText,'hola');
+ assert.equal(routing.selectChatbotRestaurant('La Reserva · Demo GastroHelp',restaurants,null).restaurant?.id,a);
+ assert.equal(routing.selectChatbotRestaurant('demo',restaurants.slice(0,1),null).restaurant,null);
+ const duplicates=[...restaurants,{id:'72000000-0000-4000-8000-000000000003',name:'DEMO',code:'otro-demo',mode:'live'}];
+ const ambiguous=routing.selectChatbotRestaurant('demo',duplicates,b);
+ assert.equal(ambiguous.restaurant,null);assert.match(ambiguous.reply,/varios restaurantes/);
+});
+test('the real assistant greets, answers a menu request and starts booking only on request',async()=>{
+ const engine=compile('../app/lib/chatbotEngine.ts',{'./bookingDate':compile('../app/lib/bookingDate.ts')});
+ const restaurant={id:a,name:'Local A',timezone:'Europe/Madrid',bookingEnabled:true,minParty:1,maxParty:12,maxAdvanceDays:60,
+  requiresEmail:false,address:'Calle de prueba',mapsUrl:'',menuUrl:'https://panel.invalid/carta/fixture',hoursLunch:'13:00–16:00',hoursDinner:'20:00–23:00'};
+ const input={state:'idle',draft:{},text:'hola buenas',phone:'+447700900124',contactName:'Prueba',mode:'pilot',restaurant,
+  dependencies:new Proxy({}, {get(_target,key){return ()=>{throw new Error('Unexpected operation '+String(key));};}})};
+ let result=await engine.runChatbotTurn(input);assert.equal(result.state,'idle');assert.match(result.reply,/En qué puedo ayudarte/);assert.doesNotMatch(result.reply,/cuántas personas/);
+ result=await engine.runChatbotTurn({...input,text:'Quiero ver la carta'});assert.equal(result.state,'idle');assert.match(result.reply,/https:\/\/panel.invalid\/carta\/fixture/);
+ result=await engine.runChatbotTurn({...input,text:'no quiero reservar'});assert.equal(result.state,'idle');
+ result=await engine.runChatbotTurn({...input,text:'Quiero reservar'});assert.equal(result.state,'booking_party');assert.match(result.reply,/cuántas personas/);
+ result=await engine.runChatbotTurn({...input,state:result.state,draft:result.draft,text:'4'});assert.equal(result.state,'booking_date');assert.equal(result.draft.party,4);
+ result=await engine.runChatbotTurn({...input,state:'booking_party',draft:{idempotencyKey:'stale'},text:'hola buenas'});assert.equal(result.state,'idle');assert.deepEqual(result.draft,{});
+ result=await engine.runChatbotTurn({...input,state:'handoff',text:'hola buenas'});assert.equal(result.suppressDelivery,true);
 });

@@ -262,7 +262,13 @@ function confirmationReply(draft: ChatbotDraft, restaurant: ChatbotRestaurant) {
 }
 
 function isBookingIntent(text: string) {
-  return /\b(reservar|reserva|mesa)\b/.test(normalizeText(text));
+  const value = normalizeText(text);
+  return /\b(reservar|reserva|mesa)\b/.test(value)
+    && !/\b(?:no quiero|no necesito|no deseo|sin)\s+(?:(?:hacer|una)\s+)*(?:reservar|reserva)\b/.test(value);
+}
+
+function welcomeReply(restaurantName: string) {
+  return `Hola, soy el asistente de ${restaurantName}. ¿En qué puedo ayudarte?\nPuedo ayudarte con la carta, los horarios, la ubicación o tus reservas. También puedes pedir hablar con el equipo.`;
 }
 
 function managementIntent(text: string): "cancel" | "reschedule" | "choose" | null {
@@ -409,6 +415,10 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
     };
   }
 
+  if (/^(?:hola+|buenas|hola+ buenas|buenos dias|buenas tardes|buenas noches|buen dia|hey)(?: que tal)?$/.test(normalized)) {
+    return reset(welcomeReply(restaurant.name));
+  }
+
   const faq = faqIntent(text);
   if (faq) {
     return stateResult(
@@ -433,9 +443,7 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
       );
     }
 
-    return reset(
-      `Hola, soy el asistente de ${restaurant.name}.\nPuedes escribir RESERVAR, CAMBIAR RESERVA, CANCELAR RESERVA, HORARIO, DIRECCIÓN, CARTA o PERSONA.`,
-    );
+    return reset(welcomeReply(restaurant.name));
   }
 
   if (input.state === "booking_party") {
