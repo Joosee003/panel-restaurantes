@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         method: "POST", headers: { "Content-Type": "application/json", "X-GastroHelp-Webhook-Secret": received },
         body: JSON.stringify({ messageId, restaurantId: restaurant.id, from,
           name: String(body.name || "Cliente WhatsApp").slice(0, 120),
-          text: selection.engineText, startNewConversation: selection.reset, mode: restaurant.mode }),
+          text: selection.engineText, startNewConversation: selection.reset, sharedInbox: true, mode: restaurant.mode }),
       });
       const engineResponse = await processRestaurantMessage(engineRequest);
       const engine = await engineResponse.json();

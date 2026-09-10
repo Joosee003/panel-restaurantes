@@ -22,6 +22,7 @@ type RequestBody = {
   text?: unknown;
   mode?: unknown;
   startNewConversation?: unknown;
+  sharedInbox?: unknown;
 };
 
 type RestaurantRow = {
@@ -277,7 +278,7 @@ export async function POST(request: NextRequest) {
       mode,
       restaurant: {
         id: restaurantId,
-        name: web?.nombre_publico || restaurant.nombre,
+        name: body.sharedInbox === true ? restaurant.nombre : web?.nombre_publico || restaurant.nombre,
         slug: web?.slug || restaurant.slug || "",
         timezone: booking?.zona_horaria || "Europe/Madrid",
         bookingEnabled: booking?.activo === true && (legalReady || mode === "pilot"),
