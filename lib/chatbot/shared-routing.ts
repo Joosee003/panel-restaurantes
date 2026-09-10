@@ -79,9 +79,12 @@ export function selectChatbotRestaurant(
       remaining = (` ${remaining} `).replace(` ${hit.alias} `, " ").trim();
     }
     const meaningful = intentOf(remaining);
+    const bookingText = meaningful === "reservar" && /\b(cenar|cena|noche)\b/.test(remaining)
+      ? "reservar para cenar" : meaningful === "reservar" && /\b(comer|comida|mediodia)\b/.test(remaining)
+        ? "reservar para comer" : meaningful;
     const nameOnly = /^(?:(?:en|el|la|restaurante|local|por|favor|hola|buenas)\s*)*$/.test(remaining);
     return selected(restaurant, reset,
-      reset ? (meaningful || rememberedIntent || "hola") : (meaningful || (nameOnly ? "hola" : text)));
+      reset ? (bookingText || rememberedIntent || "hola") : (bookingText || (nameOnly ? "hola" : text)));
   }
   const asksUnknownRestaurant = /^restaurante\s+/.test(value)
     || /^reservar\s+(?!(?:para|una|mesa|el|hoy|manana|esta|este|a|en)\b)[a-z]/.test(value)

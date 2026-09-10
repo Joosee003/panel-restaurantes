@@ -62,14 +62,14 @@ test('unidentified clients and invalid codes never fall back to a restaurant',as
  result=await send(payload('RESERVAR desconocido'));assert.match(result.reply,/Con qué restaurante/);
  await send(payload('2'));assert.equal(engineCalls.length,1);
 });
-test('same number and customer switch A → B with isolated engine calls, server mode and named replies',async()=>{
+test('same number and customer switch A → B with isolated engine calls and names only on selection',async()=>{
  await reset();
  let result=await send(payload('RESERVAR local-a',{restaurantId:b,mode:'pilot'}));
  assert.equal(result.restaurantId,a);assert.match(result.reply,/^\*Local A\*/);assert.equal(engineCalls[0].mode,'live');
- await send(payload('reservar'));assert.equal(engineCalls.at(-1).restaurantId,a);
+ result=await send(payload('reservar'));assert.equal(engineCalls.at(-1).restaurantId,a);assert.equal(result.reply,'Respuesta del motor');assert.equal(result.restaurantName,'Local A');
  result=await send(payload('RESERVAR local-b',{mode:'live'}));assert.equal(result.restaurantId,b);assert.match(result.reply,/^\*Local B\*/);
  assert.equal(engineCalls.at(-1).mode,'pilot');assert.equal(engineCalls.at(-1).text,'reservar');assert.equal(engineCalls.at(-1).startNewConversation,true);
- await send(payload('3'));assert.equal(engineCalls.at(-1).restaurantId,b);assert.equal(engineCalls.at(-1).from,'447700900124');
+ result=await send(payload('3'));assert.equal(engineCalls.at(-1).restaurantId,b);assert.equal(engineCalls.at(-1).from,'447700900124');assert.equal(result.reply,'Respuesta del motor');assert.equal(result.restaurantName,'Local B');
 });
 test('selection menu, unknown quoted messages and expired context demand a new restaurant',async()=>{
  await reset();await send(payload('RESERVAR local-a'));
@@ -173,7 +173,7 @@ test('normal reservation messages ask for a restaurant then continue without cod
 });
 test('a restaurant in a natural sentence works and ambiguous or unknown places cannot use the old selection',async()=>{
  await reset();let result=await send(payload('Buenas, me gustaría reservar en Local A para cenar'));
- assert.equal(result.restaurantId,a);assert.equal(engineCalls.at(-1).text,'reservar');
+ assert.equal(result.restaurantId,a);assert.equal(engineCalls.at(-1).text,'reservar para cenar');
  result=await send(payload('Quiero reservar en Local A o Local B'));
  assert.match(result.reply,/varios restaurantes/);assert.equal(engineCalls.length,1);
  await send(payload('Local B'));assert.equal(engineCalls.at(-1).restaurantId,b);
@@ -249,10 +249,11 @@ test('the real booking handler starts fresh after restaurant confirmation and ke
   method:'POST',headers:{'Content-Type':'application/json','X-GastroHelp-Webhook-Secret':'isolated-local-fixture'},
   body:JSON.stringify({...payload(text),restaurantId:a,mode:'pilot',startNewConversation,sharedInbox}),
  }));
- const result=await (await invoke('reservar',true)).json();assert.match(result.reply,/cuántas personas/);assert.match(result.reply,/Local A/);assert.doesNotMatch(result.reply,/Web de prueba/);
+ const result=await (await invoke('reservar',true)).json();assert.match(result.reply,/cuántas personas/);assert.doesNotMatch(result.reply,/Local A|Web de prueba/);
  let saved=calls.filter(c=>c.name==='complete_chatbot_turn').at(-1).args;
  assert.equal(saved.p_state,'booking_party');assert.equal(saved.p_draft.name,undefined);assert.equal(saved.p_draft.party,undefined);
- const direct=await (await invoke('reservar',true,false)).json();assert.match(direct.reply,/Web de prueba/);
+ const greeting=await (await invoke('hola',true)).json();assert.match(greeting.reply,/Local A/);assert.doesNotMatch(greeting.reply,/Web de prueba/);
+ const direct=await (await invoke('hola',true,false)).json();assert.match(direct.reply,/Web de prueba/);
  savedState='booking_party';await invoke('4',false);
  saved=calls.filter(c=>c.name==='complete_chatbot_turn').at(-1).args;assert.equal(saved.p_state,'booking_date');assert.equal(saved.p_draft.party,4);
 });
@@ -303,4 +304,118 @@ test('the real assistant greets, answers a menu request and starts booking only 
  result=await engine.runChatbotTurn({...input,state:result.state,draft:result.draft,text:'4'});assert.equal(result.state,'booking_date');assert.equal(result.draft.party,4);
  result=await engine.runChatbotTurn({...input,state:'booking_party',draft:{idempotencyKey:'stale'},text:'hola buenas'});assert.equal(result.state,'idle');assert.deepEqual(result.draft,{});
  result=await engine.runChatbotTurn({...input,state:'handoff',text:'hola buenas'});assert.equal(result.suppressDelivery,true);
+});
+
+
+const bookingDates=compile('../app/lib/bookingDate.ts');
+const bookingEngine=compile('../app/lib/chatbotEngine.ts',{'./bookingDate':bookingDates});
+const bookingDay=bookingDates.addCalendarDays(bookingDates.dateInTimezone('Europe/Madrid'),2);
+const bookingRestaurant={id:a,name:'Local A',timezone:'Europe/Madrid',bookingEnabled:true,minParty:1,maxParty:12,maxAdvanceDays:60,
+ requiresEmail:false,address:'',mapsUrl:'',menuUrl:'https://panel.invalid/carta/fixture',hoursLunch:'',hoursDinner:'',
+ privacyUrl:'https://panel.invalid/privacidad',bookingTermsUrl:'https://panel.invalid/condiciones'};
+const makeSlot=(time,service)=>({time,start:`${bookingDay}T${time}:00+02:00`,service});
+const daySlots=[...['12:30','13:00','13:30','14:00','14:30','15:00','15:30'].map(t=>makeSlot(t,'comida')),
+ ...['19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30'].map(t=>makeSlot(t,'cena'))];
+function bookingConversation(initialSlots=daySlots,extra={}) {
+ let state='idle',draft={},slots=initialSlots;
+ const calls={availability:[],created:[],rescheduled:[]};
+ const dependencies={
+  async getAvailability(...args){calls.availability.push(args);return slots.map(s=>({...s}));},
+  async createBooking(input){calls.created.push(input);return {reservationId:'fixture-reservation',start:input.start,managementPath:'https://panel.invalid/reserva/fixture'};},
+  async listUpcomingReservations(){return [];},
+  async cancelReservation(){throw new Error('Unexpected cancellation');},
+  async rescheduleReservation(...args){calls.rescheduled.push(args);},
+  ...extra,
+ };
+ return {calls,setSlots(value){slots=value;},setState(value,saved){state=value;draft=saved;},
+  async send(text,mode='pilot'){
+   const result=await bookingEngine.runChatbotTurn({state,draft,text,mode,phone:'+447700900124',contactName:'Prueba',restaurant:bookingRestaurant,dependencies});
+   state=result.state;draft=result.draft;return result;
+  }};
+}
+async function askBookingTime(c,text='Quiero reservar') {
+ await c.send(text);await c.send('5');return c.send(bookingDay);
+}
+
+test('booking asks for the time before availability and accepts a late slot beyond the old twelve-slot cutoff',async()=>{
+ const c=bookingConversation();const question=await askBookingTime(c);
+ assert.equal(question.state,'booking_time');assert.match(question.reply,/A qué hora/);assert.doesNotMatch(question.reply,/12:30|19:00|disponibles/);assert.equal(c.calls.availability.length,0);
+ let r=await c.send('a las 22:30');assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'22:30');assert.equal(c.calls.availability.length,1);
+ assert.deepEqual(c.calls.availability[0],[bookingDay,5,undefined]);assert.doesNotMatch(r.reply,/Local A/);
+ r=await c.send('Cliente de prueba');assert.equal(r.state,'booking_confirm');assert.equal(c.calls.created.length,0);
+ r=await c.send('ACEPTO RESERVA','live');assert.equal(r.action,'booking_created');assert.equal(c.calls.created.length,1);
+ assert.equal(c.calls.created[0].start,makeSlot('22:30','cena').start);assert.equal(c.calls.created[0].party,5);
+});
+
+test('full dinner time offers only nearby dinner slots, then rechecks a different requested time',async()=>{
+ const c=bookingConversation(daySlots.filter(s=>s.time!=='21:00'));await askBookingTime(c);
+ let r=await c.send('21:00');assert.equal(r.state,'booking_time');assert.match(r.reply,/21:00 no hay disponibilidad/);
+ assert.equal(r.draft.slots.length,4);assert.ok(r.draft.slots.every(s=>s.service==='cena'));assert.doesNotMatch(r.reply,/12:30|13:00|14:00|15:30/);
+ r=await c.send('22:30');assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'22:30');assert.equal(c.calls.availability.length,2);
+});
+
+test('full lunch time cannot offer dinner and a full dinner service asks for another date',async()=>{
+ let c=bookingConversation(daySlots.filter(s=>s.time!=='14:00'));await askBookingTime(c);
+ let r=await c.send('14');assert.equal(r.state,'booking_time');assert.ok(r.draft.slots.every(s=>s.service==='comida'));assert.doesNotMatch(r.reply,/19:00|20:00|21:00|22:00/);
+ c=bookingConversation(daySlots.filter(s=>s.service==='comida'));await askBookingTime(c,'Quiero una reserva para cenar');
+ r=await c.send('21:00');assert.equal(r.state,'booking_date');assert.match(r.reply,/cenar ese día/);assert.doesNotMatch(r.reply,/12:30|13:00|14:00|15:30/);assert.equal(r.draft.start,undefined);
+});
+
+test('dinner context understands nine at night and explicit morning remains morning',async()=>{
+ const c=bookingConversation();await askBookingTime(c,'Quiero reservar para cenar');
+ let r=await c.send('a las nueve y media');assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'21:30');
+ const d=bookingConversation([makeSlot('09:00','desayuno'),...daySlots]);await askBookingTime(d,'Quiero reservar para cenar');
+ r=await d.send('09:00');assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'09:00');
+ assert.equal(routing.selectChatbotRestaurant('Quiero reservar en Local A para cenar',[{id:a,name:'Local A',code:'local-a',mode:'live'}],null).engineText,'reservar para cenar');
+});
+
+test('an ambiguous hour is clarified before availability, even when only the evening slot is free',async()=>{
+ const c=bookingConversation();await askBookingTime(c);
+ let r=await c.send('9');assert.equal(r.state,'booking_time');assert.match(r.reply,/09:00 o a las 21:00/);assert.equal(c.calls.availability.length,0);
+ r=await c.send('de la noche');assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'21:00');assert.equal(c.calls.availability.length,1);
+});
+
+test('invalid hours never query availability or select a numbered slot by accident',async()=>{
+ const c=bookingConversation();await askBookingTime(c);
+ for(const text of ['25:00','21:70','11/09/2026','cuando puedas']){
+  const r=await c.send(text);assert.equal(r.state,'booking_time');assert.equal(r.draft.start,undefined);
+ }
+ assert.equal(c.calls.availability.length,0);
+});
+
+test('restaurant service labels decide alternatives even when dinner starts before 18:00',async()=>{
+ const c=bookingConversation([makeSlot('13:00','comida'),makeSlot('17:30','cena'),makeSlot('18:30','cena')]);
+ await askBookingTime(c);const r=await c.send('a las 18:00');
+ assert.equal(r.state,'booking_time');assert.deepEqual(r.draft.slots.map(s=>s.time),['17:30','18:30']);assert.doesNotMatch(r.reply,/13:00/);
+});
+
+test('a suggested slot that fills up cannot be accepted from stale session data',async()=>{
+ const c=bookingConversation(daySlots.filter(s=>s.time!=='21:00'));await askBookingTime(c);await c.send('21:00');
+ c.setSlots(daySlots.filter(s=>!['21:00','21:30'].includes(s.time)));
+ const r=await c.send('21:30');assert.equal(r.state,'booking_time');assert.equal(r.draft.start,undefined);assert.ok(r.draft.slots.every(s=>s.time!=='21:30'));
+ assert.equal(c.calls.availability.length,2);assert.equal(c.calls.created.length,0);
+});
+
+test('a final booking conflict offers dinner alternatives and preserves the customer details',async()=>{
+ let attempts=0;
+ const c=bookingConversation(daySlots,{async createBooking(input){if(++attempts===1)throw new Error('SLOT_NOT_AVAILABLE');return {reservationId:'fixture',start:input.start,managementPath:'https://panel.invalid/reserva/fixture'};}});
+ await askBookingTime(c);await c.send('21:00');const summary=await c.send('Cliente de prueba');
+ c.setSlots(daySlots.filter(s=>s.time!=='21:00'));
+ let r=await c.send('ACEPTO RESERVA','live');assert.equal(r.state,'booking_time');assert.equal(r.draft.name,'Cliente de prueba');assert.notEqual(r.draft.idempotencyKey,summary.draft.idempotencyKey);
+ assert.ok(r.draft.slots.every(s=>s.service==='cena'));assert.equal(r.draft.start,undefined);
+ r=await c.send('21:30');assert.equal(r.state,'booking_confirm');assert.equal(r.draft.name,'Cliente de prueba');
+ r=await c.send('ACEPTO RESERVA','live');assert.equal(r.action,'booking_created');assert.equal(attempts,2);
+});
+
+test('rescheduling asks for a time and checks it while excluding only the selected reservation',async()=>{
+ const c=bookingConversation();c.setState('reschedule_date',{selectedReservation:{id:'owned-reservation',managementToken:'fixture-token',party:3,start:makeSlot('20:00','cena').start}});
+ let r=await c.send(bookingDay);assert.equal(r.state,'reschedule_time');assert.match(r.reply,/A qué hora/);assert.equal(c.calls.availability.length,0);
+ r=await c.send('22:30');assert.equal(r.state,'reschedule_confirm');assert.deepEqual(c.calls.availability[0],[bookingDay,3,'owned-reservation']);
+ r=await c.send('CONFIRMAR CAMBIO','live');assert.equal(r.action,'booking_rescheduled');assert.deepEqual(c.calls.rescheduled,[['fixture-token',makeSlot('22:30','cena').start]]);
+});
+
+
+test('a time given together with the date is checked without asking for it again',async()=>{
+ const c=bookingConversation();await c.send('Quiero reservar');await c.send('5');
+ const r=await c.send(`${bookingDay} a las 22:00`);assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'22:00');assert.equal(c.calls.availability.length,1);
 });
