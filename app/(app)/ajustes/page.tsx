@@ -22,6 +22,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import { useRestaurante } from "../../hooks/useRestaurante";
 import WebReservasSettings from "./WebReservasSettings";
+import { serviceHoursError } from "../../lib/serviceHours";
 
 type Zona = {
   id: string;
@@ -304,6 +305,8 @@ export default function AjustesPage() {
 
   const guardarCambios = async () => {
     if (!restauranteId) return;
+    const hoursError = serviceHoursError(horarioComida, horarioCena);
+    if (hoursError) { setErrorMsg(hoursError); setMensaje(null); return; }
 
     setGuardandoRestaurante(true);
     setMensaje(null);
@@ -330,7 +333,9 @@ export default function AjustesPage() {
 
     if (error) {
       console.log("Error guardando restaurantes:", error);
-      setErrorMsg("Error al guardar la configuración general.");
+      setErrorMsg(/INVALID_PANEL_SERVICE_HOURS|OVERLAPPING_PANEL_SERVICE_HOURS/.test(error.message)
+        ? "Revisa los horarios de comida y cena: deben ser válidos y no solaparse."
+        : "Error al guardar la configuración general.");
       setGuardandoRestaurante(false);
       return;
     }
@@ -723,6 +728,7 @@ export default function AjustesPage() {
         <WebReservasSettings
           restauranteId={restauranteId}
           restaurantName={nombre || restaurante?.nombre || "Restaurante"}
+          onEditHours={() => setTab("reservas")}
         />
       )}
 
@@ -784,6 +790,7 @@ export default function AjustesPage() {
       {tab === "reservas" && (
         <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
           <SectionCard title="Horarios de servicio" eyebrow="Reservas" icon={<Clock className="h-5 w-5" />}>
+            <p className="mb-4 text-sm text-slate-600">Este horario se utiliza en el chatbot, la web, las reservas y la sala. Se aplica a los días activados en Web + reservas.</p>
             <div className="grid grid-cols-1 gap-4">
               <div>
                 <label className="text-xs font-black uppercase tracking-wide text-slate-500">Comida</label>

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabaseClient";
+import { parseServiceHours } from "../../lib/serviceHours";
 
 type WebConfig = {
   slug: string;
@@ -91,6 +92,8 @@ type DaySchedule = {
   dinnerEnabled: boolean;
   dinnerStart: string;
   dinnerEnd: string;
+  lunchCapacity?: number | null;
+  dinnerCapacity?: number | null;
 };
 
 const days = [
@@ -114,16 +117,12 @@ function defaultDays(): DaySchedule[] {
     day,
     label,
     lunchEnabled: false,
-    lunchStart: "13:00",
-    lunchEnd: "16:00",
+    lunchStart: "",
+    lunchEnd: "",
     dinnerEnabled: false,
-    dinnerStart: "20:00",
-    dinnerEnd: "23:00",
+    dinnerStart: "",
+    dinnerEnd: "",
   }));
-}
-
-function timeValue(value: string | null | undefined, fallback: string) {
-  return value?.slice(0, 5) || fallback;
 }
 
 function splitList(value: string) {
@@ -198,9 +197,11 @@ function Toggle({
 export default function WebReservasSettings({
   restauranteId,
   restaurantName,
+  onEditHours,
 }: {
   restauranteId: string;
   restaurantName: string;
+  onEditHours: () => void;
 }) {
   const [web, setWeb] = useState<WebConfig>({
     slug: "",
@@ -267,7 +268,7 @@ export default function WebReservasSettings({
       setLoading(true);
       setError("");
 
-      const [webResult, configResult, scheduleResult] = await Promise.all([
+      const [webResult, configResult, scheduleResult, hoursResult] = await Promise.all([
         supabase
           .from("restaurante_webs")
           .select("*")
@@ -284,11 +285,12 @@ export default function WebReservasSettings({
           .eq("restaurante_id", restauranteId)
           .order("dia_semana", { ascending: true })
           .order("hora_inicio", { ascending: true }),
+        supabase.from("restaurantes").select("horario_comida,horario_cena").eq("id", restauranteId).maybeSingle(),
       ]);
 
       if (cancelled) return;
 
-      const firstError = webResult.error || configResult.error || scheduleResult.error;
+      const firstError = webResult.error || configResult.error || scheduleResult.error || hoursResult.error;
       if (firstError) {
         console.error("Error cargando web y reservas", firstError);
         setError("Esta sección todavía no está activada en Supabase.");
@@ -357,18 +359,22 @@ export default function WebReservasSettings({
       }
 
       const rows = (scheduleResult.data || []) as ScheduleRow[];
+      const lunchHours = parseServiceHours(hoursResult.data?.horario_comida);
+      const dinnerHours = parseServiceHours(hoursResult.data?.horario_cena);
       setSchedule(
         defaultDays().map((day) => {
-          const lunch = rows.find((row) => row.dia_semana === day.day && row.turno === "comida" && row.activo);
-          const dinner = rows.find((row) => row.dia_semana === day.day && row.turno === "cena" && row.activo);
+          const lunch = rows.find((row) => row.dia_semana === day.day && row.turno === "comida");
+          const dinner = rows.find((row) => row.dia_semana === day.day && row.turno === "cena");
           return {
             ...day,
-            lunchEnabled: Boolean(lunch),
-            lunchStart: timeValue(lunch?.hora_inicio, day.lunchStart),
-            lunchEnd: timeValue(lunch?.hora_fin, day.lunchEnd),
-            dinnerEnabled: Boolean(dinner),
-            dinnerStart: timeValue(dinner?.hora_inicio, day.dinnerStart),
-            dinnerEnd: timeValue(dinner?.hora_fin, day.dinnerEnd),
+            lunchEnabled: Boolean(lunch?.activo && lunchHours),
+            lunchStart: lunchHours?.start || "",
+            lunchEnd: lunchHours?.end || "",
+            lunchCapacity: lunch?.capacidad_override ?? null,
+            dinnerEnabled: Boolean(dinner?.activo && dinnerHours),
+            dinnerStart: dinnerHours?.start || "",
+            dinnerEnd: dinnerHours?.end || "",
+            dinnerCapacity: dinner?.capacidad_override ?? null,
           };
         }),
       );
@@ -459,7 +465,7 @@ export default function WebReservasSettings({
           turno: "comida",
           hora_inicio: day.lunchStart,
           hora_fin: day.lunchEnd,
-          capacidad_override: null,
+          capacidad_override: day.lunchCapacity ?? null,
           activo: true,
         });
       }
@@ -469,7 +475,7 @@ export default function WebReservasSettings({
           turno: "cena",
           hora_inicio: day.dinnerStart,
           hora_fin: day.dinnerEnd,
-          capacidad_override: null,
+          capacidad_override: day.dinnerCapacity ?? null,
           activo: true,
         });
       }
@@ -859,9 +865,10 @@ export default function WebReservasSettings({
 
       <PanelCard
         icon={<CalendarClock className="h-5 w-5" />}
-        title="Horario semanal reservable"
-        description="Activa comida, cena o ambos. Las fechas especiales y cierres se gestionarán aparte."
+        title="Días de servicio"
+        description="Elige los días abiertos. Las horas son las que has guardado en Ajustes → Reservas."
       >
+        <button type="button" onClick={onEditHours} className="mb-4 rounded-xl border border-blue-200 px-4 py-2 text-sm font-bold text-blue-700">Editar horarios de servicio</button>
         <div className="space-y-3">
           {schedule.map((day) => (
             <div key={day.day} className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-[8rem_1fr_1fr] lg:items-center">
@@ -874,17 +881,17 @@ export default function WebReservasSettings({
                 ["Cena", "dinnerEnabled", "dinnerStart", "dinnerEnd"],
               ].map(([label, enabledKey, startKey, endKey]) => {
                 const enabled = day[enabledKey as keyof DaySchedule] as boolean;
+                const start = day[startKey as keyof DaySchedule] as string;
+                const end = day[endKey as keyof DaySchedule] as string;
                 return (
                   <div key={label} className={`rounded-2xl border p-3 ${enabled ? "border-blue-200 bg-white" : "border-slate-200 bg-slate-100"}`}>
                     <label className="flex cursor-pointer items-center gap-2 text-xs font-black text-slate-700">
-                      <input type="checkbox" checked={enabled} onChange={(event) => updateDay(day.day, { [enabledKey]: event.target.checked })} className="h-4 w-4 accent-blue-600" />
+                      <input type="checkbox" checked={enabled} disabled={!start || !end} onChange={(event) => updateDay(day.day, { [enabledKey]: event.target.checked })} className="h-4 w-4 accent-blue-600" />
                       {label}
                     </label>
                     <div className="mt-3 flex items-center gap-2">
                       <Clock3 className="h-4 w-4 shrink-0 text-slate-400" />
-                      <input type="time" disabled={!enabled} value={day[startKey as keyof DaySchedule] as string} onChange={(event) => updateDay(day.day, { [startKey]: event.target.value })} className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-black disabled:bg-slate-100" />
-                      <span className="text-xs font-black text-slate-400">a</span>
-                      <input type="time" disabled={!enabled} value={day[endKey as keyof DaySchedule] as string} onChange={(event) => updateDay(day.day, { [endKey]: event.target.value })} className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-2 py-2 text-xs font-black disabled:bg-slate-100" />
+                      <span className="text-xs font-bold">{start && end ? `${start}–${end}` : "Configura el horario en Ajustes → Reservas"}</span>
                     </div>
                   </div>
                 );
