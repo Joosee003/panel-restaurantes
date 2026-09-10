@@ -234,7 +234,7 @@ test('the real booking handler starts fresh after restaurant confirmation and ke
  const fakeDb={from(table){const query={select(){return query;},eq(){return query;},async maybeSingle(){return {error:null,data:({
   restaurantes:{id:a,nombre:'Local A'},restaurante_modulos:{chatbot:true,menu_digital:false,estado:'activo'},
   reservas_config:{activo:true,zona_horaria:'Europe/Madrid',personas_minimas:1,personas_maximas:12},
-  restaurante_webs:null,
+  restaurante_webs:{publicada:false,nombre_publico:'Web de prueba'},
  })[table]};}};return query;},async rpc(name,args){calls.push({name,args});
   if(name==='begin_chatbot_turn')return {data:{status:'acquired',state:savedState,draft:{party:9,name:'Old customer',start:'2099-01-01T12:00:00Z',idempotencyKey:'old'}},error:null};
   if(['complete_chatbot_turn','purge_expired_chatbot_sessions'].includes(name))return {data:true,error:null};
@@ -245,13 +245,14 @@ test('the real booking handler starts fresh after restaurant confirmation and ke
   '../../../lib/supabaseAdmin':{getSupabaseAdmin:()=>fakeDb},'../../../lib/chatbotEngine':engine,
   '../../../lib/publicLegal':{BOOKING_LEGAL_VERSION:'fixture'},
  }).POST;
- const invoke=async(text,startNewConversation)=>handler(new NextRequest('https://panel.invalid/api/chatbot/messages',{
+ const invoke=async(text,startNewConversation,sharedInbox=true)=>handler(new NextRequest('https://panel.invalid/api/chatbot/messages',{
   method:'POST',headers:{'Content-Type':'application/json','X-GastroHelp-Webhook-Secret':'isolated-local-fixture'},
-  body:JSON.stringify({...payload(text),restaurantId:a,mode:'pilot',startNewConversation}),
+  body:JSON.stringify({...payload(text),restaurantId:a,mode:'pilot',startNewConversation,sharedInbox}),
  }));
- const result=await (await invoke('reservar',true)).json();assert.match(result.reply,/cuántas personas/);
+ const result=await (await invoke('reservar',true)).json();assert.match(result.reply,/cuántas personas/);assert.match(result.reply,/Local A/);assert.doesNotMatch(result.reply,/Web de prueba/);
  let saved=calls.filter(c=>c.name==='complete_chatbot_turn').at(-1).args;
  assert.equal(saved.p_state,'booking_party');assert.equal(saved.p_draft.name,undefined);assert.equal(saved.p_draft.party,undefined);
+ const direct=await (await invoke('reservar',true,false)).json();assert.match(direct.reply,/Web de prueba/);
  savedState='booking_party';await invoke('4',false);
  saved=calls.filter(c=>c.name==='complete_chatbot_turn').at(-1).args;assert.equal(saved.p_state,'booking_date');assert.equal(saved.p_draft.party,4);
 });

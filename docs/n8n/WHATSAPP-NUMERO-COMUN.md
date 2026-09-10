@@ -60,3 +60,8 @@ La API común decide el local antes de llamar al motor. `startNewConversation` d
 Migración `20260910160709_natural_whatsapp_restaurant_selection.sql`: añade el recuerdo del último local, la sugerencia pendiente y una intención limitada. La función de cierre nueva conserva la validación y el bloqueo originales; solo `service_role` puede utilizarla. La firma de cierre anterior sigue disponible durante el despliegue.
 
 23 pruebas con la API, SQL local y el motor real cubren mensajes normales, nombre dentro de una frase, selección ambigua, vuelta otro día, confirmación del local, negativa, cambio de local, desactivación, duplicados y aislamiento. Se comprueba que «cancelar la reserva» no se interprete como el restaurante «La Reserva».
+
+
+Publicación PR 46: producción `1791ecc37116dbdaa7f30f8f9f9cd3275ddfabd1`, CI 34500275132 correcto. Ejecuciones n8n 69649 y 69657: siete turnos cada una por el motor publicado, sin envío de mensajes; entrada normal, nombre del local, personas, cambio entre las dos demos y vuelta con confirmación. Cada sesión conserva el restaurante correcto.
+
+El número común usa el nombre del local registrado en el panel tanto en la selección como en la respuesta. El chatbot propio de la web conserva su nombre público. Esto evita que un demo presente dos nombres distintos en el mismo mensaje.
