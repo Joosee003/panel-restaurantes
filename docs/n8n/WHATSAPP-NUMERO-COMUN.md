@@ -30,7 +30,7 @@ El cliente puede escribir normalmente. Si falta el local, se pregunta su nombre,
 
 Mientras se pregunta el nombre se conserva únicamente la intención (reserva, cambio, cancelación, carta, horario, dirección o atención personal). Las preguntas posteriores recogen los datos de la reserva. Una respuesta citada sin contexto identificable o una ruta desactivada no pueden usar automáticamente el restaurante anterior.
 
-La selección está guardada por número emisor y teléfono de cliente. El motor mantiene estado y reservas por restaurante y teléfono. Cada respuesta empieza con el nombre del local. Los mensajes se deduplican antes de seleccionar restaurante, incluso si el cliente ha cambiado de local; un bloqueo impide cambiarlo durante otro turno. Las tablas y funciones de selección solo son accesibles desde el servidor.
+La selección está guardada por número emisor y teléfono de cliente. El motor mantiene estado y reservas por restaurante y teléfono. El nombre aparece al seleccionar o cambiar de local; los siguientes mensajes no repiten ese encabezado. Los mensajes se deduplican antes de seleccionar restaurante, incluso si el cliente ha cambiado de local; un bloqueo impide cambiarlo durante otro turno. Las tablas y funciones de selección solo son accesibles desde el servidor.
 
 ## Pruebas y mantenimiento
 
@@ -76,3 +76,12 @@ Los nombres admiten diferencias de mayúsculas, tildes, puntuación y letras rep
 El asistente pregunta en qué puede ayudar y atiende carta, horarios, ubicación, reservas y atención personal. Solo inicia el proceso de reserva cuando el cliente lo pide. Volver a saludar deja atrás un borrador incompleto; una conversación transferida al equipo sigue bajo su atención.
 
 Validación: 27 pruebas locales de API, SQL y motor, incluida la secuencia de la captura de Jose, las variantes del nombre, el saludo al volver, carta antes de reservar y nombres coincidentes.
+
+
+## Hora solicitada y respuestas breves — 10 de septiembre
+
+Después de elegir fecha, el chatbot pregunta la hora y consulta su disponibilidad para el número de personas indicado. Si está libre, recoge los datos que falten y confirma la reserva con el procedimiento existente. Si no, ofrece hasta cuatro alternativas cercanas del mismo servicio; usa el turno devuelto por la base de datos y solo recurre a la franja horaria cuando no hay una etiqueta reconocible. Sin horas para ese servicio, pide otra fecha.
+
+Se consulta la disponibilidad completa al elegir cada hora, también si no figuraba entre las sugerencias. Un conflicto al confirmar vuelve a consultar y ofrece alternativas del mismo servicio. Este recorrido se aplica igualmente al cambio de una reserva, excluyendo únicamente la reserva seleccionada de su cálculo de ocupación.
+
+Los mensajes de continuación no llevan el nombre del local como encabezado. El identificador y nombre del restaurante siguen en la respuesta interna de la API y el contexto sigue aislado por restaurante. Las horas ambiguas se aclaran antes de consultar; no se decide entre mañana y noche según cuál tenga hueco.

@@ -22,7 +22,10 @@ export type ChatbotState = (typeof CHATBOT_STATES)[number];
 export type ChatbotSlot = {
   start: string;
   time: string;
+  service?: string;
 };
+
+type MealService = "desayuno" | "comida" | "cena";
 
 export type ChatbotReservation = {
   id: string;
@@ -38,6 +41,8 @@ export type ChatbotDraft = {
   slots?: ChatbotSlot[];
   start?: string;
   time?: string;
+  service?: MealService;
+  timeToClarify?: string;
   name?: string;
   email?: string;
   idempotencyKey?: string;
@@ -168,17 +173,52 @@ function parseEmail(text: string) {
   return match ? match[0].slice(0, 254) : null;
 }
 
-function selectSlot(text: string, slots: ChatbotSlot[]) {
-  const value = normalizeText(text);
-  if (/^\d{1,2}$/.test(value)) {
-    const index = Number(value) - 1;
-    if (index >= 0 && index < slots.length) return slots[index];
-  }
+function mealService(text: string): MealService | undefined {
+  const value = normalizeText(text).replace(/_/g, " ");
+  if (/\b(cenar|cena|noche|dinner)\b/.test(value)) return "cena";
+  if (/\b(comer|comida|mediodia|lunch)\b/.test(value)) return "comida";
+  if (/\b(desayunar|desayuno|breakfast)\b|\b(?:de|por) la manana\b/.test(value)) return "desayuno";
+  return undefined;
+}
 
-  const match = value.match(/\b([01]?\d|2[0-3])[:.]([0-5]\d)\b/);
-  if (!match) return null;
-  const time = `${String(Number(match[1])).padStart(2, "0")}:${match[2]}`;
-  return slots.find((slot) => slot.time.slice(0, 5) === time) || null;
+function minutesOf(time: string) {
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function serviceAt(time: string): MealService {
+  const minutes = minutesOf(time);
+  return minutes >= 18 * 60 || minutes < 5 * 60 ? "cena" : minutes >= 11 * 60 ? "comida" : "desayuno";
+}
+
+function parseRequestedTime(text: string, preferredService?: MealService) {
+  const words: Record<string, number> = { una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
+    seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12,
+    trece: 13, catorce: 14, quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18,
+    diecinueve: 19, veinte: 20, veintiuna: 21, veintiuno: 21, veintidos: 22, veintitres: 23 };
+  const value = normalizeText(text).replace(/\b[a-z]+\b/g, word => word in words ? String(words[word]) : word);
+  const match = value.match(/(?:^|\b(?:a las?|sobre las?|hacia las?|para las?)\s+)(\d{1,2})(?:[:.]([0-5]\d)|\s+(y media|y cuarto|menos cuarto))?(?:\s*(am|pm|h|horas?))?(?=\s|$)/);
+  if (!match || Number(match[1]) > 23) return null;
+  let hour = Number(match[1]);
+  let minute = Number(match[2] || 0);
+  if (match[3] === "y media") minute = 30;
+  if (match[3] === "y cuarto") minute = 15;
+  if (match[3] === "menos cuarto") { hour = (hour + 23) % 24; minute = 45; }
+  const explicitService = mealService(text);
+  const service = explicitService || preferredService;
+  const afternoon = match[4] === "pm" || /\b(?:tarde|noche)\b/.test(value);
+  const morning = match[4] === "am" || /\b(?:de|por) la manana\b/.test(value);
+  const explicit24 = match[1].startsWith("0") || Number(match[1]) > 12 || match[4] === "h" || /^hora/.test(match[4] || "");
+  if (afternoon && hour < 12) hour += 12;
+  else if (morning && hour === 12) hour = 0;
+  else if (!morning && !explicit24 && service === "cena" && hour < 12) hour += 12;
+  else if (!morning && !explicit24 && service === "comida" && hour >= 1 && hour <= 5) hour += 12;
+  else if (!morning && !explicit24 && service !== "desayuno" && hour > 0 && hour < 12) {
+    return { ambiguous: `${hour}:${String(minute).padStart(2, "0")}`, time: null, service };
+  }
+  if (Number(match[1]) === 12 && match[3] !== "menos cuarto" && /\b(?:media ?noche|12 de la noche)\b/.test(value)) hour = 0;
+  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return { ambiguous: null, time, service: explicitService || serviceAt(time) };
 }
 
 function formatLocalDate(start: string, timezone: string) {
@@ -198,7 +238,7 @@ function formatLocalDate(start: string, timezone: string) {
 }
 
 function slotList(slots: ChatbotSlot[]) {
-  return slots.map((slot, index) => `${index + 1}. ${slot.time.slice(0, 5)}`).join("\n");
+  return slots.map(slot => slot.time.slice(0, 5)).join(", ");
 }
 
 function reset(reply: string, action?: ChatbotEngineResult["action"]): ChatbotEngineResult {
@@ -321,8 +361,8 @@ function promptForState(state: ChatbotState, draft: ChatbotDraft) {
     case "booking_time":
     case "reschedule_time":
       return draft.slots?.length
-        ? `Elige una hora respondiendo con su número:\n${slotList(draft.slots)}`
-        : "Indica otra fecha.";
+        ? `Tengo sitio a las ${slotList(draft.slots)}. ¿Qué hora te va bien?`
+        : "¿A qué hora quieres reservar?";
     case "booking_name":
       return "¿A qué nombre hago la reserva?";
     case "booking_email":
@@ -342,6 +382,72 @@ function promptForState(state: ChatbotState, draft: ChatbotDraft) {
     default:
       return "¿En qué más puedo ayudarte?";
   }
+}
+
+function unavailableTimeReply(draft: ChatbotDraft, slots: ChatbotSlot[], rescheduling: boolean) {
+  const time = String(draft.time);
+  const service = draft.service || serviceAt(time);
+  const alternatives = slots
+    .filter(slot => (mealService(slot.service || "") || serviceAt(slot.time)) === service)
+    .sort((a, b) => Math.abs(minutesOf(a.time) - minutesOf(time)) - Math.abs(minutesOf(b.time) - minutesOf(time)))
+    .slice(0, 4)
+    .sort((a, b) => minutesOf(a.time) - minutesOf(b.time));
+  delete draft.start;
+  delete draft.timeToClarify;
+  draft.slots = alternatives;
+  if (!alternatives.length) {
+    delete draft.date;
+    return stateResult(
+      `A las ${time} no hay disponibilidad y tampoco quedan horas para ${service === "cena" ? "cenar" : service === "comida" ? "comer" : "desayunar"} ese día. ¿Qué otra fecha te va bien?`,
+      rescheduling ? "reschedule_date" : "booking_date", draft,
+    );
+  }
+  return stateResult(
+    `A las ${time} no hay disponibilidad. Tengo sitio a las ${slotList(alternatives)}. ¿Qué hora te va bien?`,
+    rescheduling ? "reschedule_time" : "booking_time", draft,
+  );
+}
+
+async function checkRequestedTime(input: ChatbotEngineInput, draft: ChatbotDraft, rescheduling: boolean) {
+  const state = rescheduling ? "reschedule_time" : "booking_time";
+  const service = mealService(input.text) || draft.service;
+  const periodAnswer = mealService(input.text) || /\b(tarde|am|pm)\b/.test(normalizeText(input.text));
+  const text = draft.timeToClarify && periodAnswer && !parseRequestedTime(input.text, service)
+    ? `${draft.timeToClarify} ${input.text}` : input.text;
+  const request = parseRequestedTime(text, service);
+  if (service) draft.service = service;
+  if (!request) return stateResult("¿A qué hora quieres reservar? Dime la hora y compruebo si hay sitio.", state, draft);
+  if (request.ambiguous) {
+    draft.timeToClarify = request.ambiguous;
+    const [hour, minute] = request.ambiguous.split(":");
+    return stateResult(`¿Te refieres a las ${hour.padStart(2, "0")}:${minute} o a las ${Number(hour) + 12}:${minute}?`, state, draft);
+  }
+  if (!draft.date || !isBookingDateAllowed(draft.date, input.restaurant.timezone, input.restaurant.maxAdvanceDays)) {
+    return stateResult("Necesito la fecha de la reserva para comprobar esa hora. ¿Qué día quieres venir?",
+      rescheduling ? "reschedule_date" : "booking_date", draft);
+  }
+  const selected = draft.selectedReservation;
+  if (rescheduling && !selected) return reset("No encuentro la reserva. Escribe PERSONA para que lo revise el equipo.");
+  draft.time = request.time!;
+  draft.service = request.service;
+  delete draft.timeToClarify;
+  // Always recheck the complete current availability, including times outside an earlier suggestion.
+  const slots = await input.dependencies.getAvailability(draft.date,
+    rescheduling ? selected!.party : Number(draft.party), rescheduling ? selected!.id : undefined);
+  const slot = slots.find(candidate => candidate.time.slice(0, 5) === draft.time);
+  if (!slot) return unavailableTimeReply(draft, slots, rescheduling);
+  draft.start = slot.start;
+  draft.time = slot.time.slice(0, 5);
+  draft.service = mealService(slot.service || "") || request.service;
+  delete draft.slots;
+  if (rescheduling) {
+    return stateResult(
+      `La reserva se moverá al ${formatLocalDate(slot.start, input.restaurant.timezone)}.\nPara confirmar, responde exactamente: CONFIRMAR CAMBIO`,
+      "reschedule_confirm", draft,
+    );
+  }
+  if (draft.name) return stateResult(confirmationReply(draft, input.restaurant), "booking_confirm", draft);
+  return stateResult("Sí, hay sitio. ¿A qué nombre hago la reserva?", "booking_name", draft);
 }
 
 function errorIncludes(error: unknown, code: string) {
@@ -419,7 +525,10 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
     return reset(welcomeReply(restaurant.name));
   }
 
-  const faq = faqIntent(text);
+  const bookingRequest = input.state === "idle" && isBookingIntent(text);
+  const mealDuringBooking = ["booking_party", "booking_date", "booking_time", "reschedule_date", "reschedule_time"].includes(input.state)
+    && mealService(text) && !/\b(carta|menu|platos)\b/.test(normalized);
+  const faq = bookingRequest || mealDuringBooking ? null : faqIntent(text);
   if (faq) {
     return stateResult(
       `${faqReply(faq, restaurant)}\n\n${promptForState(input.state, draft)}`,
@@ -437,9 +546,9 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
         return handoff(restaurant.name);
       }
       return stateResult(
-        `Vamos a preparar tu reserva en ${restaurant.name}. ¿Para cuántas personas?`,
+        "¿Para cuántas personas?",
         "booking_party",
-        { idempotencyKey: crypto.randomUUID() },
+        { idempotencyKey: crypto.randomUUID(), service: mealService(text) },
       );
     }
 
@@ -447,6 +556,7 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
   }
 
   if (input.state === "booking_party") {
+    draft.service = mealService(text) || draft.service;
     const party = parseParty(text);
     if (!party || party < restaurant.minParty || party > restaurant.maxParty) {
       return stateResult(
@@ -465,28 +575,18 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
       return stateResult("La fecha no es válida o queda fuera del plazo de reserva. Indica otra fecha.", "booking_date", draft);
     }
 
-    const slots = await dependencies.getAvailability(date, Number(draft.party));
-    if (!slots.length) {
-      return stateResult("No quedan horas disponibles para ese día. Indica otra fecha.", "booking_date", draft);
-    }
     draft.date = date;
-    draft.slots = slots.slice(0, 12);
-    return stateResult(
-      `Estas son las horas disponibles:\n${slotList(draft.slots)}\nResponde con el número o la hora.`,
-      "booking_time",
-      draft,
-    );
+    draft.service = mealService(text) || draft.service;
+    delete draft.slots;
+    delete draft.start;
+    delete draft.time;
+    delete draft.timeToClarify;
+    if (parseRequestedTime(text, draft.service)) return checkRequestedTime(input, draft, false);
+    return stateResult("¿A qué hora quieres reservar?", "booking_time", draft);
   }
 
   if (input.state === "booking_time") {
-    const slot = selectSlot(text, draft.slots || []);
-    if (!slot) {
-      return stateResult(`Esa hora no está en la lista.\n${promptForState("booking_time", draft)}`, "booking_time", draft);
-    }
-    draft.start = slot.start;
-    draft.time = slot.time;
-    delete draft.slots;
-    return stateResult("¿A qué nombre hago la reserva?", "booking_name", draft);
+    return checkRequestedTime(input, draft, false);
   }
 
   if (input.state === "booking_name") {
@@ -533,16 +633,9 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
       });
     } catch (error) {
       if (errorIncludes(error, "SLOT_NOT_AVAILABLE")) {
-        return stateResult(
-          "Esa hora acaba de dejar de estar disponible. Indica otra fecha para volver a consultar.",
-          "booking_date",
-          {
-            party: draft.party,
-            name: draft.name,
-            email: draft.email,
-            idempotencyKey: crypto.randomUUID(),
-          },
-        );
+        draft.idempotencyKey = crypto.randomUUID();
+        const slots = await dependencies.getAvailability(String(draft.date), Number(draft.party));
+        return unavailableTimeReply(draft, slots, false);
       }
       throw error;
     }
@@ -614,32 +707,18 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
     if (!date || !isBookingDateAllowed(date, restaurant.timezone, restaurant.maxAdvanceDays)) {
       return stateResult("La fecha no es válida o queda fuera del plazo. Indica otra fecha.", "reschedule_date", draft);
     }
-    const slots = await dependencies.getAvailability(date, selected.party, selected.id);
-    if (!slots.length) {
-      return stateResult("No quedan horas disponibles para ese día. Indica otra fecha.", "reschedule_date", draft);
-    }
     draft.date = date;
-    draft.slots = slots.slice(0, 12);
-    return stateResult(
-      `Estas son las horas disponibles:\n${slotList(draft.slots)}\nResponde con el número o la hora.`,
-      "reschedule_time",
-      draft,
-    );
+    draft.service = mealService(text) || draft.service;
+    delete draft.slots;
+    delete draft.start;
+    delete draft.time;
+    delete draft.timeToClarify;
+    if (parseRequestedTime(text, draft.service)) return checkRequestedTime(input, draft, true);
+    return stateResult("¿A qué hora quieres reservar?", "reschedule_time", draft);
   }
 
   if (input.state === "reschedule_time") {
-    const slot = selectSlot(text, draft.slots || []);
-    if (!slot) {
-      return stateResult(`Esa hora no está en la lista.\n${promptForState("reschedule_time", draft)}`, "reschedule_time", draft);
-    }
-    draft.start = slot.start;
-    draft.time = slot.time;
-    delete draft.slots;
-    return stateResult(
-      `La reserva se moverá al ${formatLocalDate(slot.start, restaurant.timezone)}.\nPara confirmar, responde exactamente: CONFIRMAR CAMBIO`,
-      "reschedule_confirm",
-      draft,
-    );
+    return checkRequestedTime(input, draft, true);
   }
 
   if (input.state === "reschedule_confirm") {
@@ -658,11 +737,8 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
       await dependencies.rescheduleReservation(selected.managementToken, draft.start);
     } catch (error) {
       if (errorIncludes(error, "SLOT_NOT_AVAILABLE")) {
-        return stateResult(
-          "Esa hora acaba de dejar de estar disponible. Indica otra fecha.",
-          "reschedule_date",
-          draft,
-        );
+        const slots = await dependencies.getAvailability(String(draft.date), selected.party, selected.id);
+        return unavailableTimeReply(draft, slots, true);
       }
       if (errorIncludes(error, "CANCELLATION_WINDOW_CLOSED")) {
         return handoff(restaurant.name);

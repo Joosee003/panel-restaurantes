@@ -81,7 +81,7 @@ export async function POST(request: NextRequest) {
       // A retry after an uncertain completion may find the engine turn already done.
       // Its cached reply is never sent a second time.
       result = { ...engine, restaurantId: restaurant.id, restaurantName: restaurant.name,
-        reply: engine.reply ? `*${restaurant.name}*\n${engine.reply}` : "",
+        reply: engine.reply ? (selection.reset ? `*${restaurant.name}*\n${engine.reply}` : engine.reply) : "",
         suppressDelivery: engine.suppressDelivery === true };
       }
     }

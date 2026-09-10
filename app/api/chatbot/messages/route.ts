@@ -303,8 +303,8 @@ export async function POST(request: NextRequest) {
             p_excluir_reserva_id: excludeReservationId || null,
           });
           if (error) throw new Error(rpcMessage(error));
-          return ((data || []) as Array<{ inicio_at: string; hora_local: string }>).map(
-            (slot): ChatbotSlot => ({ start: slot.inicio_at, time: slot.hora_local }),
+          return ((data || []) as Array<{ inicio_at: string; hora_local: string; turno: string }>).map(
+            (slot): ChatbotSlot => ({ start: slot.inicio_at, time: slot.hora_local, service: slot.turno }),
           );
         },
         createBooking: async (input) => {
