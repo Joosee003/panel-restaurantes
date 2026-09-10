@@ -20,6 +20,7 @@ await db.exec(`create role anon; create role authenticated; create role service_
  insert into restaurante_modulos values('${a}',true,'activo'),('${b}',true,'activo');`);
 await db.exec(readFileSync(new URL('../supabase/migrations/20260909161858_shared_whatsapp_inbox.sql',import.meta.url),'utf8'));
 await db.exec(readFileSync(new URL('../supabase/migrations/20260910160709_natural_whatsapp_restaurant_selection.sql',import.meta.url),'utf8'));
+await db.exec(readFileSync(new URL('../supabase/migrations/20260910233856_retain_whatsapp_booking_details.sql',import.meta.url),'utf8'));
 await db.exec(`insert into whatsapp_restaurant_routes(restaurante_id,routing_code,enabled,delivery_mode,pilot_phones)
  values('${a}','local-a',true,'live','{}'),('${b}','local-b',true,'pilot','{+447700900124}');`);
 after(()=>db.close());
@@ -39,7 +40,8 @@ function compile(file,imports={}) {
  new Function('require','module','exports',code)(name=>imports[name]||require(name),compiled,compiled.exports);
  return compiled.exports;
 }
-const routing=compile('../lib/chatbot/shared-routing.ts');
+const bookingDetails=compile('../lib/chatbot/booking-details.ts');
+const routing=compile('../lib/chatbot/shared-routing.ts',{'./booking-details':bookingDetails});
 const {POST}=compile('../app/api/chatbot/inbox/route.ts',{
  '../../../lib/supabaseAdmin':{getSupabaseAdmin:()=>({rpc})},
  '../../../../lib/chatbot/shared-routing':routing,
@@ -240,7 +242,7 @@ test('the real booking handler starts fresh after restaurant confirmation and ke
   if(['complete_chatbot_turn','purge_expired_chatbot_sessions'].includes(name))return {data:true,error:null};
   throw new Error('Unexpected booking operation: '+name);
  }};
- const engine=compile('../app/lib/chatbotEngine.ts',{'./bookingDate':compile('../app/lib/bookingDate.ts')});
+ const engine=compile('../app/lib/chatbotEngine.ts',{'../../lib/chatbot/booking-details':bookingDetails,'./bookingDate':compile('../app/lib/bookingDate.ts')});
  const handler=compile('../app/api/chatbot/messages/route.ts',{
   '../../../lib/supabaseAdmin':{getSupabaseAdmin:()=>fakeDb},'../../../lib/chatbotEngine':engine,
   '../../../lib/publicLegal':{BOOKING_LEGAL_VERSION:'fixture'},'../../../lib/chatbotHours':compile('../app/lib/chatbotHours.ts'),
@@ -292,7 +294,7 @@ test('demo name variations match whole names and ambiguous normalized names dema
  assert.equal(ambiguous.restaurant,null);assert.match(ambiguous.reply,/varios restaurantes/);
 });
 test('the real assistant greets, answers a menu request and starts booking only on request',async()=>{
- const engine=compile('../app/lib/chatbotEngine.ts',{'./bookingDate':compile('../app/lib/bookingDate.ts')});
+ const engine=compile('../app/lib/chatbotEngine.ts',{'../../lib/chatbot/booking-details':bookingDetails,'./bookingDate':compile('../app/lib/bookingDate.ts')});
  const restaurant={id:a,name:'Local A',timezone:'Europe/Madrid',bookingEnabled:true,minParty:1,maxParty:12,maxAdvanceDays:60,
   requiresEmail:false,address:'Calle de prueba',mapsUrl:'',menuUrl:'https://panel.invalid/carta/fixture',hoursLunch:'13:00–16:00',hoursDinner:'20:00–23:00'};
  const input={state:'idle',draft:{},text:'hola buenas',phone:'+447700900124',contactName:'Prueba',mode:'pilot',restaurant,
@@ -308,7 +310,7 @@ test('the real assistant greets, answers a menu request and starts booking only 
 
 
 const bookingDates=compile('../app/lib/bookingDate.ts');
-const bookingEngine=compile('../app/lib/chatbotEngine.ts',{'./bookingDate':bookingDates});
+const bookingEngine=compile('../app/lib/chatbotEngine.ts',{'../../lib/chatbot/booking-details':bookingDetails,'./bookingDate':bookingDates});
 const bookingDay=bookingDates.addCalendarDays(bookingDates.dateInTimezone('Europe/Madrid'),2);
 const bookingRestaurant={id:a,name:'Local A',timezone:'Europe/Madrid',bookingEnabled:true,minParty:1,maxParty:12,maxAdvanceDays:60,
  requiresEmail:false,address:'',mapsUrl:'',menuUrl:'https://panel.invalid/carta/fixture',hoursLunch:'',hoursDinner:'',
@@ -316,7 +318,7 @@ const bookingRestaurant={id:a,name:'Local A',timezone:'Europe/Madrid',bookingEna
 const makeSlot=(time,service)=>({time,start:`${bookingDay}T${time}:00+02:00`,service});
 const daySlots=[...['12:30','13:00','13:30','14:00','14:30','15:00','15:30'].map(t=>makeSlot(t,'comida')),
  ...['19:00','19:30','20:00','20:30','21:00','21:30','22:00','22:30'].map(t=>makeSlot(t,'cena'))];
-function bookingConversation(initialSlots=daySlots,extra={}) {
+function bookingConversation(initialSlots=daySlots,extra={},restaurant=bookingRestaurant) {
  let state='idle',draft={},slots=initialSlots;
  const calls={availability:[],created:[],rescheduled:[]};
  const dependencies={
@@ -329,7 +331,7 @@ function bookingConversation(initialSlots=daySlots,extra={}) {
  };
  return {calls,setSlots(value){slots=value;},setState(value,saved){state=value;draft=saved;},
   async send(text,mode='pilot'){
-   const result=await bookingEngine.runChatbotTurn({state,draft,text,mode,phone:'+447700900124',contactName:'Prueba',restaurant:bookingRestaurant,dependencies});
+   const result=await bookingEngine.runChatbotTurn({state,draft,text,mode,phone:'+447700900124',contactName:'Prueba',restaurant,dependencies});
    state=result.state;draft=result.draft;return result;
   }};
 }
@@ -398,9 +400,8 @@ test('a suggested slot that fills up cannot be accepted from stale session data'
 
 test('a final booking conflict offers dinner alternatives and preserves the customer details',async()=>{
  let attempts=0;
- const c=bookingConversation(daySlots,{async createBooking(input){if(++attempts===1)throw new Error('SLOT_NOT_AVAILABLE');return {reservationId:'fixture',start:input.start,managementPath:'https://panel.invalid/reserva/fixture'};}});
+ const c=bookingConversation(daySlots,{async createBooking(input){if(++attempts===1){c.setSlots(daySlots.filter(s=>s.time!=='21:00'));throw new Error('SLOT_NOT_AVAILABLE');}return {reservationId:'fixture',start:input.start,managementPath:'https://panel.invalid/reserva/fixture'};}});
  await askBookingTime(c);await c.send('21:00');const summary=await c.send('Cliente de prueba');
- c.setSlots(daySlots.filter(s=>s.time!=='21:00'));
  let r=await c.send('ACEPTO RESERVA','live');assert.equal(r.state,'booking_time');assert.equal(r.draft.name,'Cliente de prueba');assert.notEqual(r.draft.idempotencyKey,summary.draft.idempotencyKey);
  assert.ok(r.draft.slots.every(s=>s.service==='cena'));assert.equal(r.draft.start,undefined);
  r=await c.send('21:30');assert.equal(r.state,'booking_confirm');assert.equal(r.draft.name,'Cliente de prueba');
@@ -468,4 +469,123 @@ test('schedule failures do not silently reply with old hours and all-disabled sc
  const r=await c.send('horarios');assert.match(r.reply,/No puedo consultar el horario ahora/);assert.doesNotMatch(r.reply,/soy el asistente/);
  assert.match(await readChatbotHours(hoursDb([scheduleRow(a,1,'12:30','17:00','comida',false)]),a),/Cerrado/);
  assert.equal(await readChatbotHours(hoursDb([]),a),null);
+});
+
+test('opening booking time survives party and date answers, including spaced minutes',async()=>{
+ const c=bookingConversation();let r=await c.send('reservar a las 19 30');
+ assert.equal(r.state,'booking_party');assert.equal(r.draft.time,'19:30');
+ r=await c.send('8 personas');assert.equal(r.state,'booking_date');assert.equal(r.draft.time,'19:30');
+ r=await c.send(bookingDay);assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'19:30');assert.doesNotMatch(r.reply,/qué hora/);
+ assert.deepEqual(c.calls.availability,[[bookingDay,8,undefined]]);
+});
+
+test('known booking details are collected once and a later explicit hour replaces the first',async()=>{
+ const c=bookingConversation();let r=await c.send(`Quiero reservar para 4 personas el ${bookingDay} a las 19 30`);
+ assert.equal(r.state,'booking_name');assert.equal(r.draft.party,4);assert.equal(r.draft.time,'19:30');
+ r=await c.send('mejor a las 20 30');assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'20:30');assert.equal(r.draft.name,undefined);
+ r=await c.send('Cliente Prueba');assert.equal(r.state,'booking_confirm');assert.equal(r.draft.time,'20:30');
+ assert.doesNotMatch(r.reply,/ACEPTO|exactamente|Condiciones|Privacidad|https:/);
+ assert.match(r.reply,/Son correctos estos datos/);
+ r=await c.send('Sí, está bien.','live');assert.equal(r.action,'booking_created');assert.equal(c.calls.created.length,1);
+ assert.equal(c.calls.created[0].confirmation.response,'Sí, está bien.');assert.match(c.calls.created[0].confirmation.prompt,/20:30/);
+});
+
+test('negative confirmation asks what is wrong, edits only that field and requires a fresh yes',async()=>{
+ const c=bookingConversation();await c.send(`reservar para 8 personas el ${bookingDay} a las 19:30`);const old=await c.send('Cliente Prueba');
+ let r=await c.send('no','live');assert.equal(r.state,'booking_confirm');assert.match(r.reply,/Qué dato está mal/);assert.equal(c.calls.created.length,0);
+ r=await c.send('sí','live');assert.match(r.reply,/Qué dato está mal/);assert.equal(c.calls.created.length,0);
+ r=await c.send('las personas');assert.equal(r.state,'booking_party');assert.equal(r.draft.name,'Cliente Prueba');assert.equal(r.draft.time,'19:30');
+ r=await c.send('6');assert.equal(r.state,'booking_confirm');assert.equal(r.draft.party,6);assert.equal(r.draft.date,bookingDay);assert.equal(r.draft.name,'Cliente Prueba');assert.equal(r.draft.time,'19:30');assert.notEqual(r.draft.idempotencyKey,old.draft.idempotencyKey);
+ assert.equal(c.calls.created.length,0);r=await c.send('sí, correcto','live');assert.equal(r.action,'booking_created');assert.equal(c.calls.created.length,1);assert.equal(c.calls.created[0].party,6);
+});
+
+test('inline corrections and field-only corrections preserve all other details including required email',async()=>{
+ const c=bookingConversation(daySlots,{}, {...bookingRestaurant,requiresEmail:true});
+ await c.send(`reservar para 4 personas el ${bookingDay} a las 19:30`);let r=await c.send('Nombre Inicial');assert.equal(r.state,'booking_email');
+ r=await c.send('fixture@example.invalid');assert.equal(r.state,'booking_confirm');
+ r=await c.send('no, somos 6','live');assert.equal(r.draft.party,6);assert.equal(r.state,'booking_confirm');assert.equal(r.draft.email,'fixture@example.invalid');
+ r=await c.send('sí, pero la hora es 20:30','live');assert.equal(r.draft.time,'20:30');assert.equal(r.state,'booking_confirm');assert.equal(c.calls.created.length,0);
+ r=await c.send('el nombre está mal');assert.equal(r.state,'booking_name');assert.equal(r.draft.name,undefined);
+ r=await c.send('a nombre de Nombre Corregido');assert.equal(r.state,'booking_confirm');assert.equal(r.draft.name,'Nombre Corregido');assert.equal(r.draft.email,'fixture@example.invalid');assert.equal(r.draft.time,'20:30');
+ for(const text of ['no sé','quizá','sí pero espera','no está correcto','no confirmo']) {
+  r=await c.send(text,'live');assert.equal(c.calls.created.length,0);
+ }
+});
+
+test('ordinary affirmatives create only after the current summary, and the actual customer app follows success',async()=>{
+ for(const text of ['sí','si, todo correcto','correcto','todo bien','vale','de acuerdo','perfecto','sí por favor','adelante']) {
+  const created=[];const c=bookingConversation(daySlots,{async createBooking(input){created.push(input);return {reservationId:'fixture',start:input.start,managementPath:'https://panel.invalid/reserva/fixture',clientAppPath:'https://panel.invalid/c/own-customer-token'};}});
+  await c.send(`reservar para 2 personas el ${bookingDay} a las 19:30`);const summary=await c.send('Prueba');
+  assert.doesNotMatch(summary.reply,/own-customer-token|privacidad|condiciones/i);
+  const r=await c.send(text,'live');assert.equal(r.action,'booking_created',text);assert.equal(created.length,1);assert.match(r.reply,/Tu app del cliente: https:\/\/panel.invalid\/c\/own-customer-token/);
+  assert.deepEqual(created[0].confirmation,{prompt:summary.reply,response:text,version:'booking-details-v1'});
+  await c.send(text,'live');assert.equal(created.length,1);
+ }
+});
+
+test('a filled slot at final confirmation is rechecked, while pilot never writes bookings',async()=>{
+ const c=bookingConversation();await c.send(`reservar para 2 personas el ${bookingDay} a las 19:30`);await c.send('Prueba');
+ c.setSlots(daySlots.filter(s=>s.time!=='19:30'));let r=await c.send('sí','live');assert.equal(r.state,'booking_time');assert.equal(c.calls.created.length,0);assert.equal(r.draft.name,'Prueba');
+ r=await c.send('20:00');assert.equal(r.state,'booking_confirm');r=await c.send('sí');assert.equal(r.action,'test_only');assert.match(r.reply,/No se ha creado ninguna reserva real/);assert.equal(c.calls.created.length,0);
+});
+
+test('time validation keeps morning separate from tomorrow, and does not parse dates or party sizes as hours',async()=>{
+ assert.equal(bookingDetails.explicitParty('para 11/09/2026 a las 19:30'),null);
+ assert.equal(bookingDetails.parseRequestedTime('8 personas'),null);
+ assert.equal(bookingDetails.parseRequestedTime('19 70'),null);
+ const c=bookingConversation([makeSlot('09:30','desayuno'),...daySlots]);
+ let r=await c.send('reservar a las 9:30 de la mañana');assert.equal(r.draft.date,undefined);assert.equal(r.draft.time,'09:30');
+ await c.send('2');r=await c.send(bookingDay);assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'09:30');
+ const d=bookingConversation();await d.send('reservar a las 9');await d.send('2');r=await d.send(bookingDay);assert.equal(r.state,'booking_time');assert.match(r.reply,/09:00 o a las 21:00/);assert.equal(d.calls.availability.length,0);
+});
+
+test('shared inbox retains canonical booking details before selection without retaining names or contact details',async()=>{
+ await reset();const text=`quiero reservar para 8 personas el ${bookingDay} a las 19 30, me llamo Prueba, correo fixture@example.invalid`;
+ await send(payload(text));assert.equal(engineCalls.length,0);
+ const saved=(await db.query('select pending_intent from whatsapp_inbox_contacts')).rows[0].pending_intent;
+ assert.equal(saved,`reservar para 8 personas el ${bookingDay} a las 19:30`);assert.doesNotMatch(saved,/Prueba|fixture|@/);
+ await send(payload('local-b'));assert.equal(engineCalls.at(-1).restaurantId,b);assert.equal(engineCalls.at(-1).text,saved);
+ const selected=routing.selectChatbotRestaurant(`quiero reservar en Local A el ${bookingDay} a las 19 30`,[{id:a,name:'Local A',code:'local-a',mode:'live'}],null);
+ assert.equal(selected.engineText,`reservar el ${bookingDay} a las 19:30`);
+ for(const invalid of ['reservar nombre Prueba','reservar telefono 447700900124','reservar a las 19:30 correo fixture@example.invalid']) {
+  await assert.rejects(db.query('update whatsapp_inbox_contacts set pending_intent=$1',[invalid]),/check constraint/);
+ }
+});
+
+test('date correction keeps the hour and name, then validates the new date before confirmation',async()=>{
+ const c=bookingConversation();await c.send(`reservar para 4 personas el ${bookingDay} a las 19 30`);await c.send('Prueba');
+ let r=await c.send('no, la fecha está mal');assert.equal(r.state,'booking_date');assert.equal(r.draft.time,'19:30');assert.equal(r.draft.name,'Prueba');
+ const nextDay=bookingDates.addCalendarDays(bookingDay,1);c.setSlots(daySlots.map(s=>({...s,start:s.start.replace(bookingDay,nextDay)})));
+ r=await c.send(nextDay);assert.equal(r.state,'booking_confirm');assert.equal(r.draft.date,nextDay);assert.equal(r.draft.time,'19:30');assert.equal(r.draft.name,'Prueba');assert.equal(c.calls.created.length,0);
+ r=await c.send('sí','live');assert.equal(r.action,'booking_created');assert.ok(c.calls.created[0].start.startsWith(nextDay));
+});
+
+test('the actual HTTP booking handler passes truthful confirmation to SQL and returns the customer app',async()=>{
+ const calls=[];let state='idle',draft={};
+ const fakeDb={from(table){const filters={};const query={select(){return query;},eq(key,val){filters[key]=val;return query;},async maybeSingle(){
+  assert.equal(filters[table==='restaurantes'?'id':'restaurante_id'],a);
+  return {error:null,data:({restaurantes:{id:a,nombre:'Local A'},restaurante_modulos:{chatbot:true,menu_digital:false,estado:'activo'},
+   reservas_config:{activo:true,zona_horaria:'Europe/Madrid',personas_minimas:1,personas_maximas:12},
+   restaurante_webs:{publicada:true,nombre_publico:'Local A',titular_legal:'Fixture',nif_cif:'fixture',domicilio_legal:'Fixture',email_legal:'fixture@example.invalid'},
+  })[table]};}};return query;},async rpc(name,args){calls.push({name,args});
+  if(name==='begin_chatbot_turn')return {data:{status:'acquired',state,draft},error:null};
+  if(name==='complete_chatbot_turn'){state=args.p_state;draft=args.p_draft;return {data:true,error:null};}
+  if(name==='purge_expired_chatbot_sessions')return {data:true,error:null};
+  if(name==='obtener_disponibilidad_chatbot'){assert.equal(args.p_restaurante_id,a);return {data:daySlots.map(s=>({inicio_at:s.start,hora_local:s.time,turno:s.service})),error:null};}
+  if(name==='crear_reserva_chatbot_confirmada')return {data:{ok:true,reserva_id:'fixture',inicio_at:args.p_inicio_at,gestion_token:'manage-fixture',cliente_app_token:'own-app-fixture'},error:null};
+  throw new Error('Unexpected operation '+name);
+ }};
+ const handler=compile('../app/api/chatbot/messages/route.ts',{
+  '../../../lib/supabaseAdmin':{getSupabaseAdmin:()=>fakeDb},'../../../lib/chatbotEngine':bookingEngine,'../../../lib/chatbotHours':{readChatbotHours:async()=>null},
+ }).POST;
+ const invoke=async text=>{const message=payload(text);const response=await handler(new NextRequest('https://panel.invalid/api/chatbot/messages',{
+  method:'POST',headers:{'Content-Type':'application/json','X-GastroHelp-Webhook-Secret':'isolated-local-fixture'},
+  body:JSON.stringify({...message,restaurantId:a,mode:'live',sharedInbox:true}),
+ }));assert.equal(response.status,200);return {message,result:await response.json()};};
+ await invoke(`reservar para 4 personas el ${bookingDay} a las 19 30`);const summary=await invoke('Cliente Prueba');
+ assert.doesNotMatch(summary.result.reply,/condiciones|privacidad|ACEPTO RESERVA/i);
+ const accepted=await invoke('sí, correcto');assert.equal(accepted.result.action,'booking_created');assert.match(accepted.result.reply,/Tu app del cliente: .*\/c\/own-app-fixture/);
+ const created=calls.filter(c=>c.name==='crear_reserva_chatbot_confirmada');assert.equal(created.length,1);assert.equal(created[0].args.p_restaurante_id,a);
+ assert.deepEqual(created[0].args.p_confirmacion,{prompt:summary.result.reply,response:'sí, correcto',version:'booking-details-v1',messageId:accepted.message.messageId});
+ assert.equal(created[0].args.p_acepta_privacidad,undefined);assert.equal(created[0].args.p_acepta_condiciones,undefined);
 });

@@ -1,3 +1,4 @@
+import { normalizeText, mealService, minutesOf, serviceAt, parseRequestedTime, explicitParty, type MealService } from "../../lib/chatbot/booking-details";
 import { addCalendarDays, dateInTimezone, isBookingDateAllowed } from "./bookingDate";
 
 export const CHATBOT_STATES = [
@@ -25,8 +26,6 @@ export type ChatbotSlot = {
   service?: string;
 };
 
-type MealService = "desayuno" | "comida" | "cena";
-
 export type ChatbotReservation = {
   id: string;
   managementToken: string;
@@ -36,6 +35,9 @@ export type ChatbotReservation = {
 };
 
 export type ChatbotDraft = {
+  editingField?: "choose" | "party" | "date" | "time" | "name" | "email";
+  confirmationPrompt?: string;
+  confirmationVersion?: string;
   party?: number;
   date?: string;
   slots?: ChatbotSlot[];
@@ -84,7 +86,8 @@ export type ChatbotDependencies = {
     phone: string;
     email: string;
     idempotencyKey: string;
-  }) => Promise<{ reservationId: string; start: string; managementPath: string }>;
+    confirmation: { prompt: string; response: string; version: string };
+  }) => Promise<{ reservationId: string; start: string; managementPath: string; clientAppPath?: string }>;
   listUpcomingReservations: () => Promise<ChatbotReservation[]>;
   cancelReservation: (managementToken: string) => Promise<void>;
   rescheduleReservation: (managementToken: string, start: string) => Promise<void>;
@@ -111,16 +114,6 @@ export type ChatbotEngineResult = {
   action?: "booking_created" | "booking_cancelled" | "booking_rescheduled" | "test_only";
 };
 
-function normalizeText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9@.+:/\s-]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function isNegative(text: string) {
   return ["no", "salir", "cancelar proceso", "empezar de nuevo", "reiniciar"].includes(
     normalizeText(text),
@@ -138,7 +131,7 @@ function parseParty(text: string) {
 }
 
 function parseDate(text: string, timezone: string, now = new Date()) {
-  const value = normalizeText(text);
+  const value = normalizeText(text).replace(/\b(?:de|por) la manana\b/g, "");
   const today = dateInTimezone(timezone, now);
 
   if (/\bpasado manana\b/.test(value)) return addCalendarDays(today, 2);
@@ -172,54 +165,6 @@ function parseDate(text: string, timezone: string, now = new Date()) {
 function parseEmail(text: string) {
   const match = text.trim().toLowerCase().match(/^[^\s@]+@[^\s@]+\.[^\s@]+$/);
   return match ? match[0].slice(0, 254) : null;
-}
-
-function mealService(text: string): MealService | undefined {
-  const value = normalizeText(text).replace(/_/g, " ");
-  if (/\b(cenar|cena|noche|dinner)\b/.test(value)) return "cena";
-  if (/\b(comer|comida|mediodia|lunch)\b/.test(value)) return "comida";
-  if (/\b(desayunar|desayuno|breakfast)\b|\b(?:de|por) la manana\b/.test(value)) return "desayuno";
-  return undefined;
-}
-
-function minutesOf(time: string) {
-  const [hour, minute] = time.split(":").map(Number);
-  return hour * 60 + minute;
-}
-
-function serviceAt(time: string): MealService {
-  const minutes = minutesOf(time);
-  return minutes >= 18 * 60 || minutes < 5 * 60 ? "cena" : minutes >= 11 * 60 ? "comida" : "desayuno";
-}
-
-function parseRequestedTime(text: string, preferredService?: MealService) {
-  const words: Record<string, number> = { una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
-    seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12,
-    trece: 13, catorce: 14, quince: 15, dieciseis: 16, diecisiete: 17, dieciocho: 18,
-    diecinueve: 19, veinte: 20, veintiuna: 21, veintiuno: 21, veintidos: 22, veintitres: 23 };
-  const value = normalizeText(text).replace(/\b[a-z]+\b/g, word => word in words ? String(words[word]) : word);
-  const match = value.match(/(?:^|\b(?:a las?|sobre las?|hacia las?|para las?)\s+)(\d{1,2})(?:[:.]([0-5]\d)|\s+(y media|y cuarto|menos cuarto))?(?:\s*(am|pm|h|horas?))?(?=\s|$)/);
-  if (!match || Number(match[1]) > 23) return null;
-  let hour = Number(match[1]);
-  let minute = Number(match[2] || 0);
-  if (match[3] === "y media") minute = 30;
-  if (match[3] === "y cuarto") minute = 15;
-  if (match[3] === "menos cuarto") { hour = (hour + 23) % 24; minute = 45; }
-  const explicitService = mealService(text);
-  const service = explicitService || preferredService;
-  const afternoon = match[4] === "pm" || /\b(?:tarde|noche)\b/.test(value);
-  const morning = match[4] === "am" || /\b(?:de|por) la manana\b/.test(value);
-  const explicit24 = match[1].startsWith("0") || Number(match[1]) > 12 || match[4] === "h" || /^hora/.test(match[4] || "");
-  if (afternoon && hour < 12) hour += 12;
-  else if (morning && hour === 12) hour = 0;
-  else if (!morning && !explicit24 && service === "cena" && hour < 12) hour += 12;
-  else if (!morning && !explicit24 && service === "comida" && hour >= 1 && hour <= 5) hour += 12;
-  else if (!morning && !explicit24 && service !== "desayuno" && hour > 0 && hour < 12) {
-    return { ambiguous: `${hour}:${String(minute).padStart(2, "0")}`, time: null, service };
-  }
-  if (Number(match[1]) === 12 && match[3] !== "menos cuarto" && /\b(?:media ?noche|12 de la noche)\b/.test(value)) hour = 0;
-  const time = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  return { ambiguous: null, time, service: explicitService || serviceAt(time) };
 }
 
 function formatLocalDate(start: string, timezone: string) {
@@ -290,16 +235,89 @@ function bookingSummary(draft: ChatbotDraft, restaurant: ChatbotRestaurant) {
 }
 
 function confirmationReply(draft: ChatbotDraft, restaurant: ChatbotRestaurant) {
-  return [
+  const reply = [
     "Comprueba la reserva:",
     bookingSummary(draft, restaurant),
     "",
-    `Privacidad: ${restaurant.privacyUrl}`,
-    `Condiciones de reserva: ${restaurant.bookingTermsUrl}`,
-    "",
-    "Si estás de acuerdo, responde exactamente: ACEPTO RESERVA",
-    "Para salir, responde: NO",
+    "¿Son correctos estos datos?",
   ].join("\n");
+  draft.confirmationPrompt = reply;
+  draft.confirmationVersion = "booking-details-v1";
+  delete draft.editingField;
+  return reply;
+}
+
+function isAffirmative(text: string) {
+  const value = normalizeText(text).replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim();
+  return /^(?:(?:si|claro)(?: (?:todo |esta |esta todo |son |estan |los datos son |los datos estan )?(?:correctos?|bien|perfecto))?|(?:todo |esta |esta todo |estan |son |los datos son |los datos estan )?(?:correctos?|bien)|vale|perfecto|adelante|de acuerdo|confirmo|confirmar|acepto reserva|ok|okey|asi esta bien)(?: por favor| gracias)?$/.test(value);
+}
+
+function rememberTime(draft: ChatbotDraft, text: string) {
+  const request = parseRequestedTime(text, mealService(text) || draft.service);
+  if (!request) return false;
+  draft.time = request.time || undefined;
+  draft.timeToClarify = request.ambiguous || undefined;
+  draft.service = request.service || draft.service;
+  delete draft.start;
+  delete draft.slots;
+  return true;
+}
+
+async function continueBooking(input: ChatbotEngineInput, draft: ChatbotDraft) {
+  if (!draft.party || draft.party < input.restaurant.minParty || draft.party > input.restaurant.maxParty) {
+    return stateResult("¿Para cuántas personas?", "booking_party", draft);
+  }
+  if (!draft.date || !isBookingDateAllowed(draft.date, input.restaurant.timezone, input.restaurant.maxAdvanceDays)) {
+    return stateResult("¿Qué fecha quieres? Puedes escribirla como DD/MM/AAAA.", "booking_date", draft);
+  }
+  const time = draft.time || draft.timeToClarify;
+  if (time) return checkRequestedTime({ ...input, text: `a las ${time}` }, draft, false);
+  return stateResult("¿A qué hora quieres reservar?", "booking_time", draft);
+}
+
+function correctionQuestion(restaurant: ChatbotRestaurant) {
+  return `¿Qué dato está mal: el nombre, las personas, la fecha${restaurant.requiresEmail ? ", el correo" : ""} o la hora?`;
+}
+
+async function correctBooking(input: ChatbotEngineInput, draft: ChatbotDraft): Promise<ChatbotEngineResult | null> {
+  const text = input.text.trim(), value = normalizeText(text);
+  const party = explicitParty(text);
+  const date = parseDate(text, input.restaurant.timezone);
+  const time = /\b(?:a las?|sobre las?|hacia las?|para las?|hora)\s|\b\d{1,2}[:.]\d{2}\b|^\d{1,2} \d{2}$/.test(value)
+    ? parseRequestedTime(text, mealService(text) || draft.service) : null;
+  const name = text.match(/(?:a nombre de|me llamo|el nombre es|nombre\s*:)\s+(.+)$/i)?.[1];
+  const email = text.match(/[^\s@]+@[^\s@]+\.[^\s@]+/)?.[0];
+  const field = /\b(nombre|llamo)\b/.test(value) ? "name"
+    : /\b(correo|email)\b/.test(value) ? "email"
+    : /\b(personas|comensales|somos|seremos)\b/.test(value) ? "party"
+    : /\b(fecha|dia)\b/.test(value) ? "date"
+    : /\b(hora)\b/.test(value) ? "time" : null;
+  if (!party && !date && !time && !name && !email && !field
+      && draft.editingField !== "choose" && !/^(?:no\b|incorrect|hay un error|quiero (?:cambiar|corregir)|cambiar|modificar)/.test(value)) return null;
+  delete draft.confirmationPrompt;
+  delete draft.confirmationVersion;
+  draft.idempotencyKey = crypto.randomUUID();
+  if (party) draft.party = party;
+  if (date) draft.date = date;
+  if (time) rememberTime(draft, text);
+  if (name) draft.name = name.replace(/\s+/g, " ").trim().slice(0,120);
+  if (email) draft.email = parseEmail(email) || undefined;
+  if (party || date || time || name || email) {
+    delete draft.editingField;
+    delete draft.start;
+    delete draft.slots;
+    return continueBooking(input, draft);
+  }
+  if (field) {
+    draft.editingField = field;
+    delete draft[field];
+    if (["party", "date", "time"].includes(field)) { delete draft.start; delete draft.slots; }
+    if (field === "time") delete draft.timeToClarify;
+    const state = `booking_${field}` as ChatbotState;
+    return stateResult(promptForState(state, draft), state, draft);
+  }
+  draft.editingField = "choose";
+  return stateResult(correctionQuestion(input.restaurant), "booking_confirm", draft);
 }
 
 function isBookingIntent(text: string) {
@@ -447,7 +465,10 @@ async function checkRequestedTime(input: ChatbotEngineInput, draft: ChatbotDraft
       "reschedule_confirm", draft,
     );
   }
-  if (draft.name) return stateResult(confirmationReply(draft, input.restaurant), "booking_confirm", draft);
+  if (draft.name) {
+    if (input.restaurant.requiresEmail && !draft.email) return stateResult("¿Cuál es tu correo?", "booking_email", draft);
+    return stateResult(confirmationReply(draft, input.restaurant), "booking_confirm", draft);
+  }
   return stateResult("Sí, hay sitio. ¿A qué nombre hago la reserva?", "booking_name", draft);
 }
 
@@ -505,7 +526,8 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
   const normalized = normalizeText(text);
   const draft: ChatbotDraft = { ...input.draft };
 
-  if (["reiniciar", "empezar de nuevo", "cancelar proceso", "cancelar", "salir", "no"].includes(normalized)) {
+  if (["reiniciar", "empezar de nuevo", "cancelar proceso", "cancelar", "salir"].includes(normalized)
+      || (normalized === "no" && !input.state.startsWith("booking_"))) {
     return reset("He cerrado el proceso. ¿Qué necesitas?");
   }
 
@@ -566,19 +588,30 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
       if (!restaurant.bookingEnabled) {
         return handoff(restaurant.name);
       }
-      return stateResult(
-        "¿Para cuántas personas?",
-        "booking_party",
-        { idempotencyKey: crypto.randomUUID(), service: mealService(text) },
-      );
+      const initial: ChatbotDraft = { idempotencyKey: crypto.randomUUID(), service: mealService(text),
+        party: explicitParty(text) || undefined, date: parseDate(text, restaurant.timezone) || undefined };
+      rememberTime(initial, text);
+      return continueBooking(input, initial);
     }
 
     return reset(welcomeReply(restaurant.name));
   }
 
+  // A time supplied while answering a different question is still remembered.
+  if (["booking_party", "booking_date", "booking_name", "booking_email"].includes(input.state)
+      && /\b(?:a las?|sobre las?|hacia las?|para las?|hora)\s|\b\d{1,2}:\d{2}\b|^\d{1,2} \d{2}$/.test(normalized)
+      && rememberTime(draft, text)) {
+    draft.party = explicitParty(text) || draft.party;
+    draft.date = parseDate(text, restaurant.timezone) || draft.date;
+    delete draft.confirmationPrompt;
+    delete draft.confirmationVersion;
+    return continueBooking(input, draft);
+  }
+
   if (input.state === "booking_party") {
     draft.service = mealService(text) || draft.service;
-    const party = parseParty(text);
+    if (!/^\d{1,3}$/.test(normalized)) rememberTime(draft, text);
+    const party = explicitParty(text) || (/^\d{1,3}$/.test(normalized) ? Number(normalized) : null);
     if (!party || party < restaurant.minParty || party > restaurant.maxParty) {
       return stateResult(
         `El número debe estar entre ${restaurant.minParty} y ${restaurant.maxParty}. ¿Para cuántas personas?`,
@@ -587,7 +620,8 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
       );
     }
     draft.party = party;
-    return stateResult("¿Qué fecha quieres? Puedes escribirla como DD/MM/AAAA.", "booking_date", draft);
+    draft.date = parseDate(text, restaurant.timezone) || draft.date;
+    return continueBooking(input, draft);
   }
 
   if (input.state === "booking_date") {
@@ -600,10 +634,8 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
     draft.service = mealService(text) || draft.service;
     delete draft.slots;
     delete draft.start;
-    delete draft.time;
-    delete draft.timeToClarify;
-    if (parseRequestedTime(text, draft.service)) return checkRequestedTime(input, draft, false);
-    return stateResult("¿A qué hora quieres reservar?", "booking_time", draft);
+    rememberTime(draft, text);
+    return continueBooking(input, draft);
   }
 
   if (input.state === "booking_time") {
@@ -611,12 +643,12 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
   }
 
   if (input.state === "booking_name") {
-    const name = text.replace(/\s+/g, " ").trim().slice(0, 120);
-    if (name.length < 2) {
+    const name = text.replace(/^(?:me llamo|a nombre de|el nombre es)\s+/i, "").replace(/\s+/g, " ").trim().slice(0, 120);
+    if (name.length < 2 || /^(?:si|no|vale|ok|correcto)$/.test(normalized) || !/[\p{L}]/u.test(name)) {
       return stateResult("Necesito un nombre válido.", "booking_name", draft);
     }
     draft.name = name;
-    if (restaurant.requiresEmail) {
+    if (restaurant.requiresEmail && !draft.email) {
       return stateResult("¿Cuál es tu correo?", "booking_email", draft);
     }
     return stateResult(confirmationReply(draft, restaurant), "booking_confirm", draft);
@@ -630,9 +662,20 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
   }
 
   if (input.state === "booking_confirm") {
-    if (isNegative(text)) return reset("No he creado la reserva. ¿Qué necesitas?");
-    if (normalized !== "acepto reserva") {
+    if (/^(?:salir|cancelar|cancelala|cancelar proceso|no quiero reservar|no quiero la reserva)$/.test(normalized)) return reset("No he creado la reserva. ¿En qué más puedo ayudarte?");
+    const correction = await correctBooking(input, draft);
+    if (correction) return correction;
+    if (!isAffirmative(text) || draft.confirmationVersion !== "booking-details-v1" || !draft.confirmationPrompt) {
       return stateResult(confirmationReply(draft, restaurant), "booking_confirm", draft);
+    }
+
+    if (!draft.name || !draft.party || !draft.start || !draft.date || !draft.time || !draft.idempotencyKey
+        || (restaurant.requiresEmail && !draft.email)) return continueBooking(input, draft);
+    // Recheck the exact confirmed slot even in pilot mode; the SQL writer repeats
+    // this check under its restaurant/date lock when creating a live reservation.
+    const available = await dependencies.getAvailability(draft.date, draft.party);
+    if (!available.some(slot => slot.start === draft.start && slot.time.slice(0,5) === draft.time)) {
+      return unavailableTimeReply(draft, available, false);
     }
 
     if (mode !== "live") {
@@ -651,6 +694,7 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
         phone: input.phone,
         email: draft.email || "",
         idempotencyKey: String(draft.idempotencyKey),
+        confirmation: { prompt: draft.confirmationPrompt, response: text, version: draft.confirmationVersion },
       });
     } catch (error) {
       if (errorIncludes(error, "SLOT_NOT_AVAILABLE")) {
@@ -661,7 +705,7 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
       throw error;
     }
     return reset(
-      `Reserva registrada para ${formatLocalDate(created.start, restaurant.timezone)} y ${draft.party} personas.\nPuedes gestionarla aquí: ${created.managementPath}`,
+      `Reserva registrada para ${formatLocalDate(created.start, restaurant.timezone)} y ${draft.party} personas.\nPuedes gestionarla aquí: ${created.managementPath}${created.clientAppPath ? `\n\nTu app del cliente: ${created.clientAppPath}` : ""}`,
       "booking_created",
     );
   }

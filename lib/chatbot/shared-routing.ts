@@ -1,3 +1,5 @@
+import { bookingIntentDetails, pendingBookingPattern } from "./booking-details";
+
 export type SharedRestaurant = {
   id: string;
   name: string;
@@ -53,8 +55,9 @@ export function selectChatbotRestaurant(
   const menu = /\b(?:cambiar de restaurante|cambiar restaurante|otro restaurante|otro local)\b/.test(value)
     || value === "restaurantes" || ["otro", "otra", "no"].includes(value) && !currentRestaurantId;
   const negative = /^(?:no|mejor otro|otro|en otro)(?: |$)/.test(value);
-  const rememberedIntent = !greeting && intents.includes(context.pendingIntent || "") ? context.pendingIntent! : null;
-  const pendingIntent = intentOf(value) || rememberedIntent;
+  const rememberedIntent = !greeting && (intents.includes(context.pendingIntent || "") || pendingBookingPattern.test(context.pendingIntent || "")) ? context.pendingIntent! : null;
+  const currentIntent = intentOf(value);
+  const pendingIntent = currentIntent === "reservar" ? bookingIntentDetails(text) : currentIntent || rememberedIntent;
   const current = restaurants.find(r => r.id === currentRestaurantId);
   const hits = restaurants.flatMap(restaurant => aliases(restaurant).filter(alias => {
     if (!(` ${nameValue} `).includes(` ${alias} `)) return false;
@@ -79,9 +82,7 @@ export function selectChatbotRestaurant(
       remaining = (` ${remaining} `).replace(` ${hit.alias} `, " ").trim();
     }
     const meaningful = intentOf(remaining);
-    const bookingText = meaningful === "reservar" && /\b(cenar|cena|noche)\b/.test(remaining)
-      ? "reservar para cenar" : meaningful === "reservar" && /\b(comer|comida|mediodia)\b/.test(remaining)
-        ? "reservar para comer" : meaningful;
+    const bookingText = meaningful === "reservar" ? bookingIntentDetails(text) : meaningful;
     const nameOnly = /^(?:(?:en|el|la|restaurante|local|por|favor|hola|buenas)\s*)*$/.test(remaining);
     return selected(restaurant, reset,
       reset ? (bookingText || rememberedIntent || "hola") : (bookingText || (nameOnly ? "hola" : text)));

@@ -8,7 +8,6 @@ import {
   type ChatbotSlot,
   type ChatbotState,
 } from "../../../lib/chatbotEngine";
-import { BOOKING_LEGAL_VERSION } from "../../../lib/publicLegal";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin";
 import { readChatbotHours } from "../../../lib/chatbotHours";
 
@@ -77,6 +76,7 @@ type BookingResult = {
   reserva_id?: string;
   inicio_at?: string;
   gestion_token?: string;
+  cliente_app_token?: string;
 };
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -310,7 +310,7 @@ export async function POST(request: NextRequest) {
           );
         },
         createBooking: async (input) => {
-          const { data, error } = await supabase.rpc("crear_reserva_chatbot", {
+          const { data, error } = await supabase.rpc("crear_reserva_chatbot_confirmada", {
             p_restaurante_id: restaurantId,
             p_inicio_at: input.start,
             p_personas: input.party,
@@ -318,9 +318,7 @@ export async function POST(request: NextRequest) {
             p_telefono: input.phone,
             p_email: input.email || null,
             p_idempotency_key: input.idempotencyKey,
-            p_privacidad_informada: true,
-            p_condiciones_aceptadas: true,
-            p_version_legal: BOOKING_LEGAL_VERSION,
+            p_confirmacion: { ...input.confirmation, messageId },
           });
           if (error) throw new Error(rpcMessage(error));
           const created = data as BookingResult | null;
@@ -331,6 +329,7 @@ export async function POST(request: NextRequest) {
             reservationId: created.reserva_id,
             start: created.inicio_at,
             managementPath: `${siteUrl}/reserva/${created.gestion_token}`,
+            clientAppPath: created.cliente_app_token ? `${siteUrl}/c/${created.cliente_app_token}` : undefined,
           };
         },
         listUpcomingReservations: async () => {
