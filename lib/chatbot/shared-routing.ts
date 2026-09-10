@@ -26,7 +26,7 @@ function intentOf(value: string): string | null {
   if (/\b(cancelar|anular)\b.*\breserva\b/.test(value)) return "cancelar reserva";
   if (/\b(cambiar|modificar|mover|reprogramar)\b.*\breserva\b/.test(value)) return "cambiar reserva";
   if (/\b(carta|menu)\b/.test(value)) return "carta";
-  if (/\b(horario|abris|abierto|cerrado)\b/.test(value)) return "horario";
+  if (/\b(horarios?|abris|abren?|abrir|abiert[oa]s?|apertura|cerrais|cierran?|cerrar|cerrad[oa]s?|cierre)\b/.test(value)) return "horario";
   if (/\b(direccion|ubicacion|donde estais)\b/.test(value)) return "direccion";
   if (/\b(persona|humano|encargado)\b/.test(value)) return "persona";
   if (/\b(reservar|reserva|mesa)\b/.test(value)

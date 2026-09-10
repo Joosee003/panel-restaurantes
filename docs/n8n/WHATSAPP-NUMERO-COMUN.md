@@ -85,3 +85,12 @@ Después de elegir fecha, el chatbot pregunta la hora y consulta su disponibilid
 Se consulta la disponibilidad completa al elegir cada hora, también si no figuraba entre las sugerencias. Un conflicto al confirmar vuelve a consultar y ofrece alternativas del mismo servicio. Este recorrido se aplica igualmente al cambio de una reserva, excluyendo únicamente la reserva seleccionada de su cálculo de ocupación.
 
 Los mensajes de continuación no llevan el nombre del local como encabezado. El identificador y nombre del restaurante siguen en la respuesta interna de la API y el contexto sigue aislado por restaurante. Las horas ambiguas se aclaran antes de consultar; no se decide entre mañana y noche según cuál tenga hueco.
+
+
+## Consulta de horarios — 11 de septiembre
+
+El chatbot reconoce «horarios», «horario» y preguntas de apertura o cierre tanto antes como después de elegir local. Lee `reservas_horarios` filtrado por `restaurante_id`, el mismo horario semanal que usa la disponibilidad de reservas. Agrupa días iguales e indica los días cerrados. Los textos generales `horario_comida` y `horario_cena` solo se usan cuando no hay calendario configurado; un fallo de consulta no puede presentar esos textos como si fueran el calendario actual.
+
+Para una fecha, «hoy», «mañana» o un día de la semana, también consulta las excepciones de ese local y fecha. Un horario especial reemplaza el habitual y los cierres completos o parciales se descuentan. No se muestran motivos internos ni datos de otros restaurantes. Una consulta sin fecha se identifica como horario habitual.
+
+Validación local: 42 pruebas de API, SQL y motor, incluidas la palabra de la captura, su conservación durante la selección de local, días cerrados, horas especiales, cierres parciales y fallos de consulta. No se modifican horarios, excepciones, permisos ni credenciales de Supabase.
