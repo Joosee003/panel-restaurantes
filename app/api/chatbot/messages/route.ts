@@ -10,6 +10,7 @@ import {
 } from "../../../lib/chatbotEngine";
 import { BOOKING_LEGAL_VERSION } from "../../../lib/publicLegal";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin";
+import { readChatbotHours } from "../../../lib/chatbotHours";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -295,6 +296,7 @@ export async function POST(request: NextRequest) {
         bookingTermsUrl: `${publicBase}/legal/condiciones-reserva`,
       },
       dependencies: {
+        getOpeningHours: (date) => readChatbotHours(supabase, restaurantId, date),
         getAvailability: async (date, party, excludeReservationId) => {
           const { data, error } = await supabase.rpc("obtener_disponibilidad_chatbot", {
             p_restaurante_id: restaurantId,

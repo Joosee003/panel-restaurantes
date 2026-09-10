@@ -243,7 +243,7 @@ test('the real booking handler starts fresh after restaurant confirmation and ke
  const engine=compile('../app/lib/chatbotEngine.ts',{'./bookingDate':compile('../app/lib/bookingDate.ts')});
  const handler=compile('../app/api/chatbot/messages/route.ts',{
   '../../../lib/supabaseAdmin':{getSupabaseAdmin:()=>fakeDb},'../../../lib/chatbotEngine':engine,
-  '../../../lib/publicLegal':{BOOKING_LEGAL_VERSION:'fixture'},
+  '../../../lib/publicLegal':{BOOKING_LEGAL_VERSION:'fixture'},'../../../lib/chatbotHours':compile('../app/lib/chatbotHours.ts'),
  }).POST;
  const invoke=async(text,startNewConversation,sharedInbox=true)=>handler(new NextRequest('https://panel.invalid/api/chatbot/messages',{
   method:'POST',headers:{'Content-Type':'application/json','X-GastroHelp-Webhook-Secret':'isolated-local-fixture'},
@@ -418,4 +418,54 @@ test('rescheduling asks for a time and checks it while excluding only the select
 test('a time given together with the date is checked without asking for it again',async()=>{
  const c=bookingConversation();await c.send('Quiero reservar');await c.send('5');
  const r=await c.send(`${bookingDay} a las 22:00`);assert.equal(r.state,'booking_name');assert.equal(r.draft.time,'22:00');assert.equal(c.calls.availability.length,1);
+});
+
+
+test('hours in plural and opening questions query the schedule and survive restaurant selection',async()=>{
+ const queried=[];const c=bookingConversation([],{async getOpeningHours(date){queried.push(date);return 'Horario habitual: 12:30–17:00 y 19:00–23:30';}});
+ for(const text of ['horarios','horario','¿A qué hora abrís?','¿Cuándo cerráis?','¿Está abierto?','horarios para reservar']) {
+  const r=await c.send(text);assert.equal(r.state,'idle');assert.match(r.reply,/12:30–17:00/);assert.doesNotMatch(r.reply,/soy el asistente|cuántas personas/);
+ }
+ await c.send('horarios mañana');assert.equal(queried.at(-1),bookingDates.addCalendarDays(bookingDates.dateInTimezone('Europe/Madrid'),1));
+ await reset();await send(payload('horarios'));await send(payload('Local B'));assert.equal(engineCalls.at(-1).text,'horario');
+ await send(payload('horarios'));assert.equal(engineCalls.at(-1).text,'horarios');
+});
+
+const {readChatbotHours}=compile('../app/lib/chatbotHours.ts');
+function hoursDb(schedules,exceptions=[],fail=false){
+ const calls=[];
+ return {calls,from(table){const filters={};const q={select(){return q;},eq(key,value){filters[key]=value;return q;},in(key,values){filters[key]=values;return q;},
+  then(resolve,reject){calls.push({table,filters:{...filters}});const rows=table==='reservas_horarios'?schedules:exceptions;
+   return Promise.resolve({data:rows.filter(row=>Object.entries(filters).every(([key,value])=>Array.isArray(value)?value.includes(row[key]):row[key]===value)),error:fail?{message:'unavailable'}:null}).then(resolve,reject);}};return q;}};
+}
+const scheduleRow=(restaurant,day,start,end,service='comida',active=true)=>({restaurante_id:restaurant,dia_semana:day,hora_inicio:start,hora_fin:end,turno:service,activo:active});
+
+test('weekly hours read only the selected restaurant, include closed days and ignore inactive rows',async()=>{
+ const rows=[...Array.from({length:7},(_,d)=>scheduleRow(a,d,'12:30:00','17:00:00')),
+  ...Array.from({length:7},(_,d)=>scheduleRow(b,d,'20:00:00','23:30:00','cena'))];
+ const db=hoursDb(rows);assert.match(await readChatbotHours(db,a),/todos los días:\nComidas: 12:30–17:00/);
+ assert.doesNotMatch(await readChatbotHours(db,a),/20:00|23:30/);assert.match(await readChatbotHours(db,b),/Cenas: 20:00–23:30/);
+ assert.ok(db.calls.every(call=>[a,b].includes(call.filters.restaurante_id)));
+ const days=hoursDb([scheduleRow(a,1,'12:30','17:00','comida',false),scheduleRow(a,2,'12:30','17:00')]);
+ const reply=await readChatbotHours(days,a);assert.match(reply,/Lunes:\nCerrado/);assert.match(reply,/Martes:\nComidas: 12:30–17:00/);
+});
+
+test('date-specific hours apply special schedules and full or partial closures without leaking another restaurant',async()=>{
+ const day=new Date(`${bookingDay}T12:00:00Z`).getUTCDay();
+ const rows=[scheduleRow(a,day,'12:30','17:00'),scheduleRow(b,day,'08:00','09:00')];
+ const special={restaurante_id:a,fecha:bookingDay,tipo:'horario_especial',turno:'cena',hora_inicio:'18:00',hora_fin:'23:00'};
+ let db=hoursDb(rows,[special,{restaurante_id:a,fecha:bookingDay,tipo:'cierre',hora_inicio:'20:00',hora_fin:'21:00'},
+  {restaurante_id:b,fecha:bookingDay,tipo:'cierre',hora_inicio:null,hora_fin:null}]);
+ let reply=await readChatbotHours(db,a,bookingDay);assert.match(reply,/18:00–20:00/);assert.match(reply,/21:00–23:00/);assert.doesNotMatch(reply,/12:30|08:00|Cerrado/);
+ assert.ok(db.calls.every(call=>call.filters.restaurante_id===a));assert.equal(db.calls[1].filters.fecha,bookingDay);
+ db=hoursDb(rows,[special,{restaurante_id:a,fecha:bookingDay,tipo:'cierre',hora_inicio:null,hora_fin:null}]);
+ reply=await readChatbotHours(db,a,bookingDay);assert.match(reply,/Cerrado/);assert.doesNotMatch(reply,/18:00/);
+});
+
+test('schedule failures do not silently reply with old hours and all-disabled schedules remain closed',async()=>{
+ await assert.rejects(()=>readChatbotHours(hoursDb([],[],true),a),/CHATBOT_HOURS_UNAVAILABLE/);
+ const c=bookingConversation([],{async getOpeningHours(){throw new Error('unavailable');}});
+ const r=await c.send('horarios');assert.match(r.reply,/No puedo consultar el horario ahora/);assert.doesNotMatch(r.reply,/soy el asistente/);
+ assert.match(await readChatbotHours(hoursDb([scheduleRow(a,1,'12:30','17:00','comida',false)]),a),/Cerrado/);
+ assert.equal(await readChatbotHours(hoursDb([]),a),null);
 });

@@ -71,6 +71,7 @@ export type ChatbotRestaurant = {
 };
 
 export type ChatbotDependencies = {
+  getOpeningHours?: (date?: string) => Promise<string | null>;
   getAvailability: (
     date: string,
     party: number,
@@ -325,7 +326,7 @@ function managementIntent(text: string): "cancel" | "reschedule" | "choose" | nu
 
 function faqIntent(text: string): "hours" | "address" | "menu" | null {
   const value = normalizeText(text);
-  if (/\b(horario|hora de abrir|hora de cierre|cuando abri)\b/.test(value)) return "hours";
+  if (/\b(horarios?|abris|abren?|abrir|abiert[oa]s?|apertura|cerrais|cierran?|cerrar|cerrad[oa]s?|cierre)\b/.test(value)) return "hours";
   if (/\b(direccion|ubicacion|donde est|como llegar|maps)\b/.test(value)) return "address";
   if (/\b(menu|carta|platos|comida)\b/.test(value)) return "menu";
   return null;
@@ -528,10 +529,30 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
   const bookingRequest = input.state === "idle" && isBookingIntent(text);
   const mealDuringBooking = ["booking_party", "booking_date", "booking_time", "reschedule_date", "reschedule_time"].includes(input.state)
     && mealService(text) && !/\b(carta|menu|platos)\b/.test(normalized);
-  const faq = bookingRequest || mealDuringBooking ? null : faqIntent(text);
+  const requestedFaq = faqIntent(text);
+  const faq = (bookingRequest || mealDuringBooking) && requestedFaq === "menu" ? null : requestedFaq;
   if (faq) {
+    let reply = faqReply(faq, restaurant);
+    if (faq === "hours" && dependencies.getOpeningHours) {
+      let date = parseDate(text, restaurant.timezone) || undefined;
+      if (!date && /\b(ahora|esta noche|esta tarde)\b/.test(normalized)) date = dateInTimezone(restaurant.timezone);
+      if (!date) {
+        const weekdays = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+        const weekday = weekdays.findIndex(day => new RegExp(`\\b${day}\\b`).test(normalized));
+        if (weekday >= 0) {
+          const today = dateInTimezone(restaurant.timezone);
+          const todayWeekday = new Date(`${today}T12:00:00Z`).getUTCDay();
+          date = addCalendarDays(today, (weekday - todayWeekday + 7) % 7);
+        }
+      }
+      try {
+        reply = await dependencies.getOpeningHours(date) || reply;
+      } catch {
+        reply = "No puedo consultar el horario ahora. Puedes pedir hablar con el equipo.";
+      }
+    }
     return stateResult(
-      `${faqReply(faq, restaurant)}\n\n${promptForState(input.state, draft)}`,
+      `${reply}\n\n${promptForState(input.state, draft)}`,
       input.state,
       draft,
     );
