@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
     const restaurants: SharedRestaurant[] = (routes || []).map((r: {
       restaurante_id: string; display_name: string; routing_code: string; delivery_mode: "pilot" | "live";
     }) => ({ id: r.restaurante_id, name: r.display_name, code: r.routing_code, mode: r.delivery_mode }));
-    const selection = selectChatbotRestaurant(text, restaurants, turn.restaurantId || null, !!body.replyToMessageId);
+    const selection = selectChatbotRestaurant(text, restaurants, turn.restaurantId || null, !!body.replyToMessageId, turn);
     let result: Record<string, unknown> = { ok: true, reply: selection.reply, suppressDelivery: test, mode: test ? "test" : "selection" };
     if (selection.restaurant) {
       const restaurant = selection.restaurant;
@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
         method: "POST", headers: { "Content-Type": "application/json", "X-GastroHelp-Webhook-Secret": received },
         body: JSON.stringify({ messageId, restaurantId: restaurant.id, from,
           name: String(body.name || "Cliente WhatsApp").slice(0, 120),
-          text: selection.reset ? "reiniciar" : text, mode: test ? "test" : restaurant.mode }),
+          text: selection.engineText, startNewConversation: selection.reset, mode: restaurant.mode }),
       });
       const engineResponse = await processRestaurantMessage(engineRequest);
       const engine = await engineResponse.json();
@@ -81,13 +81,13 @@ export async function POST(request: NextRequest) {
       // A retry after an uncertain completion may find the engine turn already done.
       // Its cached reply is never sent a second time.
       result = { ...engine, restaurantId: restaurant.id, restaurantName: restaurant.name,
-        reply: engine.reply ? `*${restaurant.name}*\n${selection.reset
-          ? "¿Qué necesitas? Puedes reservar, consultar la carta o gestionar tu reserva. Para hablar con otro local, escribe CAMBIAR RESTAURANTE."
-          : engine.reply}` : "", suppressDelivery: test || engine.suppressDelivery === true };
+        reply: engine.reply ? `*${restaurant.name}*\n${engine.reply}` : "",
+        suppressDelivery: engine.suppressDelivery === true };
       }
     }
-    const { data: saved, error: saveError } = await supabase.rpc("complete_whatsapp_inbox_turn", {
+    const { data: saved, error: saveError } = await supabase.rpc("complete_whatsapp_inbox_selection", {
       ...rpcArgs, p_restaurante_id: selection.restaurant?.id || null,
+      p_suggested_restaurante_id: selection.suggestedRestaurantId, p_pending_intent: selection.pendingIntent,
     });
     if (saveError || saved !== true) throw new Error("INBOX_COMMIT_FAILED");
     return json(result);
