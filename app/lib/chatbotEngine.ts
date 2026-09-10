@@ -340,7 +340,7 @@ function promptForState(state: ChatbotState, draft: ChatbotDraft) {
     case "handoff":
       return "El equipo continuará la conversación.";
     default:
-      return "Puedes escribir RESERVAR, CAMBIAR RESERVA, CANCELAR RESERVA, HORARIO, DIRECCIÓN, CARTA o PERSONA.";
+      return "¿En qué más puedo ayudarte?";
   }
 }
 
