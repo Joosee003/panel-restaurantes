@@ -29,7 +29,7 @@ try {
     update restaurante_webs set publicada=true;
   `);
   const flagsBefore=await rows('select id,restaurante_id,dia_semana,turno,activo,capacidad_override from reservas_horarios order by id');
-  await db.exec(await readFile(new URL('../supabase/migrations/20260910225421_panel_service_hours_source.sql',import.meta.url),'utf8'));
+  await db.exec(await readFile(new URL('../supabase/migrations/20260910230639_panel_service_hours_source.sql',import.meta.url),'utf8'));
   assert.deepEqual(await rows('select id,restaurante_id,dia_semana,turno,activo,capacidad_override from reservas_horarios order by id'),flagsBefore);
   const a=await calendar(I.restaurant), b=await calendar(I.otherRestaurant);
   assert.equal(a.length,14);assert.equal(b.length,14);
