@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     });
     if (routesError) throw new Error("ROUTES_FAILED");
     const restaurants: SharedRestaurant[] = (routes || []).map((r: {
-      restaurante_id: string; display_name: string; routing_code: string; delivery_mode: "pilot" | "live";
+      restaurante_id: string; display_name: string; routing_code: string; delivery_mode: SharedRestaurant["mode"];
     }) => ({ id: r.restaurante_id, name: r.display_name, code: r.routing_code, mode: r.delivery_mode }));
     const selection = selectChatbotRestaurant(text, restaurants, turn.restaurantId || null, !!body.replyToMessageId, turn);
     let result: Record<string, unknown> = { ok: true, reply: selection.reply, suppressDelivery: test, mode: test ? "test" : "selection" };
@@ -73,7 +73,8 @@ export async function POST(request: NextRequest) {
         method: "POST", headers: { "Content-Type": "application/json", "X-GastroHelp-Webhook-Secret": received },
         body: JSON.stringify({ messageId, restaurantId: restaurant.id, from,
           name: String(body.name || "Cliente WhatsApp").slice(0, 120),
-          text: selection.engineText, startNewConversation: selection.reset, sharedInbox: true, mode: restaurant.mode }),
+          text: selection.engineText, startNewConversation: selection.reset, sharedInbox: true,
+          mode: restaurant.mode === "private_live" ? "live" : restaurant.mode }),
       });
       const engineResponse = await processRestaurantMessage(engineRequest);
       const engine = await engineResponse.json();
@@ -81,7 +82,7 @@ export async function POST(request: NextRequest) {
       // A retry after an uncertain completion may find the engine turn already done.
       // Its cached reply is never sent a second time.
       result = { ...engine, restaurantId: restaurant.id, restaurantName: restaurant.name,
-        reply: engine.reply ? (selection.reset ? `*${restaurant.name}*\n${engine.reply}` : engine.reply) : "",
+        reply: engine.reply || "",
         suppressDelivery: engine.suppressDelivery === true };
       }
     }
