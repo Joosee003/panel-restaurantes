@@ -4,7 +4,7 @@ export type SharedRestaurant = {
   id: string;
   name: string;
   code: string;
-  mode: "live" | "pilot";
+  mode: "live" | "pilot" | "private_live";
 };
 
 export type RestaurantContext = {

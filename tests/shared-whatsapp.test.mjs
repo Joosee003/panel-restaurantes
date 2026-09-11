@@ -21,6 +21,7 @@ await db.exec(`create role anon; create role authenticated; create role service_
 await db.exec(readFileSync(new URL('../supabase/migrations/20260909161858_shared_whatsapp_inbox.sql',import.meta.url),'utf8'));
 await db.exec(readFileSync(new URL('../supabase/migrations/20260910160709_natural_whatsapp_restaurant_selection.sql',import.meta.url),'utf8'));
 await db.exec(readFileSync(new URL('../supabase/migrations/20260910233856_retain_whatsapp_booking_details.sql',import.meta.url),'utf8'));
+await db.exec(readFileSync(new URL('../supabase/migrations/20260911124918_private_live_chatbot_routes.sql',import.meta.url),'utf8'));
 await db.exec(`insert into whatsapp_restaurant_routes(restaurante_id,routing_code,enabled,delivery_mode,pilot_phones)
  values('${a}','local-a',true,'live','{}'),('${b}','local-b',true,'pilot','{+447700900124}');`);
 after(()=>db.close());
@@ -64,12 +65,12 @@ test('unidentified clients and invalid codes never fall back to a restaurant',as
  result=await send(payload('RESERVAR desconocido'));assert.match(result.reply,/Con qué restaurante/);
  await send(payload('2'));assert.equal(engineCalls.length,1);
 });
-test('same number and customer switch A → B with isolated engine calls and names only on selection',async()=>{
+test('same number and customer switch A → B with isolated engine calls and no repeated name headers',async()=>{
  await reset();
  let result=await send(payload('RESERVAR local-a',{restaurantId:b,mode:'pilot'}));
- assert.equal(result.restaurantId,a);assert.match(result.reply,/^\*Local A\*/);assert.equal(engineCalls[0].mode,'live');
+ assert.equal(result.restaurantId,a);assert.equal(result.reply,'Respuesta del motor');assert.equal(engineCalls[0].mode,'live');
  result=await send(payload('reservar'));assert.equal(engineCalls.at(-1).restaurantId,a);assert.equal(result.reply,'Respuesta del motor');assert.equal(result.restaurantName,'Local A');
- result=await send(payload('RESERVAR local-b',{mode:'live'}));assert.equal(result.restaurantId,b);assert.match(result.reply,/^\*Local B\*/);
+ result=await send(payload('RESERVAR local-b',{mode:'live'}));assert.equal(result.restaurantId,b);assert.equal(result.reply,'Respuesta del motor');
  assert.equal(engineCalls.at(-1).mode,'pilot');assert.equal(engineCalls.at(-1).text,'reservar');assert.equal(engineCalls.at(-1).startNewConversation,true);
  result=await send(payload('3'));assert.equal(engineCalls.at(-1).restaurantId,b);assert.equal(engineCalls.at(-1).from,'447700900124');assert.equal(result.reply,'Respuesta del motor');assert.equal(result.restaurantName,'Local B');
 });
@@ -588,4 +589,51 @@ test('the actual HTTP booking handler passes truthful confirmation to SQL and re
  const created=calls.filter(c=>c.name==='crear_reserva_chatbot_confirmada');assert.equal(created.length,1);assert.equal(created[0].args.p_restaurante_id,a);
  assert.deepEqual(created[0].args.p_confirmacion,{prompt:summary.result.reply,response:'sí, correcto',version:'booking-details-v1',messageId:accepted.message.messageId});
  assert.equal(created[0].args.p_acepta_privacidad,undefined);assert.equal(created[0].args.p_acepta_condiciones,undefined);
+});
+
+test('private live restaurants use real booking mode only for their configured test phones',async()=>{
+ await reset();await db.query("update whatsapp_restaurant_routes set delivery_mode='private_live' where restaurante_id=$1",[b]);
+ try {
+  await send(payload('RESERVAR local-b',{mode:'live',from:'447700900199'}));assert.equal(engineCalls.length,0);
+  let r=await send(payload('RESERVAR local-b',{mode:'test'}));assert.equal(r.preview.configuredMode,'private_live');assert.equal(engineCalls.length,0);
+  r=await send(payload('RESERVAR local-b'));assert.equal(r.restaurantId,b);assert.equal(engineCalls.at(-1).mode,'live');assert.equal(r.reply,'Respuesta del motor');
+  r=await send(payload('4'));assert.equal(r.restaurantId,b);assert.equal(r.reply,'Respuesta del motor');
+  r=await send(payload('RESERVAR local-a'));assert.equal(r.restaurantId,a);assert.equal(r.reply,'Respuesta del motor');
+ } finally {await db.query("update whatsapp_restaurant_routes set delivery_mode='pilot' where restaurante_id=$1",[b]);}
+});
+
+test('private live writes require the server phone allowlist and a marked demo or complete restaurant setup',async()=>{
+ for(const scenario of [
+  {name:'authorized demo',demo:true,enabled:true,allowed:true,mode:'private_live',expected:200,creates:true},
+  {name:'phone outside allowlist',demo:true,enabled:true,allowed:false,mode:'private_live',expected:403},
+  {name:'disabled route',demo:true,enabled:false,allowed:true,mode:'private_live',expected:403},
+  {name:'unconfigured actual restaurant',demo:false,enabled:true,allowed:true,mode:'private_live',expected:200,creates:false},
+  {name:'public route cannot request the demo exception',demo:true,enabled:true,allowed:true,mode:'live',expected:200,creates:false},
+ ]) {
+  let state='idle',draft={};const created=[];
+  const fakeDb={from(table){const q={select(){return q;},eq(key,val){assert.equal(val,a);return q;},async maybeSingle(){return {error:null,data:({
+   restaurantes:{id:a,nombre:'Local A'},restaurante_modulos:{chatbot:true,menu_digital:false,estado:'activo'},
+   reservas_config:{activo:true,zona_horaria:'Europe/Madrid',personas_minimas:1,personas_maximas:12},
+   restaurante_webs:{es_demo:scenario.demo,nombre_publico:'Local A',publicada:true},
+   whatsapp_restaurant_routes:{enabled:scenario.enabled,delivery_mode:scenario.mode,pilot_phones:scenario.allowed?['+447700900124']:[]},
+  })[table]};}};return q;},async rpc(name,args){
+   if(name==='purge_expired_chatbot_sessions')return {data:true,error:null};
+   if(name==='begin_chatbot_turn')return {data:{status:'acquired',state,draft},error:null};
+   if(name==='complete_chatbot_turn'){state=args.p_state;draft=args.p_draft;return {data:true,error:null};}
+   if(name==='obtener_disponibilidad_chatbot')return {data:daySlots.map(s=>({inicio_at:s.start,hora_local:s.time,turno:s.service})),error:null};
+   if(name==='crear_reserva_chatbot_confirmada'){created.push(args);return {data:{ok:true,reserva_id:'fixture',inicio_at:args.p_inicio_at,gestion_token:'manage-fixture',cliente_app_token:'app-fixture'},error:null};}
+   throw new Error('Unexpected '+name);
+  }};
+  const handler=compile('../app/api/chatbot/messages/route.ts',{
+   '../../../lib/supabaseAdmin':{getSupabaseAdmin:()=>fakeDb},'../../../lib/chatbotEngine':bookingEngine,'../../../lib/chatbotHours':{readChatbotHours:async()=>null},
+  }).POST;
+  const invoke=async text=>handler(new NextRequest('https://panel.invalid/api/chatbot/messages',{
+   method:'POST',headers:{'Content-Type':'application/json','X-GastroHelp-Webhook-Secret':'isolated-local-fixture'},
+   body:JSON.stringify({...payload(text),restaurantId:a,mode:'live',sharedInbox:true,privateDemoBooking:true}),
+  }));
+  let r=await invoke(`reservar para 2 personas el ${bookingDay} a las 20:30`);assert.equal(r.status,scenario.expected,scenario.name);
+  if(scenario.creates) {
+   await invoke('Comprobación');r=await invoke('sí');const result=await r.json();assert.equal(result.action,'booking_created');assert.doesNotMatch(result.reply,/PRUEBA|sería válida/);assert.equal(created.length,1);assert.equal(created[0].p_restaurante_id,a);
+  } else {assert.equal(created.length,0);if(scenario.expected===200)assert.equal((await r.json()).handoff,true);}
+ }
 });

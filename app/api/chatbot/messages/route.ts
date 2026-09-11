@@ -50,6 +50,7 @@ type BookingConfigRow = {
 };
 
 type WebRow = {
+  es_demo: boolean;
   slug: string;
   publicada: boolean;
   nombre_publico: string;
@@ -178,7 +179,7 @@ export async function POST(request: NextRequest) {
       .maybeSingle<BookingConfigRow>(),
     supabase
       .from("restaurante_webs")
-      .select("slug,publicada,nombre_publico,direccion_publica,google_maps_url,dominio_personalizado,titular_legal,nif_cif,domicilio_legal,email_legal,privacidad_email")
+      .select("slug,publicada,es_demo,nombre_publico,direccion_publica,google_maps_url,dominio_personalizado,titular_legal,nif_cif,domicilio_legal,email_legal,privacidad_email")
       .eq("restaurante_id", restaurantId)
       .maybeSingle<WebRow>(),
   ]);
@@ -201,6 +202,24 @@ export async function POST(request: NextRequest) {
 
   if (mode !== "test" && (modules?.chatbot !== true || modules.estado !== "activo")) {
     return json({ ok: false, error: "CHATBOT_NOT_ENABLED" }, 409);
+  }
+
+  // Private live demos write actual reservations, but only for server-configured
+  // test phones. Recheck here as this handler also has a direct n8n entry point.
+  let privateDemoBooking = false;
+  if (mode === "live") {
+    const { data: route, error: routeError } = await supabase
+      .from("whatsapp_restaurant_routes")
+      .select("enabled,delivery_mode,pilot_phones")
+      .eq("restaurante_id", restaurantId)
+      .maybeSingle<{ enabled: boolean; delivery_mode: string; pilot_phones: string[] }>();
+    if (routeError) return json({ ok: false, error: "CHATBOT_CONFIGURATION_FAILED" }, 500);
+    if (route?.delivery_mode === "private_live") {
+      if (!route.enabled || !route.pilot_phones?.includes(phone)) {
+        return json({ ok: false, error: "CHATBOT_NOT_ENABLED" }, 403);
+      }
+      privateDemoBooking = web?.es_demo === true;
+    }
   }
 
   let menuUrl = "";
@@ -282,7 +301,7 @@ export async function POST(request: NextRequest) {
         name: body.sharedInbox === true ? restaurant.nombre : web?.nombre_publico || restaurant.nombre,
         slug: web?.slug || restaurant.slug || "",
         timezone: booking?.zona_horaria || "Europe/Madrid",
-        bookingEnabled: booking?.activo === true && (legalReady || mode === "pilot"),
+        bookingEnabled: booking?.activo === true && (legalReady || mode === "pilot" || privateDemoBooking),
         minParty: booking?.personas_minimas || 1,
         maxParty: booking?.personas_maximas || 12,
         maxAdvanceDays: booking?.dias_maximos_antelacion || 60,
