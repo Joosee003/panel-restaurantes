@@ -253,7 +253,7 @@ function isAffirmative(text: string) {
 }
 
 function rememberTime(draft: ChatbotDraft, text: string) {
-  const request = parseRequestedTime(text, mealService(text) || draft.service);
+  const request = parseRequestedTime(text, mealService(text) || draft.service, false);
   if (!request) return false;
   draft.time = request.time || undefined;
   draft.timeToClarify = request.ambiguous || undefined;
@@ -611,7 +611,7 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
   if (input.state === "booking_party") {
     draft.service = mealService(text) || draft.service;
     if (!/^\d{1,3}$/.test(normalized)) rememberTime(draft, text);
-    const party = explicitParty(text) || (/^\d{1,3}$/.test(normalized) ? Number(normalized) : null);
+    const party = explicitParty(text, true);
     if (!party || party < restaurant.minParty || party > restaurant.maxParty) {
       return stateResult(
         `El número debe estar entre ${restaurant.minParty} y ${restaurant.maxParty}. ¿Para cuántas personas?`,
