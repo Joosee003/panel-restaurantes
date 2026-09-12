@@ -9,7 +9,7 @@ import {
   type ChatbotState,
 } from "../../../lib/chatbotEngine";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin";
-import { readChatbotHours } from "../../../lib/chatbotHours";
+import { readChatbotHours, readChatbotServiceRanges } from "../../../lib/chatbotHours";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -316,6 +316,7 @@ export async function POST(request: NextRequest) {
       },
       dependencies: {
         getOpeningHours: (date) => readChatbotHours(supabase, restaurantId, date),
+        getServiceRanges: (date) => readChatbotServiceRanges(supabase, restaurantId, date),
         getAvailability: async (date, party, excludeReservationId) => {
           const { data, error } = await supabase.rpc("obtener_disponibilidad_chatbot", {
             p_restaurante_id: restaurantId,

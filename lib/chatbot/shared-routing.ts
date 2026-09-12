@@ -1,4 +1,4 @@
-import { bookingIntentDetails, pendingBookingPattern } from "./booking-details";
+import { bookingIntentDetails, pendingBookingPattern, informationIntent, asksAvailability, humanRequest } from "./booking-details";
 
 export type SharedRestaurant = {
   id: string;
@@ -27,10 +27,12 @@ const intents = ["reservar", "cambiar reserva", "cancelar reserva", "carta", "ho
 function intentOf(value: string): string | null {
   if (/\b(cancelar|anular)\b.*\breserva\b/.test(value)) return "cancelar reserva";
   if (/\b(cambiar|modificar|mover|reprogramar)\b.*\breserva\b/.test(value)) return "cambiar reserva";
-  if (/\b(carta|menu)\b/.test(value)) return "carta";
-  if (/\b(horarios?|abris|abren?|abrir|abiert[oa]s?|apertura|cerrais|cierran?|cerrar|cerrad[oa]s?|cierre)\b/.test(value)) return "horario";
-  if (/\b(direccion|ubicacion|donde estais)\b/.test(value)) return "direccion";
-  if (/\b(persona|humano|encargado)\b/.test(value)) return "persona";
+  if (asksAvailability(value)) return "disponibilidad";
+  const info = informationIntent(value);
+  if (info === "hours") return "horario";
+  if (info === "address") return "direccion";
+  if (info === "menu" && /\b(carta|carya|menu|platos)\b/.test(value)) return "carta";
+  if (humanRequest(value)) return "persona";
   if (/\b(reservar|reserva|mesa)\b/.test(value)
       && !/\b(?:no quiero|no necesito|no deseo|sin)\s+(?:(?:hacer|una)\s+)*(?:reservar|reserva)\b/.test(value)) return "reservar";
   return null;
@@ -57,7 +59,8 @@ export function selectChatbotRestaurant(
   const negative = /^(?:no|mejor otro|otro|en otro)(?: |$)/.test(value);
   const rememberedIntent = !greeting && (intents.includes(context.pendingIntent || "") || pendingBookingPattern.test(context.pendingIntent || "")) ? context.pendingIntent! : null;
   const currentIntent = intentOf(value);
-  const pendingIntent = currentIntent === "reservar" ? bookingIntentDetails(text) : currentIntent || rememberedIntent;
+  const pendingIntent = ["reservar", "disponibilidad"].includes(currentIntent || "")
+    ? bookingIntentDetails(text, currentIntent === "disponibilidad") : currentIntent || rememberedIntent;
   const current = restaurants.find(r => r.id === currentRestaurantId);
   const hits = restaurants.flatMap(restaurant => aliases(restaurant).filter(alias => {
     if (!(` ${nameValue} `).includes(` ${alias} `)) return false;
@@ -82,7 +85,8 @@ export function selectChatbotRestaurant(
       remaining = (` ${remaining} `).replace(` ${hit.alias} `, " ").trim();
     }
     const meaningful = intentOf(remaining);
-    const bookingText = meaningful === "reservar" ? bookingIntentDetails(text) : meaningful;
+    const bookingText = ["reservar", "disponibilidad"].includes(meaningful || "")
+      ? bookingIntentDetails(text, meaningful === "disponibilidad") : meaningful;
     const nameOnly = /^(?:(?:en|el|la|restaurante|local|por|favor|hola|buenas)\s*)*$/.test(remaining);
     return selected(restaurant, reset,
       reset ? (bookingText || rememberedIntent || "hola") : (bookingText || (nameOnly ? "hola" : text)));
@@ -90,7 +94,7 @@ export function selectChatbotRestaurant(
   const asksUnknownRestaurant = /^restaurante\s+/.test(value)
     || /^reservar\s+(?!(?:para|una|mesa|el|hoy|manana|esta|este|a|en)\b)[a-z]/.test(value)
     || /\b(?:restaurante|local)\s+\S+/.test(value)
-    || /\b(?:reservar|reserva|mesa|cenar|comer)\b.*\ben\s+(?!(?:la )?(?:terraza|interior|sala|comedor)\b)/.test(value);
+    || /\b(?:reservar|reserva|mesa|cenar|comer|sitio|huecos?|disponibilidad)\b.*\ben\s+(?!(?:la )?(?:terraza|interior|sala|comedor)\b)/.test(value);
   const uncertain = menu || matches.length > 1 || (negative && matches.length > 0)
     || asksUnknownRestaurant || replyingToMessage;
   if (!uncertain && current) return selected(current, false, text);

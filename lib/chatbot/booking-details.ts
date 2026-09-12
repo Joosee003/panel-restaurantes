@@ -10,27 +10,51 @@ function numericWords(text: string) {
 }
 
 // This canonical routing value contains booking details only, never names or contact data.
-export const pendingBookingPattern = /^reservar(?: para (?:cenar|comer|desayunar))?(?: para \d{1,3} personas)?(?: (?:hoy|manana|pasado manana|el (?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)))?(?: a las \d{1,2}:[0-5]\d)?$/;
+export const pendingBookingPattern = /^(?:reservar|disponibilidad)(?: para (?:cenar|comer|desayunar))?(?: para \d{1,3} personas)?(?: (?:hoy|manana|pasado manana|(?:este |proximo )?(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)|el (?:\d{4}-\d{2}-\d{2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?)))?(?: a las \d{1,2}:[0-5]\d)?$/;
 
 export function explicitParty(text: string, answeringParty = false) {
   const value = numericWords(text);
   const match = value.match(/\b(?:somos|seremos|para)\s+(\d{1,3})(?![\d/:.-])\b/)
-    || value.match(/\b(\d{1,3})\s+(?:personas|comensales)\b/)
+    || value.match(/\b(\d{1,3})\s+(?:personas?|comensal(?:es)?)\b/)
     || (answeringParty ? value.match(/^(\d{1,3})(?: (?:por favor|gracias))?[.!]?$/) : null);
   if (match && /^\s+(?:reservas?\b|mesas?\b|\d)/.test(value.slice((match.index || 0) + match[0].length))) return null;
   return match ? Number(match[1]) : null;
 }
 
-export function bookingIntentDetails(text: string) {
+export function bookingIntentDetails(text: string, availability = false) {
   const value = normalizeText(text);
   const service = mealService(text);
   const party = explicitParty(text);
   const date = value.match(/\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?\b/)?.[0];
-  const relative = value.replace(/\b(?:de|por) la manana\b/g, "").match(/\b(pasado manana|manana|hoy)\b/)?.[0];
+  const relative = value.replace(/\b(?:de|por) la manana\b/g, "").match(/\b(pasado manana|manana|hoy|(?:este |proximo )?(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo))\b/)?.[0]
+    || (/\besta (?:noche|tarde)\b/.test(value) ? "hoy" : "");
   const time = parseRequestedTime(text, service, false);
-  return ["reservar", service ? `para ${service === "cena" ? "cenar" : service === "comida" ? "comer" : "desayunar"}` : "",
+  return [availability ? "disponibilidad" : "reservar", service ? `para ${service === "cena" ? "cenar" : service === "comida" ? "comer" : "desayunar"}` : "",
     party ? `para ${party} personas` : "", date ? `el ${date}` : relative || "",
     time ? `a las ${time.time || time.ambiguous}` : ""].filter(Boolean).join(" ");
+}
+
+export function informationIntent(text: string): "hours" | "address" | "menu" | null {
+  const value = normalizeText(text);
+  if (/\b(h?orarios?|abris|abren?|abrir|abiert[oa]s?|apertura|cerrais|cierran?|cerrar|cerrad[oa]s?|cierre)\b/.test(value)) return "hours";
+  if (/\b(direccion|ubicacion|donde (?:estais|estan|queda|est[aá])|como llegar|maps)\b/.test(value)) return "address";
+  if (/\b(menu|carta|carya|platos|comida)\b/.test(value)) return "menu";
+  return null;
+}
+
+export function asksAvailability(text: string) {
+  const value = normalizeText(text).replace(/\bq\b/g, "que");
+  if (informationIntent(text) === "hours" && !/\b(?:todos los (?:horarios|turnos))\b/.test(value)) return false;
+  return /\b(disponibilidad|disponibles?|huecos?|alternativas?)\b|\b(?:cualquier hora|todo el dia|todos los (?:horarios|turnos))\b/.test(value)
+    || /\b(?:que|cuales|otras?) horas?\b|\bhoras? (?:hay|tienes|teneis|quedan|libres)\b/.test(value)
+    || /\b(?:hay|tienes|teneis|queda) (?:sitio|mesa)\b/.test(value)
+    || /\b(?:mas tarde|mas temprano|mas pronto|a que hora (?:puedo|podemos|se puede))\b/.test(value);
+}
+
+export function humanRequest(text: string) {
+  const value = normalizeText(text);
+  return /\b(humano|equipo|encargado|responsable|hablar con alguien|hablar con una persona)\b/.test(value)
+    || (/\bpersona\b/.test(value) && explicitParty(text) === null);
 }
 
 export function normalizeText(value: string) {
