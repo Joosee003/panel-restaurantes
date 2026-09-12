@@ -722,9 +722,10 @@ export async function runChatbotTurn(input: ChatbotEngineInput): Promise<Chatbot
 
   // Explicit corrections apply regardless of which booking detail was requested.
   const suppliedParty = explicitParty(text);
+  const namedDateCorrection = /^(?:(?:mejor|para|el|este|proximo|no|la fecha es)\s+)+(?:hoy|manana|pasado manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|\d{1,4}[/-]\d{1,2})\b/.test(normalized)
+    || /^(?:hoy|manana|pasado manana|\d{1,4}[/-]\d{1,2}(?:[/-]\d{2,4})?)(?:\s+(?:a|por|para|de)\b|[.!]*$)/.test(normalized);
   const fieldValue = input.state === "booking_email" && parseEmail(text)
-    || input.state === "booking_name" && (!/^(?:(?:mejor|para|el|este|proximo|no|la fecha es)\s+)*(?:hoy|manana|pasado manana|lunes|martes|miercoles|jueves|viernes|sabado|domingo|\d{1,4}[/-]\d{1,2})\b/.test(normalized)
-      || /^(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo)$/.test(normalized));
+    || input.state === "booking_name" && !namedDateCorrection;
   const suppliedDate = fieldValue ? null : parseDate(text, restaurant.timezone);
   const suppliedTime = parseRequestedTime(text, mealService(text) || draft.service, false);
   if (bookingActive && input.state !== "booking_confirm" && input.state !== "booking_party"

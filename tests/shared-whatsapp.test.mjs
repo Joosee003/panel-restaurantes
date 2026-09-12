@@ -883,7 +883,7 @@ test('opening ranges and closures stay scoped to the same restaurant used for av
 });
 
 test('names and email addresses containing a date are values, while explicit date corrections still work',async()=>{
- for(const name of ['Control Conversación A 12-09','Grupo 14-09','Domingo','a nombre de Domingo']) {
+ for(const name of ['Control Conversación A 12-09','Grupo 14-09','Domingo','Domingo Pérez','a nombre de Domingo']) {
   const c=bookingConversation(dinnerSlots);await c.send(`reservar para 5 personas el ${bookingDay} a las 21:00`);
   const r=await c.send(name);assert.equal(r.state,'booking_confirm',name);assert.equal(r.draft.date,bookingDay);
   assert.equal(r.draft.name,name.replace('a nombre de ',''));
