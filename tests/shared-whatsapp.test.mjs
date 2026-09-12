@@ -881,3 +881,16 @@ test('opening ranges and closures stay scoped to the same restaurant used for av
  assert.deepEqual(ranges,[{service:'comida',start:'13:00',end:'14:00'},{service:'comida',start:'15:00',end:'16:00'},{service:'cena',start:'20:00',end:'23:30'}]);
  assert.ok(db.calls.every(call=>call.filters.restaurante_id===a));
 });
+
+test('names and email addresses containing a date are values, while explicit date corrections still work',async()=>{
+ for(const name of ['Control Conversación A 12-09','Grupo 14-09','Domingo','a nombre de Domingo']) {
+  const c=bookingConversation(dinnerSlots);await c.send(`reservar para 5 personas el ${bookingDay} a las 21:00`);
+  const r=await c.send(name);assert.equal(r.state,'booking_confirm',name);assert.equal(r.draft.date,bookingDay);
+  assert.equal(r.draft.name,name.replace('a nombre de ',''));
+ }
+ const c=bookingConversation(dinnerSlots,{}, {...bookingRestaurant,requiresEmail:true});
+ await c.send(`reservar para 5 personas el ${bookingDay} a las 21:00`);await c.send('Cliente');
+ let r=await c.send('12-09@example.invalid');assert.equal(r.state,'booking_confirm');assert.equal(r.draft.email,'12-09@example.invalid');assert.equal(r.draft.date,bookingDay);
+ const d=bookingConversation(dinnerSlots);await d.send(`reservar para 5 personas el ${bookingDay} a las 21:00`);
+ const date=bookingDates.addCalendarDays(bookingDay,1);r=await d.send(`mejor el ${date}`);assert.equal(r.state,'booking_name');assert.equal(r.draft.date,date);
+});
