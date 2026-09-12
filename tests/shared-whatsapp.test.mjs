@@ -540,6 +540,64 @@ test('time validation keeps morning separate from tomorrow, and does not parse d
  const d=bookingConversation();await d.send('reservar a las 9');await d.send('2');r=await d.send(bookingDay);assert.equal(r.state,'booking_time');assert.match(r.reply,/09:00 o a las 21:00/);assert.equal(d.calls.availability.length,0);
 });
 
+test('booking articles and party answers never invent an hour',async()=>{
+ for(const text of ['una reserva para hoy','una mesa para mañana','una reserva para cenar','un sitio para comer',
+  'cinco personas','5 para hoy','dos mesas','una reserva a nombre de Uno']) {
+  assert.equal(bookingDetails.parseRequestedTime(text),null,text);
+ }
+ assert.equal(bookingDetails.parseRequestedTime('cinco',undefined,false),null);
+ assert.equal(bookingDetails.parseRequestedTime('una',undefined,false),null);
+ assert.equal(bookingDetails.parseRequestedTime('una').ambiguous,'1:00');
+ assert.equal(bookingDetails.parseRequestedTime('cinco de la tarde').time,'17:00');
+ assert.equal(bookingDetails.parseRequestedTime('a las nueve y media para cenar',undefined,false).time,'21:30');
+ assert.equal(bookingDetails.parseRequestedTime('19 30',undefined,false).time,'19:30');
+ assert.equal(bookingDetails.parseRequestedTime('mejor a las 19 30',undefined,false).time,'19:30');
+ assert.equal(bookingDetails.explicitParty('para una reserva'),null);
+ assert.equal(bookingDetails.explicitParty('para 19 30'),null);
+});
+
+test('the reported today and five-person conversation asks only for the missing time in each restaurant',async()=>{
+ for(const restaurant of [bookingRestaurant,{...bookingRestaurant,id:b,name:'Local B',timezone:'Atlantic/Canary'}]) {
+  for(const partyAnswer of ['5','cinco','cinco personas','somos cinco','5 gracias']) {
+   const today=bookingDates.dateInTimezone(restaurant.timezone);
+   const slot={time:'21:00',start:`${today}T21:00:00Z`,service:'cena'};
+   const c=bookingConversation([slot],{},restaurant);
+   let r=await c.send('una reserva para hoy');assert.equal(r.state,'booking_party');assert.equal(r.draft.date,today);
+   assert.equal(r.draft.time,undefined);assert.equal(r.draft.timeToClarify,undefined);
+   r=await c.send(partyAnswer);assert.equal(r.state,'booking_time');assert.equal(r.draft.party,5);
+   assert.equal(r.draft.date,today);assert.equal(r.draft.timeToClarify,undefined);
+   assert.match(r.reply,/A qué hora/);assert.doesNotMatch(r.reply,/01:00|13:00|fecha|personas/);
+   assert.equal(c.calls.availability.length,0);assert.equal(c.calls.created.length,0);
+   r=await c.send('21 00');assert.equal(r.state,'booking_name');assert.deepEqual(c.calls.availability,[[today,5,undefined]]);
+   r=await c.send('Cliente Comprobación');assert.equal(r.state,'booking_confirm');assert.equal(c.calls.created.length,0);
+   r=await c.send('correcto','live');assert.equal(r.action,'booking_created');assert.equal(c.calls.created.length,1);
+   assert.equal(c.calls.created[0].party,5);assert.equal(c.calls.created[0].start,slot.start);
+  }
+ }
+});
+
+test('written party answers preserve an earlier explicit time and date',async()=>{
+ for(const reply of ['cinco','somos cinco','cinco personas']) {
+  const c=bookingConversation();let r=await c.send(`una reserva el ${bookingDay} a las 19 30`);
+  assert.equal(r.state,'booking_party');assert.equal(r.draft.time,'19:30');
+  r=await c.send(reply);assert.equal(r.state,'booking_name');assert.equal(r.draft.party,5);
+  assert.equal(r.draft.time,'19:30');assert.equal(r.draft.date,bookingDay);
+  assert.equal(r.draft.timeToClarify,undefined);assert.doesNotMatch(r.reply,/qué hora/);
+ }
+});
+
+test('restaurant selection retains the date and party without turning an article into an hour',async()=>{
+ await reset();await send(payload('una reserva para hoy'));
+ const pending=(await db.query('select pending_intent from whatsapp_inbox_contacts')).rows[0].pending_intent;
+ assert.equal(pending,'reservar hoy');
+ await send(payload('local-b'));assert.equal(engineCalls.at(-1).text,'reservar hoy');assert.equal(engineCalls.at(-1).restaurantId,b);
+ const c=bookingConversation();let r=await c.send(engineCalls.at(-1).text);assert.equal(r.draft.timeToClarify,undefined);
+ r=await c.send('5');assert.equal(r.state,'booking_time');assert.match(r.reply,/A qué hora/);
+ const selected=routing.selectChatbotRestaurant('una reserva en Local A para cinco personas hoy',
+  [{id:a,name:'Local A',code:'local-a',mode:'live'}],b);
+ assert.equal(selected.restaurant.id,a);assert.equal(selected.reset,true);assert.equal(selected.engineText,'reservar para 5 personas hoy');
+});
+
 test('shared inbox retains canonical booking details before selection without retaining names or contact details',async()=>{
  await reset();const text=`quiero reservar para 8 personas el ${bookingDay} a las 19 30, me llamo Prueba, correo fixture@example.invalid`;
  await send(payload(text));assert.equal(engineCalls.length,0);
