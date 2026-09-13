@@ -1,0 +1,79 @@
+name: gastrohelp-waha
+
+services:
+  waha:
+    # Docker Hub verified on 2026-09-13. This artifact is linux/amd64 only.
+    image: devlikeapro/waha:gows-2026.8.2@sha256:23f2d002d262b54c711af02b5fe79b1948bbf31e6b64cf7776cd6bd2f7477b47
+    restart: unless-stopped
+    stop_grace_period: 60s
+    ports:
+      - "127.0.0.1:${WAHA_LOCAL_PORT:-3000}:3000"
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: GOWS
+      UV_THREADPOOL_SIZE: "4"
+      WAHA_API_KEY: ${WAHA_API_KEY:?Run initialize.py to generate a hashed API key}
+      WAHA_NO_API_KEY: "false"
+      WHATSAPP_API_KEY_EXCLUDE_PATH: health,ping
+      WAHA_BASE_URL: ${WAHA_BASE_URL:?Set the public HTTPS origin}
+      WAHA_PUBLIC_URL: ${WAHA_BASE_URL:?Set the public HTTPS origin}
+      WAHA_WORKER_ID: gastrohelp-waha-1
+      WAHA_CLIENT_DEVICE_NAME: GastroHelp
+      WAHA_CLIENT_BROWSER_NAME: Desktop
+      WAHA_WORKER_RESTART_SESSIONS: "true"
+      WHATSAPP_RESTART_ALL_SESSIONS: "false"
+      WAHA_AUTO_START_DELAY_SECONDS: "2"
+      WAHA_PRINT_QR: "false"
+      WAHA_DASHBOARD_ENABLED: "false"
+      WHATSAPP_SWAGGER_ENABLED: "false"
+      WAHA_DEBUG_MODE: "false"
+      WAHA_LOG_LEVEL: warn
+      WAHA_HTTP_LOG_LEVEL: warn
+      WAHA_LOG_FORMAT: JSON
+      WAHA_EVENTS_DOWNLOAD_MEDIA: "false"
+      WAHA_API_DOWNLOAD_MEDIA: "false"
+      WHATSAPP_FILES_LIFETIME: "180"
+      # GOWS registration hints: experimental; verify actual storage growth.
+      # Set before the first QR scan. These do not promise zero history sync.
+      WAHA_GOWS_DEVICE_REQUIRE_FULL_SYNC: "false"
+      WAHA_GOWS_DEVICE_HISTORY_SYNC_FULL_SYNC_DAYS_LIMIT: "1"
+      WAHA_GOWS_DEVICE_HISTORY_SYNC_RECENT_SYNC_DAYS_LIMIT: "1"
+      WAHA_GOWS_DEVICE_HISTORY_SYNC_INITIAL_SYNC_MAX_MESSAGES_PER_CHAT: "1"
+      WAHA_GOWS_DEVICE_HISTORY_SYNC_FULL_SYNC_SIZE_MB_LIMIT: "32"
+      WAHA_GOWS_DEVICE_HISTORY_SYNC_STORAGE_QUOTA_MB: "128"
+      WAHA_GOWS_DEVICE_HISTORY_SYNC_THUMBNAIL_SYNC_DAYS_LIMIT: "1"
+      WAHA_GOWS_DEVICE_HISTORY_SYNC_SUPPORT_CALL_LOG_HISTORY: "false"
+      WAHA_GOWS_DEVICE_HISTORY_SYNC_SUPPORT_GROUP_HISTORY: "false"
+      WHATSAPP_HEALTH_SESSIONS_FILES_THRESHOLD_MB: "1024"
+      OTEL_TRACES_EXPORTER: none
+      OTEL_METRICS_EXPORTER: none
+      OTEL_LOGS_EXPORTER: none
+      TZ: UTC
+    volumes:
+      - sessions:/app/.sessions
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/health',{signal:AbortSignal.timeout(5000)}).then(async r=>{if(!r.ok||(await r.json()).status!=='ok')process.exit(1)}).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 8s
+      retries: 3
+      start_period: 90s
+    # Initial pilot limits; check available resources alongside existing n8n.
+    mem_limit: ${WAHA_MEMORY_LIMIT:-1g}
+    cpus: ${WAHA_CPU_LIMIT:-1.0}
+    pids_limit: 256
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  sessions:
+    name: gastrohelp-waha-sessions

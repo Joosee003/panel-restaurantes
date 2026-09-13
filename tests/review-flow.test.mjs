@@ -220,3 +220,34 @@ test('Failed recording of provider acceptance never falls into the generic retry
  assert.equal((await delivery.deliverVisitReview(event,state.rpc,env,async()=>{calls++;return Response.json(accepted);})).status,'needs_review');
  assert.equal(calls,1);assert.equal(state.calls.length,2);
 });
+
+test('An opted-in restaurant uses its own channel and never falls back to the shared Meta sender',async()=>{
+ for(const channelOutcome of [
+  {outcome:'blocked',error:'waha_offline'},
+  {outcome:'uncertain',error:'waha_delivery_unknown'},
+  {outcome:'sent',messageId:'waha:true_34600000001@c.us_FIXTURE'},
+ ]) {
+  const state=mockRpc(allowed);let selected=0;
+  const result=await delivery.deliverVisitReview(event,state.rpc,env,forbidden,async(received,context,actualRpc)=>{
+   selected++;assert.deepEqual(received,event);assert.equal(context,allowed);assert.equal(actualRpc,state.rpc);
+   return channelOutcome;
+  });
+  assert.equal(selected,1);
+  assert.equal(result.status,channelOutcome.outcome==='sent'?'accepted_by_whatsapp':channelOutcome.outcome);
+  assert.equal(state.calls[1].args.p_message_id,channelOutcome.messageId||null);
+ }
+});
+test('Only a restaurant without a WAHA selection keeps the original Meta transport',async()=>{
+ const state=mockRpc(allowed);let sends=0;
+ const result=await delivery.deliverVisitReview(event,state.rpc,env,async()=>{sends++;return Response.json(accepted);},async()=>null);
+ assert.equal(result.status,'accepted_by_whatsapp');assert.equal(sends,1);
+});
+test('A channel lookup failure fails closed instead of sending from another number',async()=>{
+ const state=mockRpc(allowed);
+ const result=await delivery.deliverVisitReview(event,state.rpc,env,forbidden,async()=>{throw Error('lookup failed');});
+ assert.equal(result.status,'needs_review');assert.equal(state.calls.length,1);
+});
+test('Already confirmed reviews are stopped before selecting or contacting any WAHA channel',async()=>{
+ const state=mockRpc({allowed:false,reason:'review_already_handled'});
+ assert.equal((await delivery.deliverVisitReview(event,state.rpc,env,forbidden,forbidden)).status,'blocked');
+});

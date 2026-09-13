@@ -1,0 +1,14 @@
+{
+  "image": "devlikeapro/waha",
+  "tag": "gows-2026.8.2",
+  "digest": "sha256:23f2d002d262b54c711af02b5fe79b1948bbf31e6b64cf7776cd6bd2f7477b47",
+  "platform": "linux/amd64",
+  "platformDigest": "sha256:4db10103027a0cb97a294241cb7902a5a1e4ec869581faa7de420d5a0b8b1dd0",
+  "engine": "GOWS",
+  "version": "2026.8.2",
+  "registryPublishedAt": "2026-09-01T08:48:12.948512Z",
+  "verifiedOn": "2026-09-13",
+  "source": "https://hub.docker.com/v2/repositories/devlikeapro/waha/tags/gows-2026.8.2",
+  "release": "https://github.com/devlikeapro/waha/releases/tag/2026.8.2",
+  "runtimeVerified": false
+}
