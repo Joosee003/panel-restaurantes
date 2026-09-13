@@ -40,6 +40,12 @@ jobs:
       - name: Shared WhatsApp restaurant routing and private SQL state
         run: node --test tests/shared-whatsapp.test.mjs
 
+      - name: Dedicated WhatsApp channels, QR access and durable delivery
+        run: node --test tests/waha-*.test.mjs
+
+      - name: Dedicated WhatsApp channel isolation and delivery locks
+        run: node scripts/test-waha-schema.mjs
+
       - name: Install isolated SQL test dependencies
         run: npm ci --prefix tests/sql
 

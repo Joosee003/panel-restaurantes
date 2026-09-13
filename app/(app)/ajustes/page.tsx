@@ -22,6 +22,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import { useRestaurante } from "../../hooks/useRestaurante";
 import WebReservasSettings from "./WebReservasSettings";
+import WhatsAppSettings from "./WhatsAppSettings";
 import { serviceHoursError } from "../../lib/serviceHours";
 
 type Zona = {
@@ -60,7 +61,7 @@ type RestauranteConfig = {
   puntos_por_euro: number | null;
 };
 
-type TabKey = "general" | "web" | "fidelizacion" | "reservas" | "sala";
+type TabKey = "general" | "web" | "fidelizacion" | "reservas" | "sala" | "whatsapp";
 
 const inputClass =
   "mt-1 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-900 outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 disabled:bg-slate-100 disabled:text-slate-400";
@@ -546,6 +547,7 @@ export default function AjustesPage() {
     { key: "fidelizacion", label: "Puntos", description: "Fidelización" },
     { key: "reservas", label: "Reservas", description: "Horarios y capacidad" },
     { key: "sala", label: "Sala", description: "Zonas y mesas" },
+    { key: "whatsapp", label: "WhatsApp", description: "Conecta tu número" },
   ];
 
   if (isLoading) {
@@ -586,11 +588,11 @@ export default function AjustesPage() {
               Ajustes
             </h1>
             <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-500">
-              Configura datos, puntos, horarios y sala sin tocar Supabase manualmente.
+              Configura los datos, horarios, reservas y WhatsApp de tu restaurante.
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          {tab !== "whatsapp" ? <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => void cargarSalaData(restauranteId)}
               className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50"
@@ -606,7 +608,7 @@ export default function AjustesPage() {
               {guardandoRestaurante ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
               {guardandoRestaurante ? "Guardando..." : "Guardar ajustes"}
             </button>
-          </div>
+          </div> : null}
         </div>
 
         <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -658,7 +660,7 @@ export default function AjustesPage() {
       </div>
 
       <div className="rounded-[28px] border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
           {tabs.map((item) => {
             const active = tab === item.key;
             return (
@@ -731,6 +733,8 @@ export default function AjustesPage() {
           onEditHours={() => setTab("reservas")}
         />
       )}
+
+      {tab === "whatsapp" && <WhatsAppSettings key={restauranteId} restaurantId={restauranteId} />}
 
       {tab === "fidelizacion" && (
         <SectionCard title="Puntos de fidelización" eyebrow="Clientes" icon={<Gift className="h-5 w-5" />}>
@@ -1193,7 +1197,7 @@ export default function AjustesPage() {
         </SectionCard>
       )}
 
-      <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+      {tab !== "whatsapp" ? <div className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-3 text-sm font-bold text-slate-600">
             <BadgeCheck className="h-5 w-5 text-blue-600" />
@@ -1208,7 +1212,7 @@ export default function AjustesPage() {
             Guardar ajustes
           </button>
         </div>
-      </div>
+      </div> : null}
     </div>
   );
 }

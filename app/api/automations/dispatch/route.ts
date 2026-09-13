@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "../../../lib/supabaseAdmin";
 import { deliverVisitReview } from "@/lib/reviews/review-delivery";
+import { createWahaReviewSender } from "@/lib/reviews/waha-review-delivery";
+import { recoverWahaInbound } from "@/lib/whatsapp/waha-inbound";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -169,10 +171,11 @@ async function permissionsFor(event: AutomationEvent) {
 
 async function deliverEvent(event: AutomationEvent) {
   if (event.event_type === "visit.review_request") {
+    const supabase = getSupabaseAdmin();
     return deliverVisitReview(event, async (name, args) => {
-      const { data, error } = await getSupabaseAdmin().rpc(name, args);
+      const { data, error } = await supabase.rpc(name, args);
       return { data, error };
-    }, process.env);
+    }, process.env, fetch, createWahaReviewSender(supabase));
   }
   try {
     const payload = { ...(event.payload || {}) };
@@ -342,8 +345,11 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
 
     const events = (data || []) as AutomationEvent[];
-    const results = await Promise.all(events.map(deliverEvent));
-    return json({ ok: true, claimed: events.length, results });
+    const [results, waha] = await Promise.all([
+      Promise.all(events.map(deliverEvent)),
+      recoverWahaInbound(supabase),
+    ]);
+    return json({ ok: true, claimed: events.length, results, waha });
   } catch (error) {
     console.error("Error procesando la cola de automatizaciones", error);
     return json({ ok: false, error: "AUTOMATION_DISPATCH_FAILED" }, 500);

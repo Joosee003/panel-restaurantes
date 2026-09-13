@@ -1,10 +1,16 @@
 import { isReviewToken, whatsappPhone } from "./review-flow";
 
 export type ReviewEvent = { event_id: string; restaurante_id: string; lock_token: string };
-type Delivery = { allowed: boolean; reason?: string; token: string; name: string; phone: string; restaurantName: string; deliveryMode: "test" | "live" };
-type Rpc = (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+export type ReviewDelivery = { allowed: boolean; reason?: string; token: string; name: string; phone: string; restaurantName: string; deliveryMode: "test" | "live" };
+type Delivery = ReviewDelivery;
+export type ReviewRpc = (name: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+type Rpc = ReviewRpc;
 type Environment = Record<string, string | undefined>;
-type Outcome = { outcome: "sent" | "test" | "blocked" | "uncertain"; messageId?: string; error?: string };
+export type ReviewOutcome = { outcome: "sent" | "test" | "blocked" | "uncertain" | "deferred"; messageId?: string; error?: string };
+type Outcome = ReviewOutcome;
+// Null means the restaurant has never selected its own WAHA connection. An
+// offline, disabled or incomplete WAHA connection must return a blocked result.
+export type ReviewChannelSender = (event: ReviewEvent, delivery: Delivery, rpc: Rpc) => Promise<Outcome | null>;
 
 export function reviewWhatsAppConfigured(env: Environment, restaurantId: string) {
   return reviewWebhookConfigured(env, restaurantId, env.WHATSAPP_REVIEW_RESTAURANT_IDS);
@@ -104,9 +110,17 @@ export async function sendReviewTemplate(event: ReviewEvent, delivery: Delivery,
   }
 }
 
-export async function deliverVisitReview(event: ReviewEvent, rpc: Rpc, env: Environment, transport: typeof fetch = fetch) {
+export async function deliverVisitReview(event: ReviewEvent, rpc: Rpc, env: Environment, transport: typeof fetch = fetch, channelSender?: ReviewChannelSender) {
   const result = (status: string) => ({ eventId: event.event_id, status });
-  const finish = async (outcome: "sent" | "test" | "blocked" | "uncertain", error?: string, messageId?: string) => {
+  const finish = async (outcome: ReviewOutcome["outcome"], error?: string, messageId?: string) => {
+    if (outcome === "deferred") {
+      const deferred = await rpc("defer_visit_review_delivery", {
+        p_event_id: event.event_id, p_lock_token: event.lock_token,
+        p_restaurante_id: event.restaurante_id, p_error: error || "waha_temporarily_unavailable",
+      });
+      if (deferred.error || !["deferred", "blocked"].includes(String(deferred.data))) return result("needs_review");
+      return result(String(deferred.data));
+    }
     const completed = await rpc("complete_visit_review_delivery", {
       p_event_id: event.event_id, p_lock_token: event.lock_token, p_outcome: outcome,
       p_message_id: messageId || null, p_error: error || null,
@@ -122,6 +136,10 @@ export async function deliverVisitReview(event: ReviewEvent, rpc: Rpc, env: Envi
       if (["delivery_lock_lost", "review_delivery_in_progress"].includes(delivery.reason || "")) return result("skipped");
       return await finish(delivery.reason === "review_delivery_uncertain" ? "uncertain" : "blocked", delivery.reason);
     }
+    // Select by the trusted event restaurant, even in test mode. A WAHA test
+    // must not unexpectedly exercise the former shared Meta sender.
+    const channelResult = channelSender ? await channelSender(event, delivery, rpc) : null;
+    if (channelResult) return await finish(channelResult.outcome, channelResult.error, channelResult.messageId);
     if (delivery.deliveryMode === "test" && !restaurantIncluded(event.restaurante_id, env.N8N_REVIEW_TEST_RESTAURANT_IDS)) {
       return await finish("test");
     }

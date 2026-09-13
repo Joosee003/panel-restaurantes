@@ -1,6 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
 import { reviewWhatsAppConfigured } from "@/lib/reviews/review-delivery";
+import { getWahaChannelForRestaurant } from "@/lib/whatsapp/waha-store";
+import { wahaConfigured } from "@/lib/whatsapp/waha-api";
+import { getSupabaseAdmin } from "../../../lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
 export async function GET(request: NextRequest) {
@@ -19,6 +22,10 @@ export async function GET(request: NextRequest) {
     if (user.error || !user.data.user) return NextResponse.json({ configured: false }, { status: 401, headers });
     const access = await client.rpc("puede_acceder_restaurante", { p_restaurante_id: restaurantId });
     if (access.error || access.data !== true) return NextResponse.json({ configured: false }, { status: 403, headers });
-    return NextResponse.json({ configured: reviewWhatsAppConfigured(process.env, restaurantId) }, { headers });
+    const channel = await getWahaChannelForRestaurant(getSupabaseAdmin(), restaurantId);
+    const configured = channel
+      ? channel.enabled && channel.reviews_enabled && channel.status === "WORKING" && Boolean(channel.phone_e164) && wahaConfigured()
+      : reviewWhatsAppConfigured(process.env, restaurantId);
+    return NextResponse.json({ configured }, { headers });
   } catch { return NextResponse.json({ configured: false }, { status: 503, headers }); }
 }
