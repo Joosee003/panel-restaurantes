@@ -44,6 +44,8 @@ test('opening Google cannot confirm a review or hide lost consent',()=>{
   assert.equal(pending.category,'pending');assert.equal(pending.confirmed,false);assert.equal(customers.customerReviewStage(pending).label,'Enlace abierto');
   const [stopped]=customers.groupReviewCustomers([{...opened,consent:false,status:'cancelled',last_error:'review_consent_missing'}]);
   assert.equal(stopped.category,'stopped');assert.equal(customers.customerReviewStage(stopped).label,'Sin permiso');
+  assert.equal(customers.matchesCustomerFilter(stopped,'pending'),true,'a stopped customer can still need a review check');
+  assert.equal(customers.matchesCustomerFilter(stopped,'stopped'),true);
   const [confirmed]=customers.groupReviewCustomers([{...opened,confirmed:true}]);
   assert.equal(confirmed.category,'confirmed');assert.equal(customers.customerReviewStage(confirmed).label,'Reseña confirmada');
 });
@@ -85,6 +87,8 @@ test('the panel groups rows, offers a plain chat link and saves a check on the s
 test('filters and formatted-phone search preserve stopped customers and reveal an empty state',async()=>{
   const data=fixture([row(),row({cliente_id:'stopped',reserva_id:'stopped',consent:false,google_opened_at:'2026-09-11T10:00:00Z'})]);
   const renderer=await render({channelConfigured:async()=>false,rpc:async()=>({data,error:null})});
+  assert.match(text(button(renderer,'Por revisar')),/2/);
+  await act(async()=>button(renderer,'Por revisar').props.onClick());assert.equal(renderer.root.findAllByType('article').length,2);
   await act(async()=>button(renderer,'Sin permiso').props.onClick());assert.equal(renderer.root.findAllByType('article').length,1);
   assert.match(text(renderer.root.findByType('article')),/Sin permiso/);
   await act(async()=>button(renderer,'Todos').props.onClick());

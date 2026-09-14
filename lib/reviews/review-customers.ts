@@ -57,6 +57,13 @@ export function customerReviewStage(customer: ReviewCustomer, now = Date.now()) 
   return reviewStage(customer.latest, now);
 }
 
+export function matchesCustomerFilter(customer: ReviewCustomer, filter: CustomerFilter): boolean {
+  if (filter === "all") return true;
+  // Losing messaging consent stops requests, but does not settle a published review.
+  if (filter === "pending") return Boolean(customer.reviewRequest) && !customer.confirmed;
+  return customer.category === filter;
+}
+
 export function whatsappConversationUrl(value: unknown): string | null {
   const phone = whatsappPhone(value);
   // Opening a conversation must not prepare, send or mark a review request as sent.
