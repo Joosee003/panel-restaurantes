@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, ChevronDown, Clock3, ExternalLink, History, Loader2, MessageCircle, RefreshCw, Search, Settings2, Undo2 } from "lucide-react";
 import { googleReviewUrl, reviewStage, type ReviewRequest, type ReviewSettings } from "@/lib/reviews/review-flow";
-import { customerReviewStage, googleBusinessUrl, groupReviewCustomers, whatsappConversationUrl, type CustomerFilter, type ReviewCustomer } from "@/lib/reviews/review-customers";
+import { customerReviewStage, googleBusinessUrl, groupReviewCustomers, matchesCustomerFilter, whatsappConversationUrl, type CustomerFilter, type ReviewCustomer } from "@/lib/reviews/review-customers";
 
 export type ReviewData = { restaurantName: string; settings: ReviewSettings; requests: ReviewRequest[] };
 export type ReviewPanelClient = {
@@ -81,11 +81,13 @@ export default function ReviewRequestsPanelView({ restauranteId, dark, client }:
   const customers = useMemo(() => groupReviewCustomers(data?.requests || []), [data]);
   const counts = useMemo(() => {
     const result = { all: customers.length, pending: 0, confirmed: 0, queued: 0, stopped: 0 };
-    for (const customer of customers) result[customer.category] += 1;
+    for (const customer of customers) {
+      for (const [key] of filters) if (key !== "all" && matchesCustomerFilter(customer, key)) result[key] += 1;
+    }
     return result;
   }, [customers]);
   const visible = useMemo(() => customers.filter(customer => {
-    if (filter !== "all" && customer.category !== filter) return false;
+    if (!matchesCustomerFilter(customer, filter)) return false;
     const search = query.trim().toLocaleLowerCase("es");
     if (!search) return true;
     const text = `${customer.latest.nombre} ${customer.latest.telefono || ""}`.toLocaleLowerCase("es");
