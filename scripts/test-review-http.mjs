@@ -40,6 +40,9 @@ try {
  const url=`${origin}/r/${prepared.token}`;
  const page=await fetch(url);assert.equal(page.status,200);
  const html=await page.text();assert.match(html,/Gracias por tu visita/);assert.match(html,/Escribir una reseña en Google/);assert.ok(!html.includes('+34600000001'));
+ const directPage=await fetch(`${url}/google`);assert.equal(directPage.status,200);
+ const directHtml=await directPage.text();assert.match(directHtml,/Abriendo Google/);assert.match(directHtml,/https:\/\/g.page\/r\/test-review\/review/);assert.ok(!directHtml.includes('+34600000001'));
+ assert.equal(directPage.headers.get('referrer-policy'),'no-referrer');assert.match(directPage.headers.get('x-robots-tag'),/noindex/);
  assert.equal(page.headers.get('referrer-policy'),'no-referrer');assert.match(page.headers.get('x-robots-tag'),/noindex/);
  await reviewActor(db,null,'service_role');
  let q=(await db.query('select * from visit_review_requests')).rows[0];assert.equal(q.google_opened_at,null);
@@ -53,6 +56,7 @@ try {
  assert.equal((await post('stop')).status,200);
  assert.match(await (await fetch(url)).text(),/Ya no recibirás más peticiones/);
  assert.equal((await fetch(`${origin}/r/not-a-token`)).status,404);
+ assert.equal((await fetch(`${origin}/r/not-a-token/google`)).status,404);
  console.log(JSON.stringify({status:'passed',checks:['Actual Next HTML renders the neutral Google handoff with no customer contact data.','GET and link previews do not count as clicks; unsupported GET API and cross-origin POST are rejected.','Same-origin explicit POST stores the Google opening and the panel RPC returns it without confirmation.','Opt-out through the actual API persists and renders on the public page.','Invalid tokens return 404; page is noindex and suppresses referrers.']},null,2));
 } catch(error){console.error(JSON.stringify({status:'failed',message:error.message,stack:error.stack}));process.exitCode=1;}
 finally {if(next?.pid){const stopped=new Promise(resolve=>next.once('exit',resolve));next.kill('SIGTERM');await bounded(stopped,5000).catch(()=>next.kill('SIGKILL'));}if(api)await new Promise(resolve=>api.close(resolve));await db.close();}

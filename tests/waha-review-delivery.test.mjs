@@ -90,5 +90,7 @@ test('fresh personalization is used and an outbox binding change stops before Wh
  const f=fixture();await f.run(delivery,async()=>({data:{...delivery,name:'Ana Nombre',restaurantName:'Local actualizado'},error:null}));
  assert.match(f.calls.find(c=>c[0]==='send')[1].text,/Hola Ana, gracias por tu visita a Local actualizado/);
  const changed=fixture({beginWahaSend:async()=>false});assert.equal((await changed.run()).outcome,'blocked');assert.equal(changed.calls.some(c=>c[0]==='send'),false);
- assert.match(wahaReviewText(delivery),new RegExp(`/r/${id}`));
+ const text=wahaReviewText(delivery);
+ assert.match(text,new RegExp(`aquí: https://panel.gastrohelp.es/r/${id}/google`));
+ assert.match(text,new RegExp(`Para dejar de recibir estas peticiones: https://panel.gastrohelp.es/r/${id}$`));
 });

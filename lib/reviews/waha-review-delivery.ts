@@ -20,7 +20,7 @@ const line = (value: string) => value.replace(/\s+/g, " ").trim().slice(0, 120);
 
 export function wahaReviewText(delivery: ReviewDelivery): string {
   const firstName = line(delivery.name).split(" ")[0] || "cliente";
-  return `Hola ${firstName}, gracias por tu visita a ${line(delivery.restaurantName)}. ¿Nos cuentas qué tal ha ido? Puedes dejar tu reseña aquí: https://panel.gastrohelp.es/r/${delivery.token}\n\nEn ese enlace también puedes dejar de recibir estas peticiones.`;
+  return `Hola ${firstName}, gracias por tu visita a ${line(delivery.restaurantName)}. ¿Nos cuentas qué tal ha ido? Puedes dejar tu reseña aquí: https://panel.gastrohelp.es/r/${delivery.token}/google\n\nPara dejar de recibir estas peticiones: https://panel.gastrohelp.es/r/${delivery.token}`;
 }
 
 /** No channel row means legacy Meta. A row always keeps this restaurant on WAHA. */
