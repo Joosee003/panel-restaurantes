@@ -23,4 +23,5 @@
 .demoBar,.demoBar span,.eyebrow,.hero .eyebrow,.heroFoot,.foodCopy .eyebrow,.photoLabel,.sectionTop>span,.interlude>span,.demoNote>span,.footerBottom,.menuTabs button span,.recommended{font-size:12px}
 .site .brand span{font-size:10px}.site .headerBooking,.site .primaryLink,.site .mobileBar a{font-size:12px}
 @media(max-width:760px){.demoBar{font-size:11px}.hero .eyebrow{font-size:11px}.hero .eyebrow span{width:15px}.heroFoot{font-size:11px}.menuTabs{gap:20px}.site .menuTabs button{gap:8px}.site .bookingWidget ol li{font-size:11px}.site .bookingWidget p{font-size:14px}.site .bookingWidget label>span{font-size:13px}.headerBooking{gap:10px}.menuFooter p{font-size:12px}.footerBottom{font-size:12px}}
+.site .main h1,.site .main h2,.site .menuItem h3{color:var(--paper)}
 @media(prefers-reduced-motion:reduce){.site *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
