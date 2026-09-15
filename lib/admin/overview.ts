@@ -62,6 +62,7 @@ export type RestaurantOverview = {
     confirmedFromSent: number;
     pending: number;
     failed: number;
+    undatedSent: number;
   };
   opinion: {
     unresolved: number;
@@ -267,8 +268,39 @@ export function buildAgencyOverview(
       ].filter(Boolean) as string[];
       const bookings = rows("bookings"),
         opinions = rows("opinions"),
-        requests = rows("requests"),
         customers = rows("customers");
+      const storedRequests = rows("requests");
+      const legacyBookings = new Map(
+        bookings
+          .filter(
+            (row) => yes(row, "resena_solicitada") && text(row, "cliente_id"),
+          )
+          .map((row) => [text(row, "id"), row]),
+      );
+      const requestedBookings = new Set(
+        storedRequests.map((row) => text(row, "reserva_id")),
+      );
+      // Legacy sends have no reliable send timestamp. Preserve follow-up without assigning them to a period.
+      const requests = [
+        ...storedRequests.map((row) => ({
+          ...row,
+          legacySent: legacyBookings.has(text(row, "reserva_id")),
+        })),
+        ...Array.from(legacyBookings.values())
+          .filter((row) => !requestedBookings.has(text(row, "id")))
+          .map((row) => ({
+            id: text(row, "id"),
+            cliente_id: text(row, "cliente_id"),
+            legacySent: true,
+          })),
+      ].map((row: DataRow, index) => ({
+        ...row,
+        customerKey:
+          text(row, "cliente_id") || `request:${text(row, "id") || index}`,
+      }));
+      const customerFlags = new Map(
+        customers.map((row) => [text(row, "id"), row.ya_dejo_resena]),
+      );
       const currentBookings = bookings.filter((row) =>
         inPeriod(bookingDate(row), period),
       );
@@ -290,29 +322,68 @@ export function buildAgencyOverview(
           value &&
             new Date(value).valueOf() <= new Date(period.generatedAt).valueOf(),
         );
+      const confirmedKeys = new Set(
+        requests
+          .filter(
+            (row) =>
+              customerFlags.get(row.customerKey) === true ||
+              (customerFlags.get(row.customerKey) !== false &&
+                beforeNow(text(row, "confirmed_at"))),
+          )
+          .map((row) => row.customerKey),
+      );
+      const uniqueCustomers = (items: typeof requests) =>
+        new Set(items.map((row) => row.customerKey)).size;
+      const confirmations = new Map<string, DataRow>();
+      for (const row of requests) {
+        const at = text(row, "confirmed_at"),
+          previous = confirmations.get(row.customerKey);
+        if (
+          confirmedKeys.has(row.customerKey) &&
+          beforeNow(at) &&
+          (!previous ||
+            Date.parse(at) < Date.parse(text(previous, "confirmed_at")))
+        )
+          confirmations.set(row.customerKey, row);
+      }
+      const confirmedRows = Array.from(confirmations.values());
       const review = {
-        sent: sent.length,
-        opened: sent.filter((row) => beforeNow(text(row, "google_opened_at")))
-          .length,
-        confirmedFromSent: sent.filter((row) =>
-          beforeNow(text(row, "confirmed_at")),
-        ).length,
-        pending: requests.filter(
-          (row) =>
-            !text(row, "confirmed_at") &&
-            (beforeNow(text(row, "sent_at")) ||
-              beforeNow(text(row, "google_opened_at"))),
-        ).length,
+        sent: uniqueCustomers(sent),
+        opened: uniqueCustomers(
+          sent.filter((row) => beforeNow(text(row, "google_opened_at"))),
+        ),
+        confirmedFromSent: uniqueCustomers(
+          sent.filter((row) => confirmedKeys.has(row.customerKey)),
+        ),
+        pending: uniqueCustomers(
+          requests.filter(
+            (row) =>
+              !confirmedKeys.has(row.customerKey) &&
+              (beforeNow(text(row, "sent_at")) ||
+                beforeNow(text(row, "google_opened_at")) ||
+                yes(row, "legacySent")),
+          ),
+        ),
         failed: requests.filter(
           (row) =>
-            text(row, "status") === "failed" && !text(row, "confirmed_at"),
+            ["blocked", "uncertain", "failed"].includes(text(row, "status")) &&
+            !confirmedKeys.has(row.customerKey),
         ).length,
+        undatedSent: uniqueCustomers(
+          requests.filter(
+            (row) => yes(row, "legacySent") && !text(row, "sent_at"),
+          ),
+        ),
       };
       const metrics = {
         bookings: metric(bookings, bookingDate, period),
         customers: metric(customers, (row) => text(row, "created_at"), period),
         opinions: metric(opinions, (row) => text(row, "created_at"), period),
-        confirmed: metric(requests, (row) => text(row, "confirmed_at"), period),
+        confirmed: metric(
+          confirmedRows,
+          (row) => text(row, "confirmed_at"),
+          period,
+        ),
         revenue: metric(
           rows("payments"),
           (row) => text(row, "creado_en"),
@@ -328,6 +399,9 @@ export function buildAgencyOverview(
         text(channel, "status") === "WORKING" && yes(channel, "enabled");
       const sharedConnected =
         yes(route, "enabled") && text(route, "delivery_mode") === "live";
+      const sharedPrivate =
+        yes(route, "enabled") &&
+        ["pilot", "private_live"].includes(text(route, "delivery_mode"));
       const needsChatbot = yes(modules, "chatbot");
       const chatbotReady =
         (qrConnected && yes(channel, "chatbot_enabled")) || sharedConnected;
@@ -351,12 +425,19 @@ export function buildAgencyOverview(
                 detail:
                   "La conexión anterior sigue activa. El número propio está pendiente.",
               }
-            : {
-                label: "Chatbot pendiente",
-                tone: "warning",
-                detail:
-                  "Hay que conectar el número y comprobar una conversación.",
-              };
+            : sharedPrivate
+              ? {
+                  label: "Compartido en prueba privada",
+                  tone: "info",
+                  detail:
+                    "El número compartido responde a los teléfonos autorizados. El número propio sigue pendiente.",
+                }
+              : {
+                  label: "Chatbot pendiente",
+                  tone: "warning",
+                  detail:
+                    "Hay que conectar el número y comprobar una conversación.",
+                };
       const setup: SetupTask[] = [];
       const add = (task: SetupTask) => setup.push(task);
       const reputationHref = `/opiniones-admin?restaurante=${id}`;
@@ -370,8 +451,7 @@ export function buildAgencyOverview(
             text(restaurant, "telefono") &&
             text(restaurant, "direccion"),
         ),
-        href: reputationOnly ? reputationHref : settings,
-        panel: !reputationOnly,
+        href: `/admin/restaurantes/${id}#access`,
       });
       const invitations = rows("invitations");
       const pendingInvite = invitations.some((row) =>
@@ -457,10 +537,9 @@ export function buildAgencyOverview(
             yes(automation, "enabled") &&
             yes(automation, "review_enabled") &&
             text(automation, "delivery_mode") === "live" &&
-            ((yes(automation, "whatsapp_enabled") &&
-              ((qrConnected && yes(channel, "reviews_enabled")) ||
-                sharedConnected)) ||
-              yes(automation, "email_enabled")),
+            yes(automation, "whatsapp_enabled") &&
+            ((qrConnected && yes(channel, "reviews_enabled")) ||
+              sharedConnected),
           href: settings,
           panel: true,
         });
@@ -502,8 +581,9 @@ export function buildAgencyOverview(
         insights.push({
           id: "failed",
           tone: "warning",
-          title: `${review.failed} solicitudes con error`,
-          detail: "Revisa el estado del envío de reseñas.",
+          title: `${review.failed} solicitudes necesitan revisión`,
+          detail:
+            "Hay envíos bloqueados o cuyo resultado no se ha podido confirmar.",
           href: "/resenas",
           panel: true,
         });
@@ -621,7 +701,7 @@ export function buildAgencyOverview(
         const day = days.get(agencyDay(text(row, "created_at")));
         if (day) day.opinions++;
       }
-      for (const row of requests) {
+      for (const row of confirmedRows) {
         const day = days.get(agencyDay(text(row, "confirmed_at")));
         if (day) day.confirmed++;
       }
