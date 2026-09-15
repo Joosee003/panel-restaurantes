@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { readFileSync } from "node:fs";
 import ts from "typescript";
-const module = { exports: {} };
+const testModule = { exports: {} };
 new Function(
   "module",
   "exports",
@@ -15,9 +15,9 @@ new Function(
       },
     },
   ).outputText,
-)(module, module.exports);
+)(testModule, testModule.exports);
 const { createPeriod, buildAgencyOverview, metricChange, agencyDay } =
-  module.exports;
+  testModule.exports;
 const period = createPeriod(7, new Date("2026-09-15T12:00:00Z"));
 const fixture = (extra) => ({
   restaurants: [
