@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { RestaurantContact } from "./RestaurantContact";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -188,9 +189,24 @@ function ActivityChart({
   restaurants: RestaurantOverview[];
   days: number;
 }) {
-  const [metric, setMetric] = useState<"bookings" | "opinions" | "confirmed">(
-    "opinions",
-  );
+  const [requestedMetric, setMetric] = useState<
+    "bookings" | "opinions" | "confirmed"
+  >("opinions");
+  const available = (key: "bookings" | "opinions" | "confirmed") =>
+    restaurants.some((row) =>
+      key === "bookings"
+        ? row.features.bookings
+        : key === "opinions"
+          ? row.features.opinions
+          : row.features.reviews,
+    );
+  const metric = available(requestedMetric)
+    ? requestedMetric
+    : available("bookings")
+      ? "bookings"
+      : available("opinions")
+        ? "opinions"
+        : "confirmed";
   const [showTable, setShowTable] = useState(false);
   const labels = {
     bookings: "Reservas",
@@ -949,12 +965,12 @@ export function RestaurantDetail({
               <section className="agency-card">
                 <h2>Recorrido de las reseñas</h2>
                 <p className="agency-muted">
-                  Seguimiento de las solicitudes enviadas durante el periodo,
-                  actualizado a hoy.
+                  Clientes con una solicitud enviada durante el periodo,
+                  actualizado a hoy. Cada cliente cuenta una vez.
                 </p>
                 <div className="agency-funnel">
                   {[
-                    ["Enviadas", restaurant.reviews.sent],
+                    ["Contactados", restaurant.reviews.sent],
                     ["Abrieron Google", restaurant.reviews.opened],
                     ["Confirmadas", restaurant.reviews.confirmedFromSent],
                   ].map(([label, value]) => (
@@ -973,6 +989,13 @@ export function RestaurantDetail({
                   La cifra superior cuenta todas las confirmaciones del periodo,
                   aunque la solicitud se enviara antes.
                 </p>
+                {restaurant.reviews.undatedSent > 0 && (
+                  <p className="agency-footnote">
+                    {restaurant.reviews.undatedSent} clientes tienen solicitudes
+                    antiguas sin fecha de envío verificable. Se conservan en el
+                    seguimiento y quedan fuera de este recorrido.
+                  </p>
+                )}
                 <button
                   className="agency-text-button"
                   onClick={() => open("/resenas", true)}
@@ -1107,13 +1130,11 @@ export function RestaurantDetail({
         </div>
       )}
       <section className="agency-card agency-contact-card" id="access">
-        <div>
-          <span className="agency-eyebrow">Ficha del restaurante</span>
-          <h2>Datos y acceso</h2>
-          <p>{restaurant.address || "Dirección pendiente"}</p>
-          <p>{restaurant.phone || "Teléfono pendiente"}</p>
-          <p className="agency-muted">Servicio: {restaurant.plan}</p>
-        </div>
+        <RestaurantContact
+          key={restaurant.id}
+          restaurant={restaurant}
+          onSaved={reload}
+        />
         <div>
           <span className={`agency-pill ${restaurant.channel.tone}`}>
             {restaurant.channel.label}
@@ -1122,7 +1143,11 @@ export function RestaurantDetail({
           <p>{restaurant.setup.find((task) => task.id === "access")?.detail}</p>
           <Link
             className="agency-text-button"
-            href={`/admin/herramientas?restaurante=${restaurant.id}`}
+            href={
+              restaurant.reputationOnly
+                ? `/opiniones-admin?restaurante=${restaurant.id}`
+                : `/admin/herramientas?restaurante=${restaurant.id}`
+            }
           >
             Configuración avanzada
             <ArrowRight size={14} />
