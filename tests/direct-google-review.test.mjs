@@ -8,10 +8,10 @@ import ts from 'typescript';
 
 const require=createRequire(import.meta.url);
 function compile(file,imports={}) {
-  const module={exports:{}};
+  const testModule={exports:{}};
   const code=ts.transpileModule(readFileSync(new URL(file,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
-  new Function('require','module','exports',code)(name=>imports[name]||require(name),module,module.exports);
-  return module.exports;
+  new Function('require','module','exports',code)(name=>imports[name]||require(name),testModule,testModule.exports);
+  return testModule.exports;
 }
 const flow=compile('../lib/reviews/review-flow.ts');
 const {default:DirectGoogleReview}=compile('../app/r/[token]/google/DirectGoogleReview.tsx',{'@/lib/reviews/review-flow':flow});

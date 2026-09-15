@@ -24,4 +24,5 @@
 .site .brand span{font-size:10px}.site .headerBooking,.site .primaryLink,.site .mobileBar a{font-size:12px}
 @media(max-width:760px){.demoBar{font-size:11px}.hero .eyebrow{font-size:11px}.hero .eyebrow span{width:15px}.heroFoot{font-size:11px}.menuTabs{gap:20px}.site .menuTabs button{gap:8px}.site .bookingWidget ol li{font-size:11px}.site .bookingWidget p{font-size:14px}.site .bookingWidget label>span{font-size:13px}.headerBooking{gap:10px}.menuFooter p{font-size:12px}.footerBottom{font-size:12px}}
 .site .main h1,.site .main h2,.site .menuItem h3{color:var(--paper)}
+@media(max-width:760px){.foodSection{grid-template-columns:minmax(0,1fr)}.foodImage{min-height:0;aspect-ratio:1}.foodImage,.foodCopy{min-width:0}}
 @media(prefers-reduced-motion:reduce){.site *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
