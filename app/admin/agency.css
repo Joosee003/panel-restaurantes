@@ -1297,3 +1297,32 @@ html.dark .agency-app {
     transition: none !important;
   }
 }
+
+.agency-mobile-logout {
+  display: none;
+}
+@media (max-width: 760px) {
+  .agency-logo-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .agency-mobile-logout {
+    display: grid;
+    place-items: center;
+    width: 36px;
+    height: 36px;
+    color: var(--agency-muted);
+  }
+}
+
+.agency-app h1,
+.agency-app h2,
+.agency-app p,
+.agency-review-summary dd {
+  overflow-wrap: anywhere;
+}
+.agency-page-heading > div {
+  min-width: 0;
+  max-width: 100%;
+}
