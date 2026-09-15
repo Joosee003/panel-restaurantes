@@ -1,4 +1,5 @@
 "use client";
+import { hasPanelServices } from "@/lib/admin/access-destination";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -63,28 +64,35 @@ export default function LoginPage() {
     userId: string,
     desiredPath: string | null = nextPath,
   ) => {
-    const [adminResult, restaurantResult] = await Promise.all([
+    const [adminResult, restaurantResult, reputationResult] = await Promise.all([
       supabase.from("app_admins").select("user_id").eq("user_id", userId).maybeSingle(),
       supabase
         .from("usuarios_restaurantes")
         .select("restaurante_id")
         .eq("user_id", userId)
         .limit(1),
+      supabase.from("opinion_usuarios_restaurantes").select("restaurante_id").eq("user_id",userId).eq("active",true),
     ]);
 
-    if (adminResult.error || restaurantResult.error) {
+    if (adminResult.error || restaurantResult.error || reputationResult.error) {
       throw new Error("No se ha podido comprobar el acceso del usuario.");
     }
 
     const isAdmin = Boolean(adminResult.data?.user_id);
     const hasRestaurant = Boolean(restaurantResult.data?.length);
 
-    if (!isAdmin && !hasRestaurant) {
+    if (!isAdmin && !hasRestaurant && !reputationResult.data?.length) {
       throw new Error("Este usuario todavía no tiene un restaurante asignado.");
     }
 
     if (desiredPath?.startsWith("/admin")) return isAdmin ? desiredPath : "/dashboard";
-    if (isAdmin) return "/admin/seleccionar-restaurante";
+    if (isAdmin) return "/admin/control";
+    if (reputationResult.data?.length) {
+      const ids = (restaurantResult.data || []).map(row => row.restaurante_id);
+      const moduleResult = ids.length ? await supabase.from("restaurante_modulos").select("reservas,clientes,resenas,fidelizacion,metricas,rentabilidad,chatbot,camarero_digital,menu_digital,automatizaciones").in("restaurante_id",ids) : {data:[],error:null};
+      if (moduleResult.error) throw new Error("No se han podido comprobar los servicios del restaurante.");
+      if (!moduleResult.data?.some(hasPanelServices)) return reputationResult.data.length === 1 ? `/opiniones-admin?restaurante=${reputationResult.data[0].restaurante_id}` : "/opiniones-admin";
+    }
     if (desiredPath && hasRestaurant) return desiredPath;
     if (hasRestaurant) return "/dashboard";
     return "/login";
