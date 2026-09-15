@@ -71,8 +71,23 @@ export function ReservaHeader({ name, bookingEnabled }: { name: string; bookingE
   </header>;
 }
 
+// Illustrations replace only seeded demo photos; custom uploaded photos keep priority.
+const demoDishPhotos: Record<string, { cell: number; source?: string }> = {
+  "Tataki de atún": { cell: 0, source: "photo-1546069901-ba9599a7e63c" },
+  "Croquetas de jamón": { cell: 1, source: "photo-1625944230945-1b7dd3b949ab" },
+  "Arroz meloso de mar": { cell: 2, source: "photo-1534080564583-6be75777b70a" },
+  "Entrecot madurado": { cell: 3, source: "photo-1544025162-d76694265947" },
+  "Pasta trufada": { cell: 4, source: "photo-1473093295043-cdd812d0e601" },
+  "Tarta de queso": { cell: 5, source: "photo-1578985545062-69928b1d9587" },
+  "Agua mineral": { cell: 6 },
+  "Copa de vino tinto": { cell: 7 },
+};
+
 function DishImage({ item, sizes }: { item: Dish; sizes: string }) {
   const [failed, setFailed] = useState(false);
+  const photo = demoDishPhotos[item.name];
+  const useIllustration = photo && (!item.imageUrl || (photo.source ? item.imageUrl.includes(photo.source) : item.imageUrl.startsWith("https://images.unsplash.com/")));
+  if (useIllustration) return <span className={styles.dishSprite} role="img" aria-label={`${item.name}, imagen ilustrativa`} style={{ backgroundPosition: `${(photo.cell % 4) * 100 / 3}% ${Math.floor(photo.cell / 4) * 100}%` }} />;
   return item.imageUrl && !failed ? <Image src={item.imageUrl} alt={item.name} fill unoptimized sizes={sizes} onError={() => setFailed(true)} /> : <div className={styles.imageFallback}><Utensils size={36} aria-hidden="true" /><span>{item.name}</span></div>;
 }
 
@@ -96,7 +111,7 @@ export function ReservaMenu({ sections, bookingEnabled }: { sections: PublicRest
     <div className={styles.menuGrid} key={selected} role="tabpanel" id="menu-panel" aria-labelledby={`menu-tab-${selected}`} tabIndex={0}>{current.items.map(item => <button type="button" className={styles.dishCard} key={item.name} aria-label={`Ver ${item.name}, ${price(item.price)}`} onClick={() => { setDish(item); detail.current?.showModal(); }}><div className={styles.dishPhoto}><DishImage item={item} sizes="(max-width: 600px) 88vw, (max-width: 1000px) 45vw, 30vw" />{item.recommended ? <span className={styles.recommended}>DE LOS FAVORITOS</span> : null}<span className={styles.dishMore}><Plus size={22} aria-hidden="true" /><span>Ver plato</span></span></div><div className={styles.dishTitle}><h3>{item.name}</h3><span>{price(item.price)}</span></div><p>{item.description}</p></button>)}</div>
     <dialog className={`${styles.dialog} ${styles.dishDialog}`} ref={detail} aria-labelledby="dish-title" onClick={event => { if (event.target === event.currentTarget) detail.current?.close(); }}>
       <button type="button" className={styles.closeButton} aria-label="Cerrar detalle del plato" onClick={() => detail.current?.close()}><X size={22} /></button>
-      {dish ? <><div className={styles.detailPhoto}><DishImage key={dish.name} item={dish} sizes="(max-width: 760px) 95vw, 480px" /></div><div className={styles.detailCopy}><p className={styles.eyebrow}>DE NUESTRA CARTA</p><h2 id="dish-title">{dish.name}</h2><p>{dish.description}</p><strong>{price(dish.price)}</strong><p className={styles.dishDisclaimer}>Precio de demostración · IVA incluido.<br />Para alérgenos e intolerancias, consulta al equipo.</p>{bookingEnabled ? <button type="button" className={styles.redButton} onClick={() => { detail.current?.close(); openBooking(); }}>Me apetece. Reservar mesa <ArrowUpRight size={20} aria-hidden="true" /></button> : null}</div></> : null}
+      {dish ? <><div className={styles.detailPhoto}><DishImage key={dish.name} item={dish} sizes="(max-width: 760px) 95vw, 480px" /></div><div className={styles.detailCopy}><p className={styles.eyebrow}>DE NUESTRA CARTA</p><h2 id="dish-title">{dish.name}</h2><p>{dish.description}</p><strong>{price(dish.price)}</strong><p className={styles.dishDisclaimer}>Imagen ilustrativa · Precio de demostración · IVA incluido.<br />Para alérgenos e intolerancias, consulta al equipo.</p>{bookingEnabled ? <button type="button" className={styles.redButton} onClick={() => { detail.current?.close(); openBooking(); }}>Me apetece. Reservar mesa <ArrowUpRight size={20} aria-hidden="true" /></button> : null}</div></> : null}
     </dialog>
   </div>;
 }
