@@ -48,7 +48,7 @@ export async function GET(request: Request) {
         key: "modules",
         table: "restaurante_modulos",
         columns:
-          "restaurante_id,plan,estado,reservas,clientes,resenas,chatbot,camarero_digital,menu_digital,fidelizacion,automatizaciones",
+          "restaurante_id,plan,estado,reservas,clientes,resenas,chatbot,camarero_digital,menu_digital,fidelizacion,automatizaciones,metricas,rentabilidad",
         order: "restaurante_id",
       },
       {
@@ -129,15 +129,14 @@ export async function GET(request: Request) {
       {
         key: "customers",
         table: "clientes",
-        columns: "id,restaurante_id,created_at",
-        since: "created_at",
+        columns: "id,restaurante_id,created_at,ya_dejo_resena",
       },
       {
         key: "bookings",
         table: "reservas",
         columns:
-          "id,restaurante_id,created_at,inicio_at,fecha_hora_reserva,estado,atendida",
-        or: `inicio_at.gte.${since},fecha_hora_reserva.gte.${since.slice(0, 10)}`,
+          "id,restaurante_id,cliente_id,created_at,inicio_at,fecha_hora_reserva,estado,atendida,resena_solicitada",
+        or: `inicio_at.gte.${since},fecha_hora_reserva.gte.${since.slice(0, 10)},resena_solicitada.eq.true`,
       },
       {
         key: "opinions",
@@ -156,8 +155,7 @@ export async function GET(request: Request) {
         key: "requests",
         table: "visit_review_requests",
         columns:
-          "id,restaurante_id,status,created_at,sent_at,google_opened_at,confirmed_at",
-        or: `created_at.gte.${since},sent_at.gte.${since},confirmed_at.gte.${since},and(confirmed_at.is.null,sent_at.not.is.null),and(confirmed_at.is.null,google_opened_at.not.is.null),status.eq.failed`,
+          "id,restaurante_id,cliente_id,reserva_id,status,created_at,sent_at,google_opened_at,confirmed_at",
       },
       {
         key: "payments",
