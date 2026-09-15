@@ -11,7 +11,7 @@ if(process.env.VERCEL_ENV==='preview' && process.env.VERCEL_GIT_COMMIT_REF==='fe
 }
 // Responsive browser QA is available only on the restaurant redesign preview.
 await rm(new URL('../public/qa-la-reserva.html',import.meta.url),{force:true});
-if(process.env.VERCEL_ENV==='preview' && process.env.VERCEL_GIT_COMMIT_REF==='feat/la-reserva-modern') {
+if(process.env.VERCEL_ENV==='preview' && ['feat/la-reserva-modern','feat/gastrohelp-signature'].includes(process.env.VERCEL_GIT_COMMIT_REF)) {
   await copyFile(new URL('../tests/la-reserva-preview/index.html',import.meta.url),new URL('../public/qa-la-reserva.html',import.meta.url));
 }
 const result=spawnSync(process.execPath,['node_modules/next/dist/bin/next','build',...process.argv.slice(2)],{stdio:'inherit',env:process.env});

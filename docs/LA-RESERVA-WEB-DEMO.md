@@ -33,3 +33,7 @@ Public route: `/restaurante/la-reserva-demo`.
 - The responsive browser wrapper is built only on this feature branch’s preview and removed by the production build. It is not part of the public production site.
 
 - The synthetic mobile booking was cancelled via its private management page; SQL verified `estado=cancelada` for the same demo record. A narrow-screen headline adjustment prevents the last letter from clipping at 360px.
+
+
+## Septiembre 2026 — firma GastroHelp
+La dirección visual vigente y los criterios reutilizables se documentan en `GASTROHELP-DESIGN-SIGNATURE.md`. Sustituye la paleta roja y el titular de tres líneas por una entrada fotográfica, azul tinta y la firma «Tu sitio en la mesa». La carta se presenta como lista interactiva con fotografía protagonista.

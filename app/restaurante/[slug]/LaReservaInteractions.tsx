@@ -10,6 +10,10 @@ const BookingContext = createContext<() => void>(() => {});
 type Dish = PublicRestaurant["menu"]["sections"][number]["items"][number];
 const price = (value: number | null) => value == null ? "Consultar" : new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
 
+export function TableSignature() {
+  return <svg className={styles.tableSignature} viewBox="0 0 48 34" width="42" height="30" fill="none" aria-hidden="true"><path d="M16 27C-3 23-2 4 24 4S51 23 32 27" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /><circle className={styles.tableSeat} cx="24" cy="27" r="3" fill="currentColor" /></svg>;
+}
+
 export function ReservaShell({ children, booking, bookingEnabled }: { children: ReactNode; booking: ReactNode; bookingEnabled: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -33,10 +37,10 @@ export function ReservaShell({ children, booking, bookingEnabled }: { children: 
   }
   return <BookingContext.Provider value={openBooking}><div className={styles.site} ref={root}>
     {children}
-    <div className={styles.mobileBar}><a href="#carta">Ver carta</a>{bookingEnabled ? <ReserveButton>Reservar mesa <ArrowUpRight size={18} aria-hidden="true" /></ReserveButton> : null}</div>
+    <div className={styles.mobileBar}><a href="#carta">Ver carta</a>{bookingEnabled ? <ReserveButton>Reservar mesa <TableSignature /></ReserveButton> : null}</div>
     <dialog ref={dialog} className={`${styles.dialog} ${styles.bookingDialog}`} aria-labelledby="booking-dialog-title" onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
-      <div className={styles.drawerTop}><div><span>LA RESERVA</span><h2 id="booking-dialog-title">Tu mesa, a un paso.</h2></div><button className={styles.closeButton} type="button" aria-label="Cerrar reserva" onClick={() => dialog.current?.close()}><X size={23} /></button></div>
-      <div className={styles.bookingWidget}>{visited ? booking : null}</div>
+      <div className={styles.drawerTop}><div><span>LA RESERVA · TU SITIO EN LA MESA</span><h2 id="booking-dialog-title">El plan empieza aquí.</h2></div><button className={styles.closeButton} type="button" aria-label="Cerrar reserva" onClick={() => dialog.current?.close()}><X size={23} /></button></div>
+      <div className={styles.drawerSignature}><TableSignature /><span>Elige con quién, cuándo y a qué hora.</span></div><div className={styles.bookingWidget}>{visited ? booking : null}</div>
     </dialog>
   </div></BookingContext.Provider>;
 }
@@ -63,9 +67,9 @@ export function ReservaHeader({ name, bookingEnabled }: { name: string; bookingE
   }, []);
   const links = [{ id: "la-casa", label: "La casa" }, { id: "carta", label: "La carta" }, { id: "el-ambiente", label: "El ambiente" }];
   return <header className={`${styles.header} ${scrolled || open ? styles.headerSolid : ""}`}>
-    <a className={styles.brand} href="#contenido" onClick={() => setOpen(false)} aria-label={`${name}, inicio`}>LA RESERVA<span>COCINA & SOBREMESA</span></a>
+    <a className={styles.brand} href="#contenido" onClick={() => setOpen(false)} aria-label={`${name}, inicio`}>La Reserva<span>COCINA & SOBREMESA</span></a>
     <nav className={styles.desktopNav} aria-label="Navegación principal">{links.map(link => <a key={link.id} href={`#${link.id}`} aria-current={active === link.id ? "location" : undefined}>{link.label}</a>)}</nav>
-    {bookingEnabled ? <ReserveButton className={styles.headerBooking}>Reservar <ArrowUpRight size={17} aria-hidden="true" /></ReserveButton> : null}
+    {bookingEnabled ? <ReserveButton className={styles.headerBooking}>Reservar <TableSignature /></ReserveButton> : null}
     <button ref={toggle} className={styles.menuToggle} type="button" onClick={() => setOpen(!open)} aria-label={open ? "Cerrar menú" : "Abrir menú"} aria-expanded={open} aria-controls="reserva-mobile-nav">{open ? <X /> : <Menu />}</button>
     {open ? <nav id="reserva-mobile-nav" className={styles.mobileNav} aria-label="Navegación móvil" onKeyDown={event => { if (event.key === "Escape") { setOpen(false); toggle.current?.focus(); } }}><span>ELIGE TU PLAN</span>{links.map((link, i) => <a key={link.id} href={`#${link.id}`} onClick={() => setOpen(false)}><span>0{i + 1}</span>{link.label}<ArrowUpRight size={25} aria-hidden="true" /></a>)}<p>Producto. Fuego. Sobremesa.</p></nav> : null}
   </header>;
@@ -94,21 +98,26 @@ function DishImage({ item, sizes }: { item: Dish; sizes: string }) {
 export function ReservaMenu({ sections, bookingEnabled }: { sections: PublicRestaurant["menu"]["sections"]; bookingEnabled: boolean }) {
   const [selected, setSelected] = useState(0);
   const [dish, setDish] = useState<Dish | null>(null);
+  const [preview, setPreview] = useState(0);
   const detail = useRef<HTMLDialogElement>(null);
   const openBooking = useContext(BookingContext);
   const current = sections[selected] || sections[0];
   if (!current) return <p className={styles.emptyMenu}>Estamos preparando la carta. Vuelve a consultar en un momento.</p>;
+  const featured = current.items[preview] || current.items[0];
   return <div className={styles.menu}>
-    <div className={styles.menuTabs} role="tablist" aria-label="Categorías de la carta">{sections.map((section, index) => <button type="button" key={section.title} role="tab" id={`menu-tab-${index}`} aria-controls="menu-panel" aria-selected={index === selected} tabIndex={index === selected ? 0 : -1} onClick={() => setSelected(index)} onKeyDown={event => {
+    <div className={styles.menuTabs} role="tablist" aria-label="Categorías de la carta">{sections.map((section, index) => <button type="button" key={section.title} role="tab" id={`menu-tab-${index}`} aria-controls="menu-panel" aria-selected={index === selected} tabIndex={index === selected ? 0 : -1} onClick={() => { setSelected(index); setPreview(0); }} onKeyDown={event => {
       let next = index;
       if (event.key === "ArrowRight") next = (index + 1) % sections.length;
       else if (event.key === "ArrowLeft") next = (index - 1 + sections.length) % sections.length;
       else if (event.key === "Home") next = 0;
       else if (event.key === "End") next = sections.length - 1;
       else return;
-      event.preventDefault(); setSelected(next); document.getElementById(`menu-tab-${next}`)?.focus();
+      event.preventDefault(); setSelected(next); setPreview(0); document.getElementById(`menu-tab-${next}`)?.focus();
     }}>{section.title}<span>{String(section.items.length).padStart(2, "0")}</span></button>)}</div>
-    <div className={styles.menuGrid} key={selected} role="tabpanel" id="menu-panel" aria-labelledby={`menu-tab-${selected}`} tabIndex={0}>{current.items.map(item => <button type="button" className={styles.dishCard} key={item.name} aria-label={`Ver ${item.name}, ${price(item.price)}`} onClick={() => { setDish(item); detail.current?.showModal(); }}><div className={styles.dishPhoto}><DishImage item={item} sizes="(max-width: 600px) 88vw, (max-width: 1000px) 45vw, 30vw" />{item.recommended ? <span className={styles.recommended}>DE LOS FAVORITOS</span> : null}<span className={styles.dishMore}><Plus size={22} aria-hidden="true" /><span>Ver plato</span></span></div><div className={styles.dishTitle}><h3>{item.name}</h3><span>{price(item.price)}</span></div><p>{item.description}</p></button>)}</div>
+    <div className={styles.menuSpread} role="tabpanel" id="menu-panel" aria-labelledby={`menu-tab-${selected}`} tabIndex={0}>
+      <div className={styles.menuList}>{current.items.map((item, index) => <button type="button" className={`${styles.menuRow} ${index === preview ? styles.menuRowActive : ""}`} key={item.name} onPointerEnter={event => { if (event.pointerType === "mouse") setPreview(index); }} onFocus={() => setPreview(index)} aria-label={`Ver ${item.name}, ${price(item.price)}`} onClick={() => { setPreview(index); setDish(item); detail.current?.showModal(); }}><span className={styles.rowIndex}>{String(index + 1).padStart(2, "0")}</span><span className={styles.rowCopy}><strong>{item.name}</strong><span>{item.description}</span>{item.recommended ? <small>DE LOS FAVORITOS</small> : null}</span><span className={styles.rowPrice}>{price(item.price)}<Plus size={18} aria-hidden="true" /></span></button>)}<p className={styles.menuHint}>Cada plato tiene su momento. Elige el tuyo.</p></div>
+      {featured ? <button type="button" className={styles.featuredDish} aria-label={`Ampliar ${featured.name}`} onClick={() => { setDish(featured); detail.current?.showModal(); }}><div className={styles.featuredPhoto} key={featured.name}><DishImage item={featured} sizes="(max-width: 760px) 90vw, 50vw" /></div><div className={styles.featuredCaption}><span>{featured.name}</span><span>Ver de cerca <ZoomIn size={17} aria-hidden="true" /></span></div></button> : null}
+    </div>
     <dialog className={`${styles.dialog} ${styles.dishDialog}`} ref={detail} aria-labelledby="dish-title" onClick={event => { if (event.target === event.currentTarget) detail.current?.close(); }}>
       <button type="button" className={styles.closeButton} aria-label="Cerrar detalle del plato" onClick={() => detail.current?.close()}><X size={22} /></button>
       {dish ? <><div className={styles.detailPhoto}><DishImage key={dish.name} item={dish} sizes="(max-width: 760px) 95vw, 480px" /></div><div className={styles.detailCopy}><p className={styles.eyebrow}>DE NUESTRA CARTA</p><h2 id="dish-title">{dish.name}</h2><p>{dish.description}</p><strong>{price(dish.price)}</strong><p className={styles.dishDisclaimer}>Imagen ilustrativa · Precio de demostración · IVA incluido.<br />Para alérgenos e intolerancias, consulta al equipo.</p>{bookingEnabled ? <button type="button" className={styles.redButton} onClick={() => { detail.current?.close(); openBooking(); }}>Me apetece. Reservar mesa <ArrowUpRight size={20} aria-hidden="true" /></button> : null}</div></> : null}
