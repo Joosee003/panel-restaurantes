@@ -133,8 +133,65 @@ test("review openings are not confirmations; lost consent does not hide pending 
     confirmedFromSent: 1,
     pending: 1,
     failed: 0,
+    undatedSent: 0,
   });
   assert.equal(r.metrics.confirmed.current, 2);
+});
+test("legacy requests remain pending, repeated visits count once and customer confirmation settles all visits", () => {
+  const customers = [
+    { id: "old-pending", restaurante_id: "b", ya_dejo_resena: false },
+    { id: "confirmed", restaurante_id: "b", ya_dejo_resena: true },
+    { id: "new-pending", restaurante_id: "b", ya_dejo_resena: false },
+  ];
+  const bookings = [
+    { id: "old-visit", cliente_id: "old-pending" },
+    { id: "old-second-visit", cliente_id: "old-pending" },
+    { id: "confirmed-visit", cliente_id: "confirmed" },
+  ].map((row) => ({ ...row, restaurante_id: "b", resena_solicitada: true }));
+  const requests = [
+    {
+      id: "1",
+      cliente_id: "confirmed",
+      reserva_id: "confirmed-visit",
+      sent_at: "2026-09-10T10:00:00Z",
+      confirmed_at: "2026-09-12T10:00:00Z",
+    },
+    {
+      id: "2",
+      cliente_id: "confirmed",
+      sent_at: "2026-09-11T10:00:00Z",
+      confirmed_at: "2026-09-13T10:00:00Z",
+    },
+    {
+      id: "3",
+      cliente_id: "new-pending",
+      sent_at: "2026-09-10T10:00:00Z",
+      status: "cancelled",
+    },
+    {
+      id: "4",
+      cliente_id: "new-pending",
+      google_opened_at: "2026-09-11T10:00:00Z",
+      status: "uncertain",
+    },
+  ].map((row) => ({ ...row, restaurante_id: "b" }));
+  const r = buildAgencyOverview(
+    fixture({ bookings, requests, customers }),
+    period,
+  ).restaurants[1];
+  assert.deepEqual(r.reviews, {
+    sent: 2,
+    opened: 0,
+    confirmedFromSent: 1,
+    pending: 2,
+    failed: 1,
+    undatedSent: 1,
+  });
+  assert.equal(r.metrics.confirmed.current, 1);
+  assert.equal(
+    r.series.reduce((sum, day) => sum + day.confirmed, 0),
+    1,
+  );
 });
 test("attendance categories are exclusive and never infer visits from unmarked bookings", () => {
   const rows = [
@@ -178,6 +235,19 @@ test("an invitation awaiting acceptance never counts as delivered access", () =>
     period,
   ).restaurants[1];
   assert.equal(r.setup.find((t) => t.id === "access").ready, false);
+});
+test("a private shared pilot is visible as a working test, without claiming public readiness", () => {
+  const r = buildAgencyOverview(
+    fixture({
+      routes: [
+        { restaurante_id: "b", enabled: true, delivery_mode: "private_live" },
+      ],
+      channels: [{ restaurante_id: "b", enabled: false, status: "FAILED" }],
+    }),
+    period,
+  ).restaurants[1];
+  assert.equal(r.channel.label, "Compartido en prueba privada");
+  assert.equal(r.setup.find((task) => task.id === "chatbot").ready, false);
 });
 test("follow-up aspects use the restaurant labels and only low ratings, with no invented advice", () => {
   const base = fixture();
