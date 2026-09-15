@@ -2,8 +2,12 @@ import "server-only";
 
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
+import { googleReviewUrl } from "@/lib/reviews/review-flow";
+import { serviceDependencies } from "@/lib/admin/onboarding";
+import { authorizeAgency } from "@/lib/admin/authorize";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const MAX_BODY_BYTES = 32_000;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -32,6 +36,9 @@ type NormalizedInput = {
   activarCamarero: boolean;
   activarMenuDigital: boolean;
   activarAutomatizaciones: boolean;
+  activarReputacion: boolean;
+  googleReviewUrl: string | null;
+  zonaHoraria: string;
 };
 
 class InputError extends Error {}
@@ -90,12 +97,7 @@ function normalizeInput(value: unknown): NormalizedInput {
   const telefono = cleanText(input.telefono, "telefono", 40);
   const direccion = cleanText(input.direccion, "direccion", 300);
   const emailValue = cleanText(input.email, "email", 254, true);
-  const cartaNombre = cleanText(
-    input.cartaNombre,
-    "cartaNombre",
-    120,
-    true,
-  );
+  const cartaNombre = cleanText(input.cartaNombre, "cartaNombre", 120, true);
 
   if (!nombre || !emailValue || !cartaNombre) {
     throw new InputError("required");
@@ -107,7 +109,13 @@ function normalizeInput(value: unknown): NormalizedInput {
   const plan = cleanText(input.plan, "plan", 20, true);
   if (!plan || !VALID_PLANS.has(plan)) throw new InputError("plan");
 
-  return {
+  const reviewLink = cleanText(input.googleReviewUrl, "googleReviewUrl", 2048);
+  if (reviewLink && !googleReviewUrl(reviewLink))
+    throw new InputError("googleReviewUrl");
+  const zonaHoraria = input.zonaHoraria ?? "Europe/Madrid";
+  if (zonaHoraria !== "Europe/Madrid" && zonaHoraria !== "Atlantic/Canary")
+    throw new InputError("zonaHoraria");
+  const normalized = {
     nombre,
     telefono,
     direccion,
@@ -134,7 +142,15 @@ function normalizeInput(value: unknown): NormalizedInput {
       input.activarAutomatizaciones,
       "activarAutomatizaciones",
     ),
+    activarReputacion:
+      input.activarReputacion === undefined
+        ? false
+        : booleanField(input.activarReputacion, "activarReputacion"),
+    googleReviewUrl: reviewLink,
+    zonaHoraria,
   };
+  if (serviceDependencies(normalized)) throw new InputError("services");
+  return normalized;
 }
 
 function bearerToken(request: NextRequest) {
@@ -161,12 +177,28 @@ function rpcErrorCode(error: { message?: string }) {
     "VALID_EMAIL_REQUIRED",
     "EMAIL_ALREADY_REGISTERED",
     "INVITATION_ALREADY_EXISTS",
+    "INVALID_SERVICE_DEPENDENCIES",
+    "NO_SERVICES",
+    "INVALID_TIMEZONE",
   ];
   return known.find((code) => message.includes(code)) || null;
 }
 
-async function rollbackInstallation(restauranteId: string, authUserId?: string) {
+async function rollbackInstallation(restauranteId: string) {
   const admin = getSupabaseAdmin();
+  // Recover the linked user even if the invitation HTTP response was lost.
+  const invitation = await admin
+    .from("restaurant_invitations")
+    .select("auth_user_id")
+    .eq("restaurante_id", restauranteId)
+    .maybeSingle();
+  if (invitation.error) return false;
+  const authUserId = invitation.data?.auth_user_id;
+  if (authUserId) {
+    const { data, error } = await admin.auth.admin.getUserById(authUserId);
+    if (error || data.user?.user_metadata?.restaurante_id !== restauranteId)
+      return false;
+  }
   const { error: restaurantError } = await admin
     .from("restaurantes")
     .delete()
@@ -174,17 +206,21 @@ async function rollbackInstallation(restauranteId: string, authUserId?: string) 
 
   if (restaurantError) {
     console.error("admin restaurant rollback failed", restaurantError.code);
+    return false;
   }
 
   if (authUserId) {
     const { error: userError } = await admin.auth.admin.deleteUser(authUserId);
     if (userError) {
       console.error("admin invited user rollback failed", userError.code);
+      return false;
     }
   }
+  return true;
 }
 
 export async function POST(request: NextRequest) {
+  let createdRestaurantId: string | null = null;
   const contentLength = Number(request.headers.get("content-length") || "0");
   if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
     return json({ ok: false, error: "INVALID_INPUT" }, 413);
@@ -223,7 +259,10 @@ export async function POST(request: NextRequest) {
 
     let input: NormalizedInput;
     try {
-      input = normalizeInput(await request.json());
+      const body = await request.text();
+      if (new TextEncoder().encode(body).length > MAX_BODY_BYTES)
+        return json({ ok: false, error: "INVALID_INPUT" }, 413);
+      input = normalizeInput(JSON.parse(body));
     } catch (error) {
       if (error instanceof InputError || error instanceof SyntaxError) {
         return json({ ok: false, error: "INVALID_INPUT" }, 400);
@@ -232,25 +271,9 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: installationData, error: installationError } =
-      await admin.rpc("admin_crear_instalacion_restaurante", {
+      await admin.rpc("admin_crear_instalacion_restaurante_v2", {
         p_admin_user_id: user.id,
-        p_nombre: input.nombre,
-        p_telefono: input.telefono,
-        p_direccion: input.direccion,
-        p_email: input.email,
-        p_capacidad: input.capacidad,
-        p_mesas: input.mesas,
-        p_plan: input.plan,
-        p_carta_nombre: input.cartaNombre,
-        p_reservas: input.activarReservas,
-        p_clientes: input.activarClientes,
-        p_resenas: input.activarResenas,
-        p_fidelizacion: input.activarFidelizacion,
-        p_metricas: input.activarMetricas,
-        p_chatbot: input.activarChatbot,
-        p_camarero_digital: input.activarCamarero,
-        p_menu_digital: input.activarMenuDigital,
-        p_automatizaciones: input.activarAutomatizaciones,
+        p_config: input,
       });
 
     if (installationError) {
@@ -264,11 +287,20 @@ export async function POST(request: NextRequest) {
       if (code === "ADMIN_REQUIRED") {
         return json({ ok: false, error: code }, 403);
       }
-      if (code === "NAME_REQUIRED" || code === "VALID_EMAIL_REQUIRED") {
+      if (
+        code === "NAME_REQUIRED" ||
+        code === "VALID_EMAIL_REQUIRED" ||
+        code === "INVALID_SERVICE_DEPENDENCIES" ||
+        code === "NO_SERVICES" ||
+        code === "INVALID_TIMEZONE"
+      ) {
         return json({ ok: false, error: "INVALID_INPUT" }, 400);
       }
 
-      console.error("admin restaurant installation failed", installationError.code);
+      console.error(
+        "admin restaurant installation failed",
+        installationError.code,
+      );
       return json({ ok: false, error: "INSTALLATION_FAILED" }, 500);
     }
 
@@ -281,10 +313,12 @@ export async function POST(request: NextRequest) {
       typeof installation?.invitation_id === "string"
         ? installation.invitation_id
         : null;
+    createdRestaurantId = restauranteId;
 
     if (!restauranteId || !invitationId) {
       console.error("admin restaurant installation returned invalid data");
-      if (restauranteId) await rollbackInstallation(restauranteId);
+      if (restauranteId && !(await rollbackInstallation(restauranteId)))
+        return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
       return json({ ok: false, error: "INSTALLATION_FAILED" }, 500);
     }
 
@@ -301,12 +335,29 @@ export async function POST(request: NextRequest) {
       });
 
     if (inviteError || !inviteData.user?.id) {
-      await rollbackInstallation(restauranteId, inviteData.user?.id);
+      if (!(await rollbackInstallation(restauranteId)))
+        return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
       if (inviteError && isDuplicateEmailError(inviteError)) {
         return json({ ok: false, error: "EMAIL_ALREADY_REGISTERED" }, 409);
       }
       console.error("admin restaurant invitation failed", inviteError?.code);
       return json({ ok: false, error: "INVITE_SEND_FAILED" }, 502);
+    }
+
+    if (input.activarReputacion) {
+      const reputationAccess = await admin
+        .from("opinion_usuarios_restaurantes")
+        .insert({
+          user_id: inviteData.user.id,
+          restaurante_id: restauranteId,
+          role: "restaurante",
+          active: true,
+        });
+      if (reputationAccess.error) {
+        if (!(await rollbackInstallation(restauranteId)))
+          return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
+        return json({ ok: false, error: "INVITE_SEND_FAILED" }, 500);
+      }
     }
 
     const [assignmentResult, invitationResult, restaurantResult] =
@@ -348,7 +399,8 @@ export async function POST(request: NextRequest) {
           invitationResult.error?.code ||
           restaurantResult.error?.code,
       );
-      await rollbackInstallation(restauranteId, inviteData.user.id);
+      if (!(await rollbackInstallation(restauranteId)))
+        return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
       return json({ ok: false, error: "INVITE_SEND_FAILED" }, 500);
     }
 
@@ -365,6 +417,57 @@ export async function POST(request: NextRequest) {
       "POST /api/admin/restaurantes",
       error instanceof Error ? error.message : "unknown error",
     );
-    return json({ ok: false, error: "SERVER_ERROR" }, 500);
+    if (createdRestaurantId) {
+      try {
+        if (!(await rollbackInstallation(createdRestaurantId)))
+          return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
+      } catch {
+        return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
+      }
+    }
+    return json(
+      {
+        ok: false,
+        error: createdRestaurantId ? "INVITE_SEND_FAILED" : "SERVER_ERROR",
+      },
+      500,
+    );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const access = await authorizeAgency(request);
+    if (access.error)
+      return json({ ok: false, error: access.error }, access.status);
+    const body = await request.text();
+    if (new TextEncoder().encode(body).length > MAX_BODY_BYTES)
+      return json({ ok: false, error: "INVALID_INPUT" }, 413);
+    const input = JSON.parse(body) as Record<string, unknown>;
+    if (
+      !input ||
+      typeof input.restaurante_id !== "string" ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+        input.restaurante_id,
+      )
+    )
+      return json({ ok: false, error: "INVALID_INPUT" }, 400);
+    const telefono = cleanText(input.telefono, "telefono", 40);
+    const direccion = cleanText(input.direccion, "direccion", 300);
+    if (telefono && !/^[0-9]{7,15}$/.test(telefono.replace(/[\s().+-]/g, "")))
+      return json({ ok: false, error: "INVALID_INPUT" }, 400);
+    const result = await access.admin
+      .from("restaurantes")
+      .update({ telefono, direccion })
+      .eq("id", input.restaurante_id)
+      .select("id")
+      .maybeSingle();
+    if (result.error) return json({ ok: false, error: "SAVE_FAILED" }, 503);
+    if (!result.data) return json({ ok: false, error: "NOT_FOUND" }, 404);
+    return json({ ok: true });
+  } catch (error) {
+    if (error instanceof SyntaxError || error instanceof InputError)
+      return json({ ok: false, error: "INVALID_INPUT" }, 400);
+    return json({ ok: false, error: "SAVE_FAILED" }, 503);
   }
 }

@@ -1,4 +1,5 @@
 "use client";
+import { hasPanelServices } from "@/lib/admin/access-destination";
 
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
@@ -52,7 +53,8 @@ export default function LoginPage() {
   const [nextPath, setNextPath] = useState<string | null>(null);
   const [fromWebsite, setFromWebsite] = useState(false);
   const [welcomePhase, setWelcomePhase] = useState<WelcomePhase>("hidden");
-  const [metricsTarget, setMetricsTarget] = useState<PublicMetrics>(FALLBACK_METRICS);
+  const [metricsTarget, setMetricsTarget] =
+    useState<PublicMetrics>(FALLBACK_METRICS);
   const [metrics, setMetrics] = useState<PublicMetrics>({
     restaurant_count: 0,
     active_modules: 0,
@@ -63,29 +65,61 @@ export default function LoginPage() {
     userId: string,
     desiredPath: string | null = nextPath,
   ) => {
-    const [adminResult, restaurantResult] = await Promise.all([
-      supabase.from("app_admins").select("user_id").eq("user_id", userId).maybeSingle(),
-      supabase
-        .from("usuarios_restaurantes")
-        .select("restaurante_id")
-        .eq("user_id", userId)
-        .limit(1),
-    ]);
+    const [adminResult, restaurantResult, reputationResult] = await Promise.all(
+      [
+        supabase
+          .from("app_admins")
+          .select("user_id")
+          .eq("user_id", userId)
+          .maybeSingle(),
+        supabase
+          .from("usuarios_restaurantes")
+          .select("restaurante_id")
+          .eq("user_id", userId),
+        supabase
+          .from("opinion_usuarios_restaurantes")
+          .select("restaurante_id")
+          .eq("user_id", userId)
+          .eq("active", true),
+      ],
+    );
 
-    if (adminResult.error || restaurantResult.error) {
+    if (adminResult.error || restaurantResult.error || reputationResult.error) {
       throw new Error("No se ha podido comprobar el acceso del usuario.");
     }
 
     const isAdmin = Boolean(adminResult.data?.user_id);
     const hasRestaurant = Boolean(restaurantResult.data?.length);
 
-    if (!isAdmin && !hasRestaurant) {
+    if (!isAdmin && !hasRestaurant && !reputationResult.data?.length) {
       throw new Error("Este usuario todavía no tiene un restaurante asignado.");
     }
 
-    if (desiredPath?.startsWith("/admin")) return isAdmin ? desiredPath : "/dashboard";
-    if (isAdmin) return "/admin/seleccionar-restaurante";
-    if (desiredPath && hasRestaurant) return desiredPath;
+    if (isAdmin)
+      return desiredPath?.startsWith("/admin") ? desiredPath : "/admin/control";
+    if (reputationResult.data?.length) {
+      const ids = (restaurantResult.data || []).map(
+        (row) => row.restaurante_id,
+      );
+      const moduleResult = ids.length
+        ? await supabase
+            .from("restaurante_modulos")
+            .select(
+              "reservas,clientes,resenas,fidelizacion,metricas,rentabilidad,chatbot,camarero_digital,menu_digital,automatizaciones",
+            )
+            .in("restaurante_id", ids)
+        : { data: [], error: null };
+      if (moduleResult.error)
+        throw new Error(
+          "No se han podido comprobar los servicios del restaurante.",
+        );
+      if (!moduleResult.data?.some(hasPanelServices))
+        return reputationResult.data.length === 1
+          ? `/opiniones-admin?restaurante=${reputationResult.data[0].restaurante_id}`
+          : "/opiniones-admin";
+    }
+    if (desiredPath && !desiredPath.startsWith("/admin") && hasRestaurant)
+      return desiredPath;
     if (hasRestaurant) return "/dashboard";
     return "/login";
   };
@@ -101,7 +135,9 @@ export default function LoginPage() {
       setFromWebsite(arrivedFromWebsite);
 
       if (params.get("password") === "updated") {
-        setNotice("Contraseña cambiada. Ya puedes entrar con la nueva contraseña.");
+        setNotice(
+          "Contraseña cambiada. Ya puedes entrar con la nueva contraseña.",
+        );
       }
 
       const {
@@ -115,7 +151,10 @@ export default function LoginPage() {
       }
 
       try {
-        const destination = await resolveDestination(session.user.id, currentNext);
+        const destination = await resolveDestination(
+          session.user.id,
+          currentNext,
+        );
         router.replace(destination);
         router.refresh();
       } catch {
@@ -144,8 +183,12 @@ export default function LoginPage() {
       if (!mounted || metricsError || !data) return;
       const row = data as Partial<PublicMetrics>;
       setMetricsTarget({
-        restaurant_count: Number(row.restaurant_count ?? FALLBACK_METRICS.restaurant_count),
-        active_modules: Number(row.active_modules ?? FALLBACK_METRICS.active_modules),
+        restaurant_count: Number(
+          row.restaurant_count ?? FALLBACK_METRICS.restaurant_count,
+        ),
+        active_modules: Number(
+          row.active_modules ?? FALLBACK_METRICS.active_modules,
+        ),
         operational_records: Number(
           row.operational_records ?? FALLBACK_METRICS.operational_records,
         ),
@@ -170,7 +213,9 @@ export default function LoginPage() {
       setMetrics({
         restaurant_count: Math.round(metricsTarget.restaurant_count * eased),
         active_modules: Math.round(metricsTarget.active_modules * eased),
-        operational_records: Math.round(metricsTarget.operational_records * eased),
+        operational_records: Math.round(
+          metricsTarget.operational_records * eased,
+        ),
       });
       if (progress < 1) animationFrame = requestAnimationFrame(animate);
     };
@@ -182,7 +227,10 @@ export default function LoginPage() {
   useEffect(() => {
     if (checkingSession || !fromWebsite) return;
     setWelcomePhase("visible");
-    const leaveTimer = window.setTimeout(() => setWelcomePhase("leaving"), 1550);
+    const leaveTimer = window.setTimeout(
+      () => setWelcomePhase("leaving"),
+      1550,
+    );
     const hideTimer = window.setTimeout(() => setWelcomePhase("hidden"), 2150);
     return () => {
       window.clearTimeout(leaveTimer);
@@ -202,10 +250,12 @@ export default function LoginPage() {
     }
 
     setLoading(true);
-    const { data, error: signInError } = await supabase.auth.signInWithPassword({
-      email: cleanEmail,
-      password,
-    });
+    const { data, error: signInError } = await supabase.auth.signInWithPassword(
+      {
+        email: cleanEmail,
+        password,
+      },
+    );
 
     if (signInError || !data.session || !data.user) {
       const message = signInError?.message.toLowerCase() || "";
@@ -250,9 +300,13 @@ export default function LoginPage() {
     );
 
     if (resetError) {
-      setError("No se ha podido enviar el correo. Inténtalo dentro de unos minutos.");
+      setError(
+        "No se ha podido enviar el correo. Inténtalo dentro de unos minutos.",
+      );
     } else {
-      setNotice("Si el email tiene acceso, recibirá un enlace para cambiar la contraseña.");
+      setNotice(
+        "Si el email tiene acceso, recibirá un enlace para cambiar la contraseña.",
+      );
     }
     setSendingReset(false);
   };
@@ -298,12 +352,24 @@ export default function LoginPage() {
                 Bienvenido al área de clientes.
               </h2>
               <p className="mx-auto mt-4 max-w-xl text-sm font-semibold leading-6 text-slate-300 sm:text-base">
-                Acceso privado, métricas reales y todos los módulos del restaurante en un único entorno.
+                Acceso privado, métricas reales y todos los módulos del
+                restaurante en un único entorno.
               </p>
               <div className="mt-7 grid grid-cols-3 gap-2 sm:gap-3">
-                <WelcomeMetric value={metrics.restaurant_count} label="restaurantes reales" />
-                <WelcomeMetric value={metrics.active_modules} label="módulos activos" prefix="+" />
-                <WelcomeMetric value={metrics.operational_records} label="registros conectados" prefix="+" />
+                <WelcomeMetric
+                  value={metrics.restaurant_count}
+                  label="restaurantes reales"
+                />
+                <WelcomeMetric
+                  value={metrics.active_modules}
+                  label="módulos activos"
+                  prefix="+"
+                />
+                <WelcomeMetric
+                  value={metrics.operational_records}
+                  label="registros conectados"
+                  prefix="+"
+                />
               </div>
             </div>
           </div>
@@ -351,16 +417,46 @@ export default function LoginPage() {
           </div>
 
           <div className="mt-9 grid max-w-[680px] grid-cols-3 gap-3">
-            <LiveMetric icon={<Building2 className="h-5 w-5" />} value={metrics.restaurant_count} label="Restaurantes reales" />
-            <LiveMetric icon={<Layers3 className="h-5 w-5" />} value={metrics.active_modules} label="Módulos activos" prefix="+" />
-            <LiveMetric icon={<Activity className="h-5 w-5" />} value={metrics.operational_records} label="Registros operativos" prefix="+" />
+            <LiveMetric
+              icon={<Building2 className="h-5 w-5" />}
+              value={metrics.restaurant_count}
+              label="Restaurantes reales"
+            />
+            <LiveMetric
+              icon={<Layers3 className="h-5 w-5" />}
+              value={metrics.active_modules}
+              label="Módulos activos"
+              prefix="+"
+            />
+            <LiveMetric
+              icon={<Activity className="h-5 w-5" />}
+              value={metrics.operational_records}
+              label="Registros operativos"
+              prefix="+"
+            />
           </div>
 
           <div className="mt-4 grid max-w-[680px] grid-cols-2 gap-3">
-            <FeatureCard icon={<CalendarDays className="h-5 w-5" />} title="Reservas y sala" text="Turnos, estados, mesas y ocupación." />
-            <FeatureCard icon={<UsersRound className="h-5 w-5" />} title="Clientes" text="Historial, frecuencia y recurrencia." />
-            <FeatureCard icon={<Sparkles className="h-5 w-5" />} title="Fidelización" text="Puntos, recompensas y cupones." />
-            <FeatureCard icon={<BarChart3 className="h-5 w-5" />} title="Rentabilidad" text="Costes, márgenes y decisiones." />
+            <FeatureCard
+              icon={<CalendarDays className="h-5 w-5" />}
+              title="Reservas y sala"
+              text="Turnos, estados, mesas y ocupación."
+            />
+            <FeatureCard
+              icon={<UsersRound className="h-5 w-5" />}
+              title="Clientes"
+              text="Historial, frecuencia y recurrencia."
+            />
+            <FeatureCard
+              icon={<Sparkles className="h-5 w-5" />}
+              title="Fidelización"
+              text="Puntos, recompensas y cupones."
+            />
+            <FeatureCard
+              icon={<BarChart3 className="h-5 w-5" />}
+              title="Rentabilidad"
+              text="Costes, márgenes y decisiones."
+            />
           </div>
 
           <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-xs font-bold text-slate-300">
@@ -401,7 +497,9 @@ export default function LoginPage() {
 
               <div className="space-y-5">
                 <label className="block">
-                  <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">Email</span>
+                  <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
+                    Email
+                  </span>
                   <div className="group relative">
                     <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 transition group-focus-within:text-blue-700" />
                     <input
@@ -417,7 +515,9 @@ export default function LoginPage() {
                 </label>
 
                 <label className="block">
-                  <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">Contraseña</span>
+                  <span className="mb-2 block text-[10px] font-black uppercase tracking-[0.16em] text-slate-600">
+                    Contraseña
+                  </span>
                   <div className="group relative">
                     <LockKeyhole className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 transition group-focus-within:text-blue-700" />
                     <input
@@ -434,10 +534,14 @@ export default function LoginPage() {
               </div>
 
               {error ? (
-                <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-3.5 text-center text-sm font-bold text-red-700">{error}</p>
+                <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 p-3.5 text-center text-sm font-bold text-red-700">
+                  {error}
+                </p>
               ) : null}
               {notice ? (
-                <p className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-center text-sm font-bold text-emerald-700">{notice}</p>
+                <p className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-3.5 text-center text-sm font-bold text-emerald-700">
+                  {notice}
+                </p>
               ) : null}
 
               <button
@@ -445,9 +549,15 @@ export default function LoginPage() {
                 disabled={loading}
                 className="group mt-6 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#1601ad] to-blue-600 px-5 py-4 text-sm font-black text-white shadow-xl shadow-blue-700/25 transition hover:-translate-y-0.5 hover:shadow-2xl hover:shadow-blue-700/30 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ShieldCheck className="h-5 w-5" />}
+                {loading ? (
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                ) : (
+                  <ShieldCheck className="h-5 w-5" />
+                )}
                 {loading ? "Comprobando acceso" : "Entrar de forma segura"}
-                {!loading ? <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /> : null}
+                {!loading ? (
+                  <ArrowUpRight className="h-4 w-4 transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+                ) : null}
               </button>
 
               <button
@@ -456,125 +566,313 @@ export default function LoginPage() {
                 disabled={sendingReset || loading}
                 className="mt-4 w-full text-center text-sm font-black text-blue-700 transition hover:text-blue-950 disabled:opacity-50"
               >
-                {sendingReset ? "Enviando correo..." : "He olvidado mi contraseña"}
+                {sendingReset
+                  ? "Enviando correo..."
+                  : "He olvidado mi contraseña"}
               </button>
 
               <div className="mt-7 border-t border-slate-200 pt-6 text-center">
                 <p className="text-xs font-semibold leading-5 text-slate-600">
-                  Las cuentas se activan únicamente mediante invitación de GastroHelp.
+                  Las cuentas se activan únicamente mediante invitación de
+                  GastroHelp.
                 </p>
                 <a
                   href="https://panel.gastrohelp.es/demo"
                   className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-blue-700 transition hover:text-blue-950"
                 >
-                  ¿Todavía no eres cliente? Explora la demo <ArrowUpRight className="h-3.5 w-3.5" />
+                  ¿Todavía no eres cliente? Explora la demo{" "}
+                  <ArrowUpRight className="h-3.5 w-3.5" />
                 </a>
               </div>
             </div>
           </form>
 
           <div className="mt-5 grid grid-cols-3 gap-2 lg:hidden">
-            <MobileMetric value={metrics.restaurant_count} label="Restaurantes" />
-            <MobileMetric value={metrics.active_modules} label="Módulos" prefix="+" />
-            <MobileMetric value={metrics.operational_records} label="Registros" prefix="+" />
+            <MobileMetric
+              value={metrics.restaurant_count}
+              label="Restaurantes"
+            />
+            <MobileMetric
+              value={metrics.active_modules}
+              label="Módulos"
+              prefix="+"
+            />
+            <MobileMetric
+              value={metrics.operational_records}
+              label="Registros"
+              prefix="+"
+            />
           </div>
         </section>
       </div>
 
       <style jsx global>{`
-        .loginRoot { isolation: isolate; }
+        .loginRoot {
+          isolation: isolate;
+        }
         .loginRoot::before {
           content: "";
           position: absolute;
           inset: 0;
           z-index: -1;
           background:
-            radial-gradient(circle at 72% 26%, rgba(37,99,235,.24), transparent 29%),
-            radial-gradient(circle at 13% 78%, rgba(22,1,173,.22), transparent 31%),
+            radial-gradient(
+              circle at 72% 26%,
+              rgba(37, 99, 235, 0.24),
+              transparent 29%
+            ),
+            radial-gradient(
+              circle at 13% 78%,
+              rgba(22, 1, 173, 0.22),
+              transparent 31%
+            ),
             linear-gradient(145deg, #030814 0%, #061326 55%, #030b18 100%);
         }
         .loginGrid {
           opacity: 0.42;
-          background-image: linear-gradient(rgba(255,255,255,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.04) 1px, transparent 1px);
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+            linear-gradient(
+              90deg,
+              rgba(255, 255, 255, 0.04) 1px,
+              transparent 1px
+            );
           background-size: 58px 58px;
           mask-image: linear-gradient(to bottom, black, transparent 94%);
         }
         .loginNoise {
-          opacity: .025;
+          opacity: 0.025;
           background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
         }
-        .loginOrb { border: 1px solid rgba(96,165,250,.16); box-shadow: inset 0 0 150px rgba(37,99,235,.09); }
-        .loginOrbOne { width: 720px; height: 720px; right: -310px; top: -180px; animation: loginOrbit 24s linear infinite; }
-        .loginOrbTwo { width: 390px; height: 390px; left: -210px; bottom: -100px; animation: loginOrbit 18s linear infinite reverse; }
-        .loginForm input { background: #f8fafc !important; color: #0f172a !important; }
-        .loginForm input:focus { background: #ffffff !important; }
-        .clientWelcome { opacity: 0; transition: opacity .5s ease; }
-        .clientWelcome.visible { opacity: 1; }
-        .clientWelcome.leaving { opacity: 0; }
-        .clientWelcomeBackdrop { background: rgba(3,8,20,.82); backdrop-filter: blur(16px); }
-        .clientWelcomeCard { transform: translateY(22px) scale(.965); opacity: 0; }
-        .clientWelcome.visible .clientWelcomeCard { animation: welcomeIn .72s cubic-bezier(.2,.8,.2,1) forwards; }
-        .clientWelcome.leaving .clientWelcomeCard { animation: welcomeOut .48s ease forwards; }
-        .welcomeGrid { opacity: .32; background-image: linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px); background-size: 36px 36px; mask-image: radial-gradient(circle at center,#000,transparent 80%); }
-        .welcomeLogo { position: relative; animation: welcomePulse 2s ease-in-out infinite; }
-        .welcomeLogo::after { content: ""; position: absolute; inset: -14px; border: 1px solid rgba(96,165,250,.28); border-radius: 1.8rem; animation: welcomeRing 1.8s ease-out infinite; }
-        @keyframes loginOrbit { to { transform: rotate(360deg); } }
-        @keyframes welcomeIn { to { transform: translateY(0) scale(1); opacity: 1; } }
-        @keyframes welcomeOut { to { transform: translateY(-16px) scale(.985); opacity: 0; } }
-        @keyframes welcomePulse { 50% { transform: translateY(-4px); box-shadow: 0 30px 80px rgba(37,99,235,.42); } }
-        @keyframes welcomeRing { from { transform: scale(.82); opacity: 0; } 35% { opacity: .85; } to { transform: scale(1.24); opacity: 0; } }
+        .loginOrb {
+          border: 1px solid rgba(96, 165, 250, 0.16);
+          box-shadow: inset 0 0 150px rgba(37, 99, 235, 0.09);
+        }
+        .loginOrbOne {
+          width: 720px;
+          height: 720px;
+          right: -310px;
+          top: -180px;
+          animation: loginOrbit 24s linear infinite;
+        }
+        .loginOrbTwo {
+          width: 390px;
+          height: 390px;
+          left: -210px;
+          bottom: -100px;
+          animation: loginOrbit 18s linear infinite reverse;
+        }
+        .loginForm input {
+          background: #f8fafc !important;
+          color: #0f172a !important;
+        }
+        .loginForm input:focus {
+          background: #ffffff !important;
+        }
+        .clientWelcome {
+          opacity: 0;
+          transition: opacity 0.5s ease;
+        }
+        .clientWelcome.visible {
+          opacity: 1;
+        }
+        .clientWelcome.leaving {
+          opacity: 0;
+        }
+        .clientWelcomeBackdrop {
+          background: rgba(3, 8, 20, 0.82);
+          backdrop-filter: blur(16px);
+        }
+        .clientWelcomeCard {
+          transform: translateY(22px) scale(0.965);
+          opacity: 0;
+        }
+        .clientWelcome.visible .clientWelcomeCard {
+          animation: welcomeIn 0.72s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+        }
+        .clientWelcome.leaving .clientWelcomeCard {
+          animation: welcomeOut 0.48s ease forwards;
+        }
+        .welcomeGrid {
+          opacity: 0.32;
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.045) 1px, transparent 1px),
+            linear-gradient(
+              90deg,
+              rgba(255, 255, 255, 0.045) 1px,
+              transparent 1px
+            );
+          background-size: 36px 36px;
+          mask-image: radial-gradient(circle at center, #000, transparent 80%);
+        }
+        .welcomeLogo {
+          position: relative;
+          animation: welcomePulse 2s ease-in-out infinite;
+        }
+        .welcomeLogo::after {
+          content: "";
+          position: absolute;
+          inset: -14px;
+          border: 1px solid rgba(96, 165, 250, 0.28);
+          border-radius: 1.8rem;
+          animation: welcomeRing 1.8s ease-out infinite;
+        }
+        @keyframes loginOrbit {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+        @keyframes welcomeIn {
+          to {
+            transform: translateY(0) scale(1);
+            opacity: 1;
+          }
+        }
+        @keyframes welcomeOut {
+          to {
+            transform: translateY(-16px) scale(0.985);
+            opacity: 0;
+          }
+        }
+        @keyframes welcomePulse {
+          50% {
+            transform: translateY(-4px);
+            box-shadow: 0 30px 80px rgba(37, 99, 235, 0.42);
+          }
+        }
+        @keyframes welcomeRing {
+          from {
+            transform: scale(0.82);
+            opacity: 0;
+          }
+          35% {
+            opacity: 0.85;
+          }
+          to {
+            transform: scale(1.24);
+            opacity: 0;
+          }
+        }
         @media (prefers-reduced-motion: reduce) {
-          .loginOrbOne, .loginOrbTwo, .welcomeLogo, .welcomeLogo::after { animation: none; }
-          .clientWelcomeCard { transform: none; opacity: 1; }
+          .loginOrbOne,
+          .loginOrbTwo,
+          .welcomeLogo,
+          .welcomeLogo::after {
+            animation: none;
+          }
+          .clientWelcomeCard {
+            transform: none;
+            opacity: 1;
+          }
         }
       `}</style>
     </main>
   );
 }
 
-function FeatureCard({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
+function FeatureCard({
+  icon,
+  title,
+  text,
+}: {
+  icon: ReactNode;
+  title: string;
+  text: string;
+}) {
   return (
     <div className="group rounded-[1.35rem] border border-white/15 bg-white/[0.065] p-4 backdrop-blur-xl transition hover:-translate-y-1 hover:border-blue-300/35 hover:bg-white/[0.09]">
-      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-blue-300/20 bg-blue-500/15 text-blue-200">{icon}</div>
+      <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border border-blue-300/20 bg-blue-500/15 text-blue-200">
+        {icon}
+      </div>
       <h3 className="!text-white text-sm font-black">{title}</h3>
-      <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-300">{text}</p>
+      <p className="mt-1.5 text-xs font-semibold leading-5 text-slate-300">
+        {text}
+      </p>
     </div>
   );
 }
 
-function LiveMetric({ icon, value, label, prefix = "" }: { icon: ReactNode; value: number; label: string; prefix?: string }) {
+function LiveMetric({
+  icon,
+  value,
+  label,
+  prefix = "",
+}: {
+  icon: ReactNode;
+  value: number;
+  label: string;
+  prefix?: string;
+}) {
   return (
     <div className="relative overflow-hidden rounded-[1.3rem] border border-blue-300/15 bg-blue-500/[0.08] p-4 backdrop-blur-xl">
       <div className="absolute -right-7 -top-7 h-20 w-20 rounded-full bg-blue-500/15 blur-2xl" />
       <div className="relative flex items-center gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-200">{icon}</div>
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-500/15 text-blue-200">
+          {icon}
+        </div>
         <div>
-          <strong className="block text-xl font-black tracking-[-0.04em] text-white">{prefix}{value.toLocaleString("es-ES")}</strong>
-          <span className="mt-0.5 block text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">{label}</span>
+          <strong className="block text-xl font-black tracking-[-0.04em] text-white">
+            {prefix}
+            {value.toLocaleString("es-ES")}
+          </strong>
+          <span className="mt-0.5 block text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
+            {label}
+          </span>
         </div>
       </div>
     </div>
   );
 }
 
-function WelcomeMetric({ value, label, prefix = "" }: { value: number; label: string; prefix?: string }) {
+function WelcomeMetric({
+  value,
+  label,
+  prefix = "",
+}: {
+  value: number;
+  label: string;
+  prefix?: string;
+}) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.055] px-2 py-4 backdrop-blur-xl sm:px-4">
-      <strong className="block text-2xl font-black tracking-[-0.05em] text-white sm:text-3xl">{prefix}{value.toLocaleString("es-ES")}</strong>
-      <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.12em] text-slate-300 sm:text-[10px]">{label}</span>
+      <strong className="block text-2xl font-black tracking-[-0.05em] text-white sm:text-3xl">
+        {prefix}
+        {value.toLocaleString("es-ES")}
+      </strong>
+      <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.12em] text-slate-300 sm:text-[10px]">
+        {label}
+      </span>
     </div>
   );
 }
 
 function TrustItem({ children }: { children: ReactNode }) {
-  return <span className="inline-flex items-center gap-2"><Check className="h-3.5 w-3.5 text-blue-300" />{children}</span>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Check className="h-3.5 w-3.5 text-blue-300" />
+      {children}
+    </span>
+  );
 }
 
-function MobileMetric({ value, label, prefix = "" }: { value: number; label: string; prefix?: string }) {
+function MobileMetric({
+  value,
+  label,
+  prefix = "",
+}: {
+  value: number;
+  label: string;
+  prefix?: string;
+}) {
   return (
     <div className="rounded-xl border border-white/15 bg-white/[0.07] px-2 py-3 text-center backdrop-blur-xl">
-      <strong className="block text-sm font-black text-white">{prefix}{value.toLocaleString("es-ES")}</strong>
-      <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.1em] text-slate-300">{label}</span>
+      <strong className="block text-sm font-black text-white">
+        {prefix}
+        {value.toLocaleString("es-ES")}
+      </strong>
+      <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.1em] text-slate-300">
+        {label}
+      </span>
     </div>
   );
 }

@@ -79,25 +79,12 @@ export default function AcceptInvitePage() {
     );
 
     if (completionError) {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      const { data: links } = user
-        ? await supabase
-            .from("usuarios_restaurantes")
-            .select("restaurante_id")
-            .eq("user_id", user.id)
-            .limit(1)
-        : { data: null };
-
-      if (!links?.length) {
-        setError("La cuenta se ha activado, pero no tiene restaurante asignado.");
-        setSaving(false);
-        return;
-      }
+      setError("La contraseña se ha guardado, pero falta terminar la activación. Pulsa de nuevo para reintentarlo.");
+      setSaving(false);
+      return;
     }
 
-    router.replace("/dashboard");
+    router.replace("/login");
     router.refresh();
   };
 
