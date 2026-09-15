@@ -19,6 +19,7 @@ import {
   publicRestaurantUrl,
 } from "../../lib/publicRestaurant";
 import BookingWidget from "./BookingWidget";
+import LaReservaExperience from "./LaReservaExperience";
 import {
   ExpandingImage,
   MobileActionBar,
@@ -129,6 +130,10 @@ function formatPrice(value: number | null) {
 export async function RestaurantPageContent({ slug }: { slug: string }) {
   const restaurant = await getPublicRestaurant(slug);
   if (!restaurant) notFound();
+
+  if (restaurant.demo && restaurant.slug === "la-reserva-demo") {
+    return <LaReservaExperience restaurant={restaurant} />;
+  }
 
   const { primaryColor, accentColor, backgroundColor } = restaurant;
   const gallery = Array.from(

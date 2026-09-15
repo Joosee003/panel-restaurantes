@@ -276,7 +276,7 @@ export default function BookingWidget({
       <div className="space-y-6 p-6 sm:p-8">
         {demo ? (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-900">
-            Entorno de prueba GastroHelp: las reservas se guardan únicamente en el restaurante DEMOOOO.
+            Demostración GastroHelp: esta reserva de prueba se guardará en el panel de {restaurantName}.
           </div>
         ) : null}
 
