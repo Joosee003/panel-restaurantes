@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { googleReviewUrl } from "@/lib/reviews/review-flow";
 import { serviceDependencies } from "@/lib/admin/onboarding";
+import { authorizeAgency } from "@/lib/admin/authorize";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -431,5 +432,42 @@ export async function POST(request: NextRequest) {
       },
       500,
     );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const access = await authorizeAgency(request);
+    if (access.error)
+      return json({ ok: false, error: access.error }, access.status);
+    const body = await request.text();
+    if (new TextEncoder().encode(body).length > MAX_BODY_BYTES)
+      return json({ ok: false, error: "INVALID_INPUT" }, 413);
+    const input = JSON.parse(body) as Record<string, unknown>;
+    if (
+      !input ||
+      typeof input.restaurante_id !== "string" ||
+      !/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(
+        input.restaurante_id,
+      )
+    )
+      return json({ ok: false, error: "INVALID_INPUT" }, 400);
+    const telefono = cleanText(input.telefono, "telefono", 40);
+    const direccion = cleanText(input.direccion, "direccion", 300);
+    if (telefono && !/^[0-9]{7,15}$/.test(telefono.replace(/[\s().+-]/g, "")))
+      return json({ ok: false, error: "INVALID_INPUT" }, 400);
+    const result = await access.admin
+      .from("restaurantes")
+      .update({ telefono, direccion })
+      .eq("id", input.restaurante_id)
+      .select("id")
+      .maybeSingle();
+    if (result.error) return json({ ok: false, error: "SAVE_FAILED" }, 503);
+    if (!result.data) return json({ ok: false, error: "NOT_FOUND" }, 404);
+    return json({ ok: true });
+  } catch (error) {
+    if (error instanceof SyntaxError || error instanceof InputError)
+      return json({ ok: false, error: "INVALID_INPUT" }, 400);
+    return json({ ok: false, error: "SAVE_FAILED" }, 503);
   }
 }
