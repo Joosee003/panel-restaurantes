@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { ClipboardList, LayoutDashboard, Loader2, LogOut, Settings2, ShieldCheck, Store } from "lucide-react";
+import {
+  ClipboardList,
+  LayoutDashboard,
+  Loader2,
+  LogOut,
+  Settings2,
+  ShieldCheck,
+  Store,
+} from "lucide-react";
 import Link from "next/link";
 import { supabase } from "../(app)/lib/supabaseClient";
 import "./agency.css";
@@ -100,13 +108,81 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
     <div className="agency-app">
       <nav className="agency-nav" aria-label="GastroHelp interno">
-        <Link className="agency-logo" href="/admin/control"><span className="agency-logo-mark">g.</span>GastroHelp</Link>
-        <div><p className="agency-nav-label">Tu espacio de trabajo</p><div className="agency-nav-links">
-          {[{href:"/admin/control",label:"Centro de control",icon:LayoutDashboard},{href:"/admin/restaurantes",label:"Restaurantes",icon:Store},{href:"/admin/onboarding-restaurante",label:"Puesta en marcha",icon:ClipboardList},{href:"/admin/herramientas",label:"Herramientas",icon:Settings2}].map(item=><Link key={item.href} href={item.href} aria-current={pathname.startsWith(item.href)?"page":undefined}><item.icon size={17}/>{item.label}</Link>)}
-        </div></div>
-        <div className="agency-nav-bottom"><span>Cuenta de agencia</span><button type="button" onClick={()=>router.push("/logout")}><LogOut size={15}/>Cerrar sesión</button></div>
+        <div className="agency-logo-row">
+          <Link className="agency-logo" href="/admin/control">
+            <span className="agency-logo-mark">g.</span>GastroHelp
+          </Link>
+          <button
+            className="agency-mobile-logout"
+            aria-label="Cerrar sesión"
+            onClick={() => router.push("/logout")}
+          >
+            <LogOut size={17} />
+          </button>
+        </div>
+        <div>
+          <p className="agency-nav-label">Tu espacio de trabajo</p>
+          <div className="agency-nav-links">
+            {[
+              {
+                href: "/admin/control",
+                label: "Centro de control",
+                icon: LayoutDashboard,
+              },
+              {
+                href: "/admin/restaurantes",
+                label: "Restaurantes",
+                icon: Store,
+              },
+              {
+                href: "/admin/onboarding-restaurante",
+                label: "Puesta en marcha",
+                icon: ClipboardList,
+              },
+              {
+                href: "/admin/herramientas",
+                label: "Herramientas",
+                icon: Settings2,
+              },
+            ].map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                aria-current={
+                  pathname.startsWith(item.href) ? "page" : undefined
+                }
+              >
+                <item.icon size={17} />
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </div>
+        <div className="agency-nav-bottom">
+          <span>Cuenta de agencia</span>
+          <button type="button" onClick={() => router.push("/logout")}>
+            <LogOut size={15} />
+            Cerrar sesión
+          </button>
+        </div>
       </nav>
-      <div className="agency-main"><header className="agency-header"><span><ShieldCheck size={14}/>Espacio privado de GastroHelp</span><span className="agency-header-badge">GESTIÓN DE RESTAURANTES</span><button type="button" onClick={()=>router.push("/logout")} aria-label="Cerrar sesión"><LogOut size={15}/></button></header>{children}</div>
+      <div className="agency-main">
+        <header className="agency-header">
+          <span>
+            <ShieldCheck size={14} />
+            Espacio privado de GastroHelp
+          </span>
+          <span className="agency-header-badge">GESTIÓN DE RESTAURANTES</span>
+          <button
+            type="button"
+            onClick={() => router.push("/logout")}
+            aria-label="Cerrar sesión"
+          >
+            <LogOut size={15} />
+          </button>
+        </header>
+        {children}
+      </div>
     </div>
   );
 }
