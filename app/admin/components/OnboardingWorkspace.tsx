@@ -335,7 +335,7 @@ export function OnboardingWizard({ create }: { create: CreateInstallation }) {
               [
                 "Usaremos este correo para enviar el acceso al responsable.",
                 "Elige un punto de partida y ajusta los servicios si lo necesitas.",
-                "Podrás completar los horarios, la carta y la conexión después del alta.",
+                "Podrás terminar la configuración de los servicios seleccionados después del alta.",
                 "Al confirmar se crea el restaurante y se envía una invitación de acceso.",
               ][step]
             }
@@ -593,9 +593,9 @@ export function OnboardingWizard({ create }: { create: CreateInstallation }) {
               <div className="agency-note">
                 <strong>Después de crear</strong>
                 <p>
-                  El responsable debe aceptar la invitación. Las reservas, los
-                  envíos automáticos y WhatsApp necesitan completar su
-                  configuración y una prueba antes de activarlos.
+                  El responsable debe aceptar la invitación. Después, completa
+                  los pasos de puesta en marcha y prueba los servicios
+                  contratados antes de entregarlos.
                 </p>
               </div>
             </>
