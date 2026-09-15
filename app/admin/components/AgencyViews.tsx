@@ -254,8 +254,15 @@ function ActivityChart({
             onChange={(event) => setMetric(event.target.value as typeof metric)}
           >
             {Object.entries(labels).map(([key, label]) => (
-              <option key={key} value={key}>
+              <option
+                key={key}
+                value={key}
+                disabled={!available(key as keyof typeof labels)}
+              >
                 {label}
+                {!available(key as keyof typeof labels)
+                  ? " · No contratado"
+                  : ""}
               </option>
             ))}
           </select>
@@ -1096,8 +1103,8 @@ export function RestaurantDetail({
             />
             <SetupChecklist restaurant={restaurant} onOpen={open} />
             <p className="agency-footnote">
-              Esta lista comprueba la configuración guardada. La prueba de una
-              conversación y la entrega al cliente se realizan después.
+              Esta lista comprueba la configuración guardada. Antes de entregar,
+              prueba los enlaces y las funciones de los servicios contratados.
             </p>
           </section>
           <section className="agency-card">
