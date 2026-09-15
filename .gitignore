@@ -46,3 +46,5 @@ node_modules
 /public/pruebas-resenas/
 /tests/review-preview/public/
 /supabase/.temp/
+
+/public/pruebas-agencia/
