@@ -104,6 +104,11 @@ function fixture(options = {}) {
           calls.push(["insert", table, value]);
           return chain;
         },
+        update(value) {
+          action = "update";
+          calls.push(["update-values", table, value]);
+          return chain;
+        },
         delete() {
           action = "delete";
           return chain;
@@ -165,6 +170,10 @@ function fixture(options = {}) {
     "@/app/lib/supabaseAdmin": { getSupabaseAdmin: () => db },
     "@/lib/reviews/review-flow": flow,
     "@/lib/admin/onboarding": onboarding,
+    "@/lib/admin/authorize": compile("../lib/admin/authorize.ts", {
+      "server-only": {},
+      "@/app/lib/supabaseAdmin": { getSupabaseAdmin: () => db },
+    }),
   });
   return {
     calls,
@@ -177,10 +186,11 @@ function fixture(options = {}) {
         direccion: "Dirección",
       },
       token = "token",
+      method = "POST",
     ) => {
-      const r = await route.POST(
+      const r = await route[method](
         new Request("https://fixture.invalid/api/admin/restaurantes", {
-          method: "POST",
+          method,
           headers: token ? { authorization: `Bearer ${token}` } : {},
           body: typeof form === "string" ? form : JSON.stringify(form),
         }),
@@ -202,6 +212,35 @@ test("rejects unauthenticated users and user-editable admin metadata before any 
   const f = fixture();
   assert.equal((await f.send(undefined, "")).status, 401);
   assert.equal(f.calls.length, 0);
+});
+test("contact changes require agency access and cannot modify owner or another restaurant", async () => {
+  const payload = {
+    restaurante_id: restaurant,
+    telefono: "+34 600 000 201",
+    direccion: "Nueva dirección",
+    owner_id: "attacker",
+  };
+  const denied = fixture({ nonAdmin: true });
+  assert.equal((await denied.send(payload, "token", "PATCH")).status, 403);
+  assert.equal(
+    denied.calls.some((c) => c[0] === "update-values"),
+    false,
+  );
+  const allowed = fixture();
+  assert.equal((await allowed.send(payload, "token", "PATCH")).status, 200);
+  assert.deepEqual(allowed.calls.find((c) => c[0] === "update-values")[2], {
+    telefono: payload.telefono,
+    direccion: payload.direccion,
+  });
+  assert.deepEqual(allowed.calls.find((c) => c[0] === "update")[2], {
+    id: restaurant,
+  });
+  const invalid = fixture();
+  assert.equal(
+    (await invalid.send({ ...payload, telefono: "invalid" }, "token", "PATCH"))
+      .status,
+    400,
+  );
 });
 test("validates actual body length, service dependencies and review destination", async () => {
   const valid = {
