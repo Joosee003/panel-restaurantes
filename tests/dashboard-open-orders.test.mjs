@@ -3,9 +3,9 @@ import {test} from 'node:test';
 import {readFileSync} from 'node:fs';
 import ts from 'typescript';
 import {createClient} from '@supabase/supabase-js';
-const module={exports:{}};
-new Function('module','exports',ts.transpileModule(readFileSync(new URL('../lib/orders/order-state.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(module,module.exports);
-const {isOrderClosed,dashboardOrderFilter}=module.exports;
+const compiled={exports:{}};
+new Function('module','exports',ts.transpileModule(readFileSync(new URL('../lib/orders/order-state.ts',import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS}}).outputText)(compiled,compiled.exports);
+const {isOrderClosed,dashboardOrderFilter}=compiled.exports;
 test('delivered food stays on the open-table count until settlement',()=>{
  const orders=[{table:'Mesa 10',state:'servido'},{table:'Mesa 10',state:'entregado'},{table:'Mesa 4',state:'cobrado'},{table:'Mesa 8',state:'cancelado'}];
  assert.deepEqual([...new Set(orders.filter(o=>!isOrderClosed(o.state)).map(o=>o.table))],['Mesa 10']);
