@@ -1,0 +1,89 @@
+{
+  "date": "2026-09-16",
+  "environment": "Production demo read-only; agency login and empty form validation; no customer contacted",
+  "checks": [
+    {
+      "module": "Sala",
+      "test": "Cambio comida/cena y franjas con mesas visibles",
+      "result": "passed"
+    },
+    {
+      "module": "Clientes",
+      "test": "Búsqueda inexistente devuelve 0; filtro VIP devuelve 2; contacto desactivado",
+      "result": "passed"
+    },
+    {
+      "module": "Rentabilidad",
+      "test": "Lista y búsqueda de plato ficticio",
+      "result": "passed"
+    },
+    {
+      "module": "Fidelización",
+      "test": "Listado de 4 premios y pestaña de 3 cupones",
+      "result": "passed"
+    },
+    {
+      "module": "Canjes",
+      "test": "Pantalla de validación y controles de canjes/promociones cargan",
+      "result": "read-only",
+      "evidence": "  - heading \"La Reserva · Demo GastroHelp\" [level=1]\n    - button \"Carta QR\":\n    - button \"Camarero digital\":\n    - button \"Cerrar sesión\":\n  - button \"Salir\":\n  - heading \"Validar ventajas\" [level=1]\n  - button \"Recargar\":\n  - heading \"Canjes de puntos\" [level=2]\n  - button \"Confirmar\"\n  - button \"Cancelar\"\n  - heading \"Promos automáticas\" [level=2]\n  - button \"Confirmar\"\n  - button \"Caducar\"\n  - button \"Confirmar\"\n  - button \"Caducar\""
+    },
+    {
+      "module": "Carta productos",
+      "test": "Lista y búsqueda de producto ficticio",
+      "result": "passed"
+    },
+    {
+      "module": "Menú del día",
+      "test": "Formulario, secciones y vista previa cargan; guardado no ejercitado",
+      "result": "read-only",
+      "evidence": "  - heading \"La Reserva · Demo GastroHelp\" [level=1]\n    - heading \"Menú del día\" [level=1]\n    - heading \"Datos principales\" [level=2]\n    - checkbox \"Activo en carta QR\" [checked]\n    - heading \"Secciones del menú\" [level=2]\n    - button \"Guardar menú\":\n      - text: Guardar menú\n      - heading \"Menú del día\" [level=3]\n      - heading \"1 menús\" [level=2]\n        - heading \"Menú ejecutivo\" [level=3]"
+    },
+    {
+      "module": "QR mesas",
+      "test": "Doce mesas y dos zonas; copiar/QR desactivados en demo",
+      "result": "read-only"
+    },
+    {
+      "module": "Cocina/pedidos",
+      "test": "Pestañas cocina, historial y mesas abiertas; historial y una mesa abierta visibles",
+      "result": "passed"
+    },
+    {
+      "module": "Métricas",
+      "test": "Embudo, últimos 30 días, facturación y métodos de pago renderizan; no se certifica exactitud histórica",
+      "result": "read-only"
+    },
+    {
+      "module": "Ajustes reservas",
+      "test": "Horarios de servicio y capacidad por turno visibles; sin guardar",
+      "result": "read-only"
+    },
+    {
+      "module": "WhatsApp ajustes",
+      "test": "Pantalla accesible sin vincular número; ninguna conexión iniciada",
+      "result": "read-only"
+    },
+    {
+      "module": "Reseñas",
+      "test": "Seguimiento y filtro Sin permiso disponibles; ningún envío ni confirmación manual",
+      "result": "passed"
+    },
+    {
+      "module": "Reservas",
+      "test": "Calendario y lista; búsqueda inexistente sin resultados",
+      "result": "passed"
+    },
+    {
+      "module": "Dashboard",
+      "test": "Producción a1fbbdb: una mesa abierta y aviso de cuenta pendiente, coinciden con Cocina. Viewport/scroll 1348/1348",
+      "result": "passed-after-release"
+    },
+    {
+      "module": "Alta agencia",
+      "test": "Acceso autenticado y envío vacío no avanza del paso Datos; ningún restaurante creado",
+      "result": "passed"
+    }
+  ],
+  "writeJourneys": "Blocked: requires separate hosted Auth/Storage test environment and two authorized restaurant accounts"
+}

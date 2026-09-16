@@ -1,0 +1,78 @@
+{
+  "date": "2026-09-16",
+  "scope": "Three sequential anonymous HTTP reads per route from this workspace, includes network; no load test or authenticated UI timing",
+  "routes": [
+    {
+      "route": "/login",
+      "samples": [
+        {
+          "status": 200,
+          "headers_ms": 10629,
+          "total_ms": 10631,
+          "bytes": 13193
+        },
+        {
+          "status": 200,
+          "headers_ms": 11825,
+          "total_ms": 11827,
+          "bytes": 13193
+        },
+        {
+          "status": 200,
+          "headers_ms": 9581,
+          "total_ms": 9586,
+          "bytes": 13193
+        }
+      ],
+      "median_total_ms": 10631
+    },
+    {
+      "route": "/restaurante/la-reserva-demo",
+      "samples": [
+        {
+          "status": 200,
+          "headers_ms": 10804,
+          "total_ms": 10809,
+          "bytes": 47193
+        },
+        {
+          "status": 200,
+          "headers_ms": 9387,
+          "total_ms": 9418,
+          "bytes": 47193
+        },
+        {
+          "status": 200,
+          "headers_ms": 10372,
+          "total_ms": 10425,
+          "bytes": 47193
+        }
+      ],
+      "median_total_ms": 10425
+    },
+    {
+      "route": "/api/admin/overview",
+      "samples": [
+        {
+          "status": 401,
+          "headers_ms": 9868,
+          "total_ms": 9871,
+          "bytes": 27
+        },
+        {
+          "status": 401,
+          "headers_ms": 10288,
+          "total_ms": 10290,
+          "bytes": 27
+        },
+        {
+          "status": 401,
+          "headers_ms": 10452,
+          "total_ms": 10455,
+          "bytes": 27
+        }
+      ],
+      "median_total_ms": 10290
+    }
+  ]
+}
