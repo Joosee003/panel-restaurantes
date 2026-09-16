@@ -1326,3 +1326,17 @@ html.dark .agency-app {
   min-width: 0;
   max-width: 100%;
 }
+
+/* Keep semantic status text readable on the dark card surface. */
+html.dark .agency-trend.positive,
+html.dark .agency-card-insight.good > span,
+html.dark .agency-insight.good > svg {
+  color: #6ee7b7;
+}
+html.dark .agency-trend.negative {
+  color: #fda4af;
+}
+html.dark .agency-card-insight.warning > span,
+html.dark .agency-insight.warning > svg {
+  color: #fdba74;
+}

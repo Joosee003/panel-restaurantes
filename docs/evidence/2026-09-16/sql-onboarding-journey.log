@@ -11,6 +11,6 @@
     "SQL journey: new installation → invitation trigger and owner role → own configuration → idempotent public booking → visible reservation → attendance → one consumption/points entry → scheduled unsent review → persisted agency metrics. Auth transport and browser remain separate gates.",
     "reputation-only setup carries no other restaurant content or unused tables",
     "restaurant accounts cannot read another restaurant or reputation configuration",
-    "rollback cascades through every installation record"
+    "deleting only the disposable local fixture removes its dependent installation records"
   ]
 }

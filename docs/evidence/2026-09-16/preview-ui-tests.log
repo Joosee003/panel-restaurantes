@@ -1,0 +1,27 @@
+✔ all restaurants drive the directory, including reputation-only clients; demos remain explicit (4.742304ms)
+✔ equal complete periods exclude today, handle local midnight and survive daylight-saving transitions (3.412185ms)
+✔ unknown and zero baselines never become an invented growth rate (0.419841ms)
+✔ review openings are not confirmations; lost consent does not hide pending verification (1.363158ms)
+✔ legacy requests remain pending, repeated visits count once and customer confirmation settles all visits (1.378891ms)
+✔ attendance categories are exclusive and never infer visits from unmarked bookings (0.668454ms)
+✔ private-number readiness does not erase an active shared number during migration (0.356315ms)
+✔ an invitation awaiting acceptance never counts as delivered access (0.25943ms)
+✔ a private shared pilot is visible as a working test, without claiming public readiness (0.496766ms)
+✔ follow-up aspects use the restaurant labels and only low ratings, with no invented advice (1.498771ms)
+✔ a shared live route never marks the required own-number services ready (0.33995ms)
+react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+✔ the directory defaults to real clients, changes demo scope, and searches by restaurant (62.210045ms)
+react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+✔ onboarding validates each step, sends only at the last step and preserves input after failure (39.810118ms)
+react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+react-test-renderer is deprecated. See https://react.dev/warnings/react-test-renderer
+✔ reload restores one user's draft and request key; another account never inherits it (12.344181ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 758.206371

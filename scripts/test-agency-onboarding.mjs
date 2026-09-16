@@ -50,7 +50,7 @@ try {
     .filter(
       (name) =>
         name >= "20260908164431" &&
-        name <= "20260916080352_resumable_agency_onboarding.sql",
+        name <= "20260916084425_resumable_agency_onboarding.sql",
     )
     .sort();
   for (const name of migrations)
