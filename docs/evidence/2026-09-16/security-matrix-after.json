@@ -1,0 +1,706 @@
+{
+  "engine": "PGlite/PostgreSQL; local synthetic data; sequential role sessions",
+  "migrations": [
+    "20260908164431_post_visit_review_requests.sql",
+    "20260909161858_shared_whatsapp_inbox.sql",
+    "20260910160709_natural_whatsapp_restaurant_selection.sql",
+    "20260910230639_panel_service_hours_source.sql",
+    "20260910233843_natural_booking_confirmation.sql",
+    "20260910233856_retain_whatsapp_booking_details.sql",
+    "20260911124918_private_live_chatbot_routes.sql",
+    "20260912130239_conversational_availability_intent.sql",
+    "20260913111203_per_restaurant_waha_channels.sql",
+    "20260913111211_waha_review_recheck.sql",
+    "20260915001030_agency_onboarding_foundation.sql",
+    "20260916084425_resumable_agency_onboarding.sql",
+    "20260916094024_enforce_restaurant_relations.sql"
+  ],
+  "passed": 171,
+  "failed": 0,
+  "results": [
+    {
+      "name": "clientes: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "clientes: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "clientes: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "clientes: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "reservas: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "reservas: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "reservas: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "reservas: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "clientes_historial: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "clientes_historial: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "clientes_historial: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "clientes_historial: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "cupones: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "cupones: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "cupones: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "cupones: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "premios_puntos: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "premios_puntos: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "premios_puntos: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "premios_puntos: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "puntos_movimientos: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "puntos_movimientos: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "puntos_movimientos: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "puntos_movimientos: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "pedido_qr_items: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "pedido_qr_items: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "pedido_qr_items: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "pedido_qr_items: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "cartas_digitales: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "cartas_digitales: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "cartas_digitales: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "cartas_digitales: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "carta_categorias: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "carta_categorias: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "carta_categorias: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "carta_categorias: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "carta_productos: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "carta_productos: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "carta_productos: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "carta_productos: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "sala_zonas: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "sala_zonas: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "sala_zonas: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "sala_zonas: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "platos: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "platos: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "platos: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "platos: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "ingredientes: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "ingredientes: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "ingredientes: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "ingredientes: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "plato_ingredientes: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "plato_ingredientes: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "plato_ingredientes: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "plato_ingredientes: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "ventas_platos: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "ventas_platos: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "ventas_platos: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "ventas_platos: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "resenas: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "resenas: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "resenas: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "resenas: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_horarios: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_horarios: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_horarios: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_horarios: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_excepciones: owner reads own row and cannot read/update/delete foreign row",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_excepciones: unaffiliated account sees no rows",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_excepciones: agency reads both assigned fixtures",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_excepciones: demo cannot update/delete even its own row",
+      "result": "passed"
+    },
+    {
+      "name": "reservas.cliente_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "reservas.cliente_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "reservas.cliente_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "reservas.mesa_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "reservas.mesa_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "reservas.mesa_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "clientes_historial.cliente_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "clientes_historial.cliente_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "clientes_historial.cliente_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente.cliente_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente.cliente_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente.cliente_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente.cupon_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente.cupon_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente.cupon_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos.cliente_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos.cliente_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos.cliente_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos.premio_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos.premio_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos.premio_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr.carta_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr.carta_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr.carta_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr.mesa_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr.mesa_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr.mesa_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedido_qr_items.producto_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedido_qr_items.producto_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "pedido_qr_items.producto_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas.zona_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas.zona_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas.zona_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "plato_ingredientes.ingrediente_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "plato_ingredientes.ingrediente_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "plato_ingredientes.ingrediente_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "ventas_platos.plato_id: ownerA cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "ventas_platos.plato_id: both cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "ventas_platos.plato_id: agency cannot link restaurant A to restaurant B",
+      "result": "passed"
+    },
+    {
+      "name": "points: own restaurant cannot credit foreign customer",
+      "result": "passed"
+    },
+    {
+      "name": "loyalty redemption: unaffiliated account cannot spend another customer balance",
+      "result": "passed"
+    },
+    {
+      "name": "loyalty redemption: anon cannot spend another customer balance",
+      "result": "passed"
+    },
+    {
+      "name": "loyalty redemption: demo cannot create a redemption",
+      "result": "passed"
+    },
+    {
+      "name": "JWT user_metadata cannot grant agency role",
+      "result": "passed"
+    },
+    {
+      "name": "clientes: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "reservas: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "clientes_historial: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "cupones: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "premios_puntos: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "puntos_movimientos: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "pedido_qr_items: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "cartas_digitales: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "carta_categorias: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "carta_productos: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "sala_zonas: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "platos: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "ingredientes: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "plato_ingredientes: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "ventas_platos: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "resenas: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_horarios: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "reservas_excepciones: anonymous cannot read private fixture rows",
+      "result": "passed"
+    },
+    {
+      "name": "menus: owner can upload, replace and delete own image metadata",
+      "result": "passed"
+    },
+    {
+      "name": "menus: owner cannot list or modify foreign image metadata",
+      "result": "passed"
+    },
+    {
+      "name": "menus: demo cannot upload image metadata",
+      "result": "passed"
+    },
+    {
+      "name": "menus: demo cannot replace or delete existing image metadata",
+      "result": "passed"
+    },
+    {
+      "name": "premios: owner can upload, replace and delete own image metadata",
+      "result": "passed"
+    },
+    {
+      "name": "premios: owner cannot list or modify foreign image metadata",
+      "result": "passed"
+    },
+    {
+      "name": "premios: demo cannot upload image metadata",
+      "result": "passed"
+    },
+    {
+      "name": "premios: demo cannot replace or delete existing image metadata",
+      "result": "passed"
+    },
+    {
+      "name": "clientes: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    },
+    {
+      "name": "reservas: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    },
+    {
+      "name": "sala_mesas: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    },
+    {
+      "name": "cupon_cliente: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    },
+    {
+      "name": "canjes_puntos: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    },
+    {
+      "name": "puntos_saldos: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    },
+    {
+      "name": "pedidos_qr: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    },
+    {
+      "name": "platos: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    },
+    {
+      "name": "ingredientes: multiple-local owner cannot reassign linked rows to another restaurant",
+      "result": "passed"
+    }
+  ]
+}

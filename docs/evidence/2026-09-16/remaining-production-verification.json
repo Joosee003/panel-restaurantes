@@ -1,0 +1,69 @@
+{
+  "date": "2026-09-16",
+  "production": {
+    "pr": 71,
+    "commit": "a1fbbdbf5545771cb2d7ca70cc29744ce3d3db9c",
+    "deployment": "dpl_AM9py5rDxiMWjPCfH9HrHzF93KX1",
+    "state": "READY",
+    "alias": "panel.gastrohelp.es"
+  },
+  "database": {
+    "constraints": {
+      "total": 35,
+      "validated": 34
+    },
+    "migration": {
+      "name": "enforce_restaurant_relations",
+      "version": "20260916095954"
+    },
+    "orphan_balances": 2,
+    "storage_guards": [
+      {
+        "command": "DELETE",
+        "mode": "RESTRICTIVE",
+        "name": "demo_storage_delete_guard"
+      },
+      {
+        "command": "INSERT",
+        "mode": "RESTRICTIVE",
+        "name": "demo_storage_insert_guard"
+      },
+      {
+        "command": "UPDATE",
+        "mode": "RESTRICTIVE",
+        "name": "demo_storage_update_guard"
+      }
+    ]
+  },
+  "cron": [
+    {
+      "active": true,
+      "jobname": "gastrohelp-automation-dispatch",
+      "last_completed": "2026-09-16 10:11:00.080022+00",
+      "recent_runs": 10,
+      "schedule": "* * * * *",
+      "succeeded": 10
+    }
+  ],
+  "runtimeErrors": {
+    "scope": "One hour queried at approximately 10:02 UTC",
+    "result": "No runtime errors returned"
+  },
+  "dashboard": {
+    "before": 0,
+    "after": 1,
+    "kitchenOpenTables": 1,
+    "scrollWidth": 1348,
+    "viewportWidth": 1348
+  },
+  "tests": {
+    "agencyAndDashboard": 32,
+    "security": 171,
+    "concurrentCases": 10,
+    "isolatedLogicalRestores": 1,
+    "qualityRun": 35083351678,
+    "databaseRun": 35083351750
+  },
+  "closed": false,
+  "criticalNonWhatsappChecksRemain": true
+}

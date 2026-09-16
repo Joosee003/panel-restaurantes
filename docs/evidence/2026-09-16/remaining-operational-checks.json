@@ -1,0 +1,164 @@
+{
+  "concurrency": {
+    "backup": {
+      "bytes": 832953,
+      "policies": 254,
+      "restoreMs": 539,
+      "rows": 21,
+      "scope": "Synthetic logical SQL backup only. Does not certify provider backup, Auth service, binary Storage files or Hetzner/n8n/WAHA volumes.",
+      "sha256": "393d20c52f4292444401eef516756f8bbafe23415112da12cde2edde5abf8d5d",
+      "tables": 60
+    },
+    "checks": [
+      "Parallel onboarding: one restaurant and one request after a real lock wait",
+      "Parallel invitation attempts: exactly one delivery claim, no provider contacted",
+      "Two concurrent requests for the last two seats: one accepted, one rejected; retry returns original booking",
+      "Parallel reward redemption: one redemption and one ten-point debit",
+      "Two manual review preparations share one unsent request",
+      "Two review send confirmations commit only once",
+      "Owner confirmation cancels a waiting review delivery",
+      "Provider claim excludes a simultaneous manual draft",
+      "Cancellation prevents a waiting worker from sending",
+      "An already accepted delivery remains auditable after concurrent confirmation",
+      "pg_dump archive restored into a separate empty database; every synthetic row hash, policy and constraint matches; owner isolation still works"
+    ],
+    "engine": "PostgreSQL 17.11 (Debian 17.11-1.pgdg13+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 14.2.0-19) 14.2.0, 64-bit",
+    "independentBackends": [
+      116,
+      117
+    ],
+    "migrations": [
+      "20260908164431_post_visit_review_requests.sql",
+      "20260909161858_shared_whatsapp_inbox.sql",
+      "20260910160709_natural_whatsapp_restaurant_selection.sql",
+      "20260910230639_panel_service_hours_source.sql",
+      "20260910233843_natural_booking_confirmation.sql",
+      "20260910233856_retain_whatsapp_booking_details.sql",
+      "20260911124918_private_live_chatbot_routes.sql",
+      "20260912130239_conversational_availability_intent.sql",
+      "20260913111203_per_restaurant_waha_channels.sql",
+      "20260913111211_waha_review_recheck.sql",
+      "20260915001030_agency_onboarding_foundation.sql",
+      "20260916084425_resumable_agency_onboarding.sql",
+      "20260916095954_enforce_restaurant_relations.sql"
+    ],
+    "status": "passed"
+  },
+  "migration": {
+    "migration": {
+      "name": "enforce_restaurant_relations",
+      "version": "20260916095954"
+    },
+    "constraints": {
+      "total": 35,
+      "validated": 34
+    },
+    "storage_guards": [
+      {
+        "mode": "RESTRICTIVE",
+        "name": "demo_storage_delete_guard",
+        "command": "DELETE"
+      },
+      {
+        "mode": "RESTRICTIVE",
+        "name": "demo_storage_insert_guard",
+        "command": "INSERT"
+      },
+      {
+        "mode": "RESTRICTIVE",
+        "name": "demo_storage_update_guard",
+        "command": "UPDATE"
+      }
+    ],
+    "orphan_balances": 2
+  },
+  "alert": {
+    "date": "2026-09-16",
+    "execution": {
+      "id": "70280",
+      "mode": "webhook",
+      "retryOf": null,
+      "retrySuccessId": null,
+      "startedAt": "2026-09-16T09:38:18.920Z",
+      "status": "success",
+      "stoppedAt": "2026-09-16T09:38:18.954Z",
+      "waitTill": null,
+      "workflowId": "D0v3AmCPH7r3tPY3"
+    },
+    "lastNodeExecuted": "Confirmar prueba sin envío",
+    "nodes": [
+      "Confirmar prueba sin envío",
+      "Evento de automatización",
+      "Validar y preparar correos",
+      "¿Enviar correo?"
+    ],
+    "scope": "Manual synthetic automation.test execution; suppressDelivery=true; SMTP node was not executed. Does not prove automated alert triggering or inbox delivery."
+  },
+  "security_advisors": [
+    {
+      "count": 11,
+      "level": "INFO",
+      "name": "rls_enabled_no_policy",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy"
+    },
+    {
+      "count": 2,
+      "level": "WARN",
+      "name": "extension_in_public",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0014_extension_in_public"
+    },
+    {
+      "count": 4,
+      "level": "WARN",
+      "name": "anon_security_definer_function_executable",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0028_anon_security_definer_function_executable"
+    },
+    {
+      "count": 19,
+      "level": "WARN",
+      "name": "authenticated_security_definer_function_executable",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable"
+    },
+    {
+      "count": 1,
+      "level": "WARN",
+      "name": "auth_leaked_password_protection",
+      "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection"
+    }
+  ],
+  "performance_advisors": [
+    {
+      "count": 6,
+      "level": "INFO",
+      "name": "unindexed_foreign_keys",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0001_unindexed_foreign_keys"
+    },
+    {
+      "count": 91,
+      "level": "WARN",
+      "name": "auth_rls_initplan",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan"
+    },
+    {
+      "count": 41,
+      "level": "INFO",
+      "name": "unused_index",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index"
+    },
+    {
+      "count": 103,
+      "level": "WARN",
+      "name": "multiple_permissive_policies",
+      "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies"
+    }
+  ],
+  "ci": {
+    "schema_run": 35083061359,
+    "schema_job": 104751370258
+  },
+  "limits": [
+    "Synthetic local SQL roles do not certify hosted JWT, Realtime or binary Storage end-to-end.",
+    "Invitation claim checks are not email receipt or real owner login.",
+    "No restoration of production/provider/Hetzner backup was performed."
+  ]
+}
