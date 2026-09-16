@@ -56,7 +56,7 @@ export default function LaReservaExperience({ restaurant }: { restaurant: Public
         <section id="reservar" className={styles.bookingSection} aria-labelledby="mesa-title">
           <div className={styles.bookingTop}><span>04 — TU PRÓXIMO PLAN</span><TableSignature /></div>
           <div className={styles.bookingContent} data-reveal><h2 id="mesa-title">Te guardamos<br /><em>un sitio.</em></h2><div className={styles.bookingAside}><p>Tú eliges el día y con quién.<br />Nosotros ponemos el resto.</p>{restaurant.booking.enabled ? <ReserveButton className={styles.lightButton}>Buscar mi mesa <TableSignature /></ReserveButton> : <p>Las reservas online están en pausa.</p>}<span>Consulta las horas disponibles al momento.</span></div></div>
-          <div className={styles.bookingNote}><span>ESTÁS EN UNA DEMOSTRACIÓN</span><p>La Reserva es un restaurante ficticio con imágenes ilustrativas. Puedes hacer una reserva de prueba y verla en su panel, sin reservar en un negocio real.</p></div>
+          <div className={styles.bookingNote}><span>ESTÁS EN UNA DEMOSTRACIÓN</span><p>La Reserva es un restaurante ficticio con imágenes ilustrativas. Puedes consultar la disponibilidad. Esta demo es de solo lectura: no guarda reservas ni datos personales.</p></div>
         </section>
       </main>
       <footer className={styles.footer}>
