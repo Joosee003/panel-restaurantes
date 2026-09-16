@@ -1,0 +1,58 @@
+{
+  "date": "2026-09-16",
+  "commit": "11b348fbe5ab19f1a95b0300a4e8badbff4167b9",
+  "deployment": "dpl_AYkaVeYWSGdhn8wUdmvLbJEXyG3R",
+  "safety": "Demo POST uses a past date and no contact details: the previous code also rejects it before writes. No actual reservation or invitation is requested.",
+  "results": [
+    {
+      "method": "GET",
+      "path": "/login",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "cache_control": "public, max-age=0, must-revalidate"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/overview",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "cache_control": "no-store, private",
+      "body": {
+        "error": "INVALID_SESSION"
+      }
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/restaurantes/invitacion",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "cache_control": "no-store, private",
+      "body": {
+        "error": "INVALID_SESSION"
+      }
+    },
+    {
+      "method": "GET",
+      "path": "/pruebas-agencia/index.html",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "cache_control": "public, max-age=0, must-revalidate"
+    },
+    {
+      "method": "POST",
+      "path": "/api/public/restaurants/la-reserva-demo/bookings",
+      "status": 403,
+      "expected": 403,
+      "passed": true,
+      "cache_control": "private, no-store, max-age=0",
+      "body": {
+        "ok": false,
+        "error": "DEMO_READ_ONLY"
+      }
+    }
+  ]
+}

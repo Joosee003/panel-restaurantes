@@ -276,17 +276,17 @@ export default function BookingWidget({
 
       <div className="space-y-6 p-6 sm:p-8">
         {demo ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-900">
-            Demostración GastroHelp: esta reserva de prueba se guardará en el panel de {restaurantName}.
+          <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-bold leading-5 text-blue-900">
+            Demostración de {restaurantName}: puedes consultar fechas y horarios. No se guardan reservas ni datos personales.
           </div>
         ) : null}
 
         <ol className="grid grid-cols-3 gap-2" aria-label="Pasos de la reserva">
-          {[
+          {(demo ? [["1", "Disponibilidad"]] : [
             ["1", "Disponibilidad"],
             ["2", "Tus datos"],
             ["3", "Confirmación"],
-          ].map(([step, label], index) => {
+          ]).map(([step, label], index) => {
             const active = index === 0 || (index === 1 && selectedSlot);
             return (
               <li
