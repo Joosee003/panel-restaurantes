@@ -1,0 +1,52 @@
+name: Isolated database checks
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/**'
+      - 'tests/**'
+      - '.github/workflows/isolated-database-checks.yml'
+permissions:
+  contents: read
+jobs:
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: isolated-fixture-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - run: npm ci --ignore-scripts --prefix tests/sql
+      - run: mkdir -p test-results
+      - name: Current schema permission matrix
+        run: node scripts/test-security-matrix.mjs > test-results/security.log
+        env:
+          SECURITY_REPORT: test-results/security.json
+      - name: Onboarding regression
+        run: node scripts/test-agency-onboarding.mjs > test-results/onboarding.log
+      - name: Real parallel transactions and isolated restore
+        run: node scripts/test-closure-postgres.mjs
+        env:
+          QA_POSTGRES_CONTAINER: ${{ job.services.postgres.id }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: isolated-database-evidence
+          path: test-results/
+          retention-days: 30

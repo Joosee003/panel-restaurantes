@@ -34,6 +34,9 @@ jobs:
       - name: Restaurant and session isolation
         run: node --test tests/restaurant-isolation.test.mjs
 
+      - name: Open tables remain visible until payment
+        run: node --test tests/dashboard-open-orders.test.mjs
+
       - name: Review message and transport tests
         run: node --test tests/review-flow.test.mjs tests/n8n-review-contract.test.mjs
 

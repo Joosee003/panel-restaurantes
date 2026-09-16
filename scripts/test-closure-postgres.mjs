@@ -1,0 +1,80 @@
+// Only a disposable GitHub Actions PostgreSQL service. No configurable remote URL or real credentials.
+import assert from 'node:assert/strict';
+import {spawn} from 'node:child_process';
+import {readFile,readdir,writeFile,mkdir} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import pg from '../tests/sql/node_modules/pg/lib/index.js';
+import {restoreApplicationCatalog,ident} from './recovery-catalog.mjs';
+import {restoreStoragePolicyFixture} from './storage-policy-fixture.mjs';
+import {seedReviews,addReviewVisit,reviewActor,reviewAction,requestRow,claimReview,checkDelivery,finishDelivery,reviewIds as I} from './review-schema-checks.mjs';
+assert.equal(process.env.GITHUB_ACTIONS,'true','This script only runs in an isolated CI service');
+const container=process.env.QA_POSTGRES_CONTAINER;
+assert.match(container||'',/^[a-f0-9]{12,64}$/,'A CI service container is required');
+const clients=[],checks=[];let stage='connect';
+const config={host:'127.0.0.1',port:5432,user:'postgres',password:'isolated-fixture-only',ssl:false,query_timeout:15000};
+async function connect(database){const c=new pg.Client({...config,database});await c.connect();clients.push(c);await c.query("set statement_timeout='12s';set lock_timeout='8s';set search_path=public,extensions");return {query:(...args)=>c.query(...args),exec:sql=>c.query(sql)};}
+const result=async(db,sql,args=[])=>(await db.query(sql,args)).rows[0].result;
+const docker=(args,input)=>new Promise((resolve,reject)=>{const c=spawn('docker',['exec',...(input?['-i']:[]),container,...args],{stdio:['pipe','pipe','pipe']});const chunks=[];let error='';c.stdout.on('data',v=>chunks.push(v));c.stderr.on('data',v=>error+=v);c.on('error',reject);c.on('exit',code=>code===0?resolve(Buffer.concat(chunks)):reject(new Error(error)));c.stdin.end(input);});
+try{
+ const admin=await connect('postgres');
+ // CREATE DATABASE fails if either exists. Never restore over any existing database.
+ await admin.exec('create database qa_fixture');await admin.exec('create database qa_restored');
+ const a=await connect('qa_fixture'),b=await connect('qa_fixture'),observer=await connect('qa_fixture');
+ stage='restore current schema';
+ const catalog=JSON.parse(await readFile(new URL('../tests/fixtures/application-catalog-2026-09-08.json',import.meta.url),'utf8'));assert.equal(catalog.fixture_only,true);
+ await restoreApplicationCatalog(a,catalog);await restoreStoragePolicyFixture(a);
+ const migrations=(await readdir(new URL('../supabase/migrations/',import.meta.url))).filter(n=>n>='20260908164431').sort();
+ for(const name of migrations)await a.exec(await readFile(new URL('../supabase/migrations/'+name,import.meta.url),'utf8'));
+ await a.exec('alter role service_role bypassrls');
+ const backend=(await b.query('select pg_backend_pid() id')).rows[0].id;
+ const backendA=(await a.query('select pg_backend_pid() id')).rows[0].id;assert.notEqual(backend,backendA);
+ async function waiting(operation,release){let done=false;const pending=operation().then(value=>({value}),error=>({error})).finally(()=>done=true);const until=Date.now()+4000;let locked=false;while(Date.now()<until&&!done){if((await observer.query('select wait_event_type from pg_stat_activity where pid=$1',[backend])).rows[0]?.wait_event_type==='Lock'){locked=true;break;}await new Promise(resolve=>setTimeout(resolve,20));}assert.ok(locked,'Second PostgreSQL connection must wait for an actual transaction lock');await release();return pending;}
+ stage='parallel onboarding';
+ const adminId='91000000-0000-4000-8000-000000000001',key='91000000-0000-4000-8000-000000000002';
+ await a.exec(`alter table auth.users disable trigger user;insert into auth.users(id,email) values('${adminId}','agency-ci@example.invalid');alter table auth.users enable trigger user;insert into app_admins(user_id) values('${adminId}')`);
+ const fixture={nombre:'QA parallel only',telefono:'+447700900121',direccion:'Fixture',email:'invite-ci@example.invalid',capacidad:2,mesas:1,plan:'basico',cartaNombre:'Fixture',zonaHoraria:'Europe/Madrid',activarReservas:true,activarClientes:true,activarResenas:true,activarFidelizacion:true,activarMetricas:true,activarChatbot:false,activarCamarero:false,activarMenuDigital:false,activarAutomatizaciones:true,activarReputacion:false};
+ await reviewActor(a,null,'service_role');await reviewActor(b,null,'service_role');
+ const create=db=>result(db,'select admin_create_onboarding($1,$2,$3) result',[adminId,key,fixture]);
+ await a.exec('begin');const first=await create(a);let outcome=await waiting(()=>create(b),()=>a.exec('commit'));
+ assert.ifError(outcome.error);assert.equal(outcome.value.restaurante_id,first.restaurante_id);assert.equal(outcome.value.replayed,true);assert.equal((await a.query('select count(*)::int n from agency_onboarding_requests')).rows[0].n,1);checks.push('Parallel onboarding: one restaurant and one request after a real lock wait');
+ stage='parallel invitation';const rid=first.restaurante_id;
+ const claim=db=>result(db,'select admin_claim_invitation($1,$2,false) result',[adminId,rid]);
+ await a.exec('begin');const claimed=await claim(a);assert.equal(claimed.claimed,true);outcome=await waiting(()=>claim(b),()=>a.exec('commit'));assert.ifError(outcome.error);assert.equal(outcome.value.claimed,false);checks.push('Parallel invitation attempts: exactly one delivery claim, no provider contacted');
+ stage='last booking slot';await a.exec('reset role');
+ await a.query('update reservas_config set activo=true,antelacion_minutos=0,capacidad_por_turno=2,confirmacion_automatica=true where restaurante_id=$1',[rid]);
+ await a.query('update restaurante_webs set publicada=true where restaurante_id=$1',[rid]);
+ await a.query("update automatizaciones_config set enabled=false,delivery_mode='test',confirmation_enabled=false,reminder_enabled=false where restaurante_id=$1",[rid]);
+ await a.query("insert into reservas_excepciones(restaurante_id,fecha,tipo,turno,hora_inicio,hora_fin) values($1,current_date+1,'horario_especial','comida','12:00','18:00')",[rid]);
+ const slug=(await a.query('select slug from restaurante_webs where restaurante_id=$1',[rid])).rows[0].slug;
+ await reviewActor(a,null,'service_role');
+ const slot=(await a.query('select * from obtener_disponibilidad_reservas($1,current_date+1,2) limit 1',[slug])).rows[0];assert.ok(slot);
+ const book=(db,k,phone)=>result(db,"select crear_reserva_publica_con_resena($1,$2,2,'Fixture only',$3,null,null,$4,true,true,'2026-08-03',true) result",[slug,slot.inicio_at,phone,k]);
+ const bookingKey='91000000-0000-4000-8000-000000000003';await a.exec('begin');const booking=await book(a,bookingKey,'+447700900122');assert.equal(booking.ok,true);
+ outcome=await waiting(()=>book(b,'91000000-0000-4000-8000-000000000004','+447700900123'),()=>a.exec('commit'));
+ assert.equal(outcome.error?.code,'P0001');assert.match(outcome.error?.message||'',/^SLOT_NOT_AVAILABLE$/);
+ assert.equal((await a.query('select count(*)::int n from reservas where restaurante_id=$1',[rid])).rows[0].n,1);assert.equal((await book(a,bookingKey,'+447700900122')).duplicate,true);checks.push('Two concurrent requests for the last two seats: one accepted, one rejected; retry returns original booking');
+ stage='parallel reward redemption';await a.exec('reset role');const customer=(await a.query('select cliente_id from reservas where id=$1',[booking.reserva_id])).rows[0].cliente_id;
+ await a.query('update restaurantes set puntos_activo=true where id=$1',[rid]);
+ const reward=(await a.query("insert into premios_puntos(restaurante_id,nombre,puntos_requeridos) values($1,'Fixture reward',10) returning id",[rid])).rows[0].id;
+ await a.query("insert into puntos_movimientos(restaurante_id,cliente_id,tipo,puntos) values($1,$2,'ajuste',100)",[rid,customer]);
+ await reviewActor(a,null,'service_role');const redeem=db=>result(db,'select rpc_canjear_premio($1,$2,$3) result',[customer,rid,reward]);
+ await a.exec('begin');const redemption=await redeem(a);outcome=await waiting(()=>redeem(b),()=>a.exec('commit'));assert.ifError(outcome.error);assert.deepEqual(outcome.value,redemption);
+ assert.equal((await a.query('select count(*)::int n from canjes_puntos where cliente_id=$1',[customer])).rows[0].n,1);
+ assert.equal(Number((await a.query('select sum(puntos) n from puntos_movimientos where cliente_id=$1',[customer])).rows[0].n),90);checks.push('Parallel reward redemption: one redemption and one ten-point debit');
+ stage='review concurrency';const reset=async()=>{await a.exec('rollback');await b.exec('rollback');await seedReviews(a);await addReviewVisit(a);await reviewActor(b);};
+ await reset();await a.exec('begin');const draft=await reviewAction(a,'prepare');outcome=await waiting(()=>reviewAction(b,'prepare'),()=>a.exec('commit'));assert.ifError(outcome.error);assert.equal(outcome.value.token,draft.token);assert.equal((await requestRow(a)).sent_at,null);checks.push('Two manual review preparations share one unsent request');
+ await reset();await reviewAction(a,'prepare');await a.exec('begin');await reviewAction(a,'sent');outcome=await waiting(()=>reviewAction(b,'sent'),()=>a.exec('commit'));assert.match(outcome.error?.message||'',/REVIEW_ALREADY_SENT/);checks.push('Two review send confirmations commit only once');
+ await reset();let event=await claimReview(a);assert.ok(event);await reviewActor(a);await a.exec('begin');await reviewAction(a,'confirm');await reviewActor(b,null,'service_role');outcome=await waiting(()=>checkDelivery(b,event),()=>a.exec('commit'));assert.ifError(outcome.error);assert.equal(outcome.value.allowed,false);checks.push('Owner confirmation cancels a waiting review delivery');
+ await reset();event=await claimReview(a);await a.exec('begin');assert.equal((await checkDelivery(a,event)).allowed,true);await reviewActor(b);outcome=await waiting(()=>reviewAction(b,'prepare'),()=>a.exec('commit'));assert.match(outcome.error?.message||'',/REVIEW_DELIVERY_UNCERTAIN|REVIEW_SENDING/);checks.push('Provider claim excludes a simultaneous manual draft');
+ await reset();event=await claimReview(a);await reviewActor(a);await a.exec('begin');await a.query("update reservas set estado='cancelada' where id=$1",[I.reservation]);await reviewActor(b,null,'service_role');outcome=await waiting(()=>checkDelivery(b,event),()=>a.exec('commit'));assert.ifError(outcome.error);assert.equal(outcome.value.allowed,false);checks.push('Cancellation prevents a waiting worker from sending');
+ await reset();event=await claimReview(a);await checkDelivery(a,event);await reviewActor(a);await a.exec('begin');await reviewAction(a,'confirm');await reviewActor(b,null,'service_role');outcome=await waiting(()=>finishDelivery(b,event,'sent','fixture-provider-accepted'),()=>a.exec('commit'));assert.ifError(outcome.error);assert.equal(outcome.value,true);assert.ok((await requestRow(a)).sent_at);checks.push('An already accepted delivery remains auditable after concurrent confirmation');
+ stage='logical backup and isolated restore';await a.exec('reset role');
+ async function fingerprint(db){const tables=(await db.query("select schemaname,tablename from pg_tables where schemaname in ('public','app_private','auth','storage') order by 1,2")).rows;const data=[];for(const t of tables){const rows=(await db.query(`select to_jsonb(t)::text v from ${ident(t.schemaname)}.${ident(t.tablename)} t order by 1`)).rows;data.push({table:t.schemaname+'.'+t.tablename,count:rows.length,hash:createHash('sha256').update(JSON.stringify(rows)).digest('hex')});}const policies=(await db.query("select schemaname,tablename,policyname,permissive,roles,cmd,qual,with_check from pg_policies where schemaname in ('public','storage') order by 1,2,3")).rows;const constraints=(await db.query("select n.nspname,t.relname,c.conname,c.convalidated,pg_get_constraintdef(c.oid) definition from pg_constraint c join pg_class t on t.oid=c.conrelid join pg_namespace n on n.oid=t.relnamespace where n.nspname='public' order by 1,2,3")).rows;return {data,policies,constraints};}
+ const before=await fingerprint(a),dump=await docker(['pg_dump','-U','postgres','-Fc','--no-owner','qa_fixture']);assert.ok(dump.length>10000);
+ const restored=await connect('qa_restored');assert.equal((await restored.query("select count(*)::int n from pg_tables where schemaname='public'")).rows[0].n,0);
+ const start=Date.now();await docker(['pg_restore','-U','postgres','--exit-on-error','--no-owner','-d','qa_restored'],dump);const restoreMs=Date.now()-start;
+ assert.deepEqual(await fingerprint(restored),before);await reviewActor(restored,I.otherUser);assert.equal((await restored.query('select id from reservas where id=$1',[I.reservation])).rows.length,0);await reviewActor(restored);assert.equal((await restored.query('select id from reservas where id=$1',[I.reservation])).rows.length,1);
+ checks.push('pg_dump archive restored into a separate empty database; every synthetic row hash, policy and constraint matches; owner isolation still works');
+ await mkdir('test-results',{recursive:true});const report={status:'passed',engine:(await admin.query('select version() v')).rows[0].v,migrations,independentBackends:[backendA,backend],checks,backup:{bytes:dump.length,sha256:createHash('sha256').update(dump).digest('hex'),restoreMs,tables:before.data.length,rows:before.data.reduce((n,t)=>n+t.count,0),policies:before.policies.length,scope:'Synthetic logical SQL backup only. Does not certify provider backup, Auth service, binary Storage files or Hetzner/n8n/WAHA volumes.'}};
+ await writeFile('test-results/concurrency-and-restore.json',JSON.stringify(report,null,2)+'\n');console.log(JSON.stringify(report,null,2));
+}catch(error){await mkdir('test-results',{recursive:true});const report={status:'failed',stage,checks,error:error.message,code:error.code,stack:error.stack};await writeFile('test-results/concurrency-and-restore.json',JSON.stringify(report,null,2));console.error(JSON.stringify(report,null,2));process.exitCode=1;}finally{await Promise.allSettled(clients.map(c=>c.end()));}

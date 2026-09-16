@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
 import { uuid_ossp } from "@electric-sql/pglite/contrib/uuid_ossp";
 import { restoreApplicationCatalog } from "./recovery-catalog.mjs";
+import { restoreStoragePolicyFixture } from "./storage-policy-fixture.mjs";
 const db = new PGlite({ extensions: { pgcrypto, uuid_ossp } });
 const adminId = "71000000-0000-4000-8000-000000000101",
   userId = "71000000-0000-4000-8000-000000000102";
@@ -44,13 +45,13 @@ try {
   );
   assert.equal(catalog.fixture_only, true);
   await restoreApplicationCatalog(db, catalog);
+  await restoreStoragePolicyFixture(db);
   const migrations = (
     await readdir(new URL("../supabase/migrations/", import.meta.url))
   )
     .filter(
       (name) =>
-        name >= "20260908164431" &&
-        name <= "20260916084425_resumable_agency_onboarding.sql",
+        name >= "20260908164431",
     )
     .sort();
   for (const name of migrations)
