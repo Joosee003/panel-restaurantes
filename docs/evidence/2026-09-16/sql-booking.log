@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "checks": [
+    "Only an ordinary affirmative to the current booking summary can create a reservation.",
+    "The exact confirmation and internal terms are retained without recording unseen notices, accepted conditions or marketing permission.",
+    "Each restaurant returns its own customer app token, even for the same phone; retries create no duplicate.",
+    "The writer rechecks live capacity under the restaurant/date lock.",
+    "Browser roles cannot invoke the booking writer or confirmation helper."
+  ]
+}

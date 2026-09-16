@@ -21,7 +21,7 @@ export default function AcceptInvitePage() {
     const processInvite = async () => {
       try {
         const session = await getSessionFromAuthUrl({
-          expectedType: "invite",
+          expectedType: ["invite", "recovery"],
         });
 
         const { data: links, error: linkError } = await supabase

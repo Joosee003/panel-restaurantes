@@ -5,7 +5,7 @@ const rehearsal=process.env.VERCEL_ENV==='preview' && ['codex/post-visit-reviews
 await rm(new URL('../public/pruebas-resenas',import.meta.url),{recursive:true,force:true});
 if(rehearsal) await import('./build-review-preview.mjs');
 await rm(new URL('../public/pruebas-agencia',import.meta.url),{recursive:true,force:true});
-if(process.env.VERCEL_ENV==='preview' && process.env.VERCEL_GIT_COMMIT_REF==='feat/agency-control-center') {
+if(process.env.VERCEL_ENV==='preview' && ['feat/agency-control-center','fix/technical-closure-20260916'].includes(process.env.VERCEL_GIT_COMMIT_REF)) {
   const {build}=await import('vite');
   await build({configFile:'tests/agency-preview/vite.config.ts'});
 }

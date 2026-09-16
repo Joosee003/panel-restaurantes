@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "checks": [
+    "only the authenticated agency server can create installations",
+    "invalid services and timezone leave no partial restaurant",
+    "chatbot and review foundations exist, inactive until configured; no sample menu",
+    "repeated submission does not duplicate the restaurant",
+    "stable request key returns one saved installation; payload change is rejected; anon and owner denied",
+    "atomic invitation claim, bounded retry, stale completion rejected, unknown email result retained without automatic resend",
+    "invitation trigger assigns exactly the invited restaurant",
+    "SQL journey: new installation → invitation trigger and owner role → own configuration → idempotent public booking → visible reservation → attendance → one consumption/points entry → scheduled unsent review → persisted agency metrics. Auth transport and browser remain separate gates.",
+    "reputation-only setup carries no other restaurant content or unused tables",
+    "restaurant accounts cannot read another restaurant or reputation configuration",
+    "rollback cascades through every installation record"
+  ]
+}

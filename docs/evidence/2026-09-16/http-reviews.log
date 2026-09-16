@@ -1,0 +1,10 @@
+{
+  "status": "passed",
+  "checks": [
+    "Actual Next HTML renders the neutral Google handoff with no customer contact data.",
+    "GET and link previews do not count as clicks; unsupported GET API and cross-origin POST are rejected.",
+    "Same-origin explicit POST stores the Google opening and the panel RPC returns it without confirmation.",
+    "Opt-out through the actual API persists and renders on the public page.",
+    "Invalid tokens return 404; page is noindex and suppresses referrers."
+  ]
+}

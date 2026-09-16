@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -26,11 +26,13 @@ import {
 } from "@/lib/admin/onboarding";
 import { useAgencyOverview } from "./useAgencyOverview";
 import { DataState, SetupChecklist } from "./AgencyViews";
+import { InvitationAction, invitationMessages } from "./InvitationAction";
 
 export type CreateInstallation = (
   form: OnboardingForm,
-) => Promise<{ restaurante_id: string; invited_email: string }>;
-async function createInstallation(form: OnboardingForm) {
+  requestId: string,
+) => Promise<{ restaurante_id: string; invited_email: string; invitation_status?: string }>;
+async function createInstallation(form: OnboardingForm, requestId: string) {
   const {
     data: { session },
   } = await supabase.auth.getSession();
@@ -43,11 +45,11 @@ async function createInstallation(form: OnboardingForm) {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.access_token}`,
       },
-      body: JSON.stringify(form),
+      body: JSON.stringify({ ...form, request_id: requestId }),
     });
   } catch {
     throw new Error(
-      "Se ha perdido la conexión. Revisa el listado de restaurantes antes de volver a crear: la solicitud podría haberse completado.",
+      "Se ha perdido la conexión. Pulsa de nuevo para recuperar esta misma alta sin duplicarla.",
     );
   }
   const result = await response.json().catch(() => null);
@@ -55,10 +57,8 @@ async function createInstallation(form: OnboardingForm) {
     const messages: Record<string, string> = {
       EMAIL_ALREADY_REGISTERED:
         "Este correo ya está registrado o tiene una invitación pendiente. Revisa el restaurante existente o utiliza otro correo.",
-      INVITE_SEND_FAILED:
-        "No se ha podido enviar el acceso. La instalación se ha deshecho. Puedes volver a intentarlo.",
-      CLEANUP_REQUIRED:
-        "La instalación necesita revisión antes de reintentar. Contacta con el administrador y comprueba el listado.",
+      REQUEST_CONFLICT:
+        "Esta solicitud ya se guardó con otros datos. Recupera el alta original desde el listado de restaurantes.",
       INVALID_INPUT:
         "Revisa los datos y las dependencias de los servicios seleccionados.",
       ADMIN_REQUIRED: "Tu usuario no tiene permiso para crear restaurantes.",
@@ -69,7 +69,7 @@ async function createInstallation(form: OnboardingForm) {
         "No se ha podido completar el alta. Tus datos siguen en el formulario.",
     );
   }
-  return result as { restaurante_id: string; invited_email: string };
+  return result as { restaurante_id: string; invited_email: string; invitation_status: string };
 }
 export function OnboardingWorkspace({
   createNew,
@@ -207,7 +207,7 @@ function OnboardingProgress({ restaurantId }: { restaurantId?: string }) {
   );
 }
 
-export function OnboardingWizard({ create }: { create: CreateInstallation }) {
+export function OnboardingWizard({ create, draftOwner }: { create: CreateInstallation; draftOwner?: string }) {
   const [form, setForm] = useState<OnboardingForm>({ ...emptyForm });
   const [step, setStep] = useState(0),
     [preset, setPreset] = useState("bookings"),
@@ -217,8 +217,62 @@ export function OnboardingWizard({ create }: { create: CreateInstallation }) {
     [result, setResult] = useState<{
       restaurante_id: string;
       invited_email: string;
+      invitation_status?: string;
     } | null>(null);
+  const [draftKey, setDraftKey] = useState<string | null>(null);
+  const [restored, setRestored] = useState(false);
+  const [draftNotice, setDraftNotice] = useState("");
+  const [sessionChanged, setSessionChanged] = useState(false);
+  const ownerId = useRef<string | null>(null);
+  const requestId = useRef("");
   const pending = useRef(false);
+  useEffect(() => {
+    let active = true;
+    async function restore() {
+      try {
+        const owner = draftOwner || (await supabase.auth.getSession()).data.session?.user.id;
+        if (!active || !owner) return;
+        ownerId.current = owner;
+        const key = `gastrohelp:onboarding:${owner}`;
+        // Remove another account's draft before reading this account's draft.
+        for (let i = sessionStorage.length - 1; i >= 0; i--) {
+          const candidate = sessionStorage.key(i);
+          if (candidate?.startsWith("gastrohelp:onboarding:") && candidate !== key) sessionStorage.removeItem(candidate);
+        }
+        const raw = sessionStorage.getItem(key);
+        if (raw) {
+          const saved = JSON.parse(raw);
+          if (saved.version === 1 && Date.now() - saved.updatedAt < 24 * 60 * 60 * 1000
+            && typeof saved.requestId === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(saved.requestId)
+            && saved.form && Object.keys(emptyForm).every(k => typeof saved.form[k] === typeof emptyForm[k as keyof OnboardingForm])) {
+            setForm(saved.form); setStep(Math.max(0, Math.min(3, saved.step || 0)));
+            setPreset(saved.preset || "custom"); setCustom(Boolean(saved.custom));
+            requestId.current = saved.requestId;
+            setDraftNotice("Hemos recuperado el alta que estabas preparando.");
+          }
+        }
+        setDraftKey(key);
+      } catch { setDraftNotice("El navegador no permite guardar el borrador. Mantén esta pestaña abierta hasta terminar."); }
+      finally { if (active) setRestored(true); }
+    }
+    void restore();
+    const subscription = draftOwner ? null : supabase.auth?.onAuthStateChange?.((_event, session) => {
+      if (!ownerId.current || session?.user.id === ownerId.current) return;
+      active = false;
+      try { sessionStorage.removeItem(`gastrohelp:onboarding:${ownerId.current}`); } catch { /* No draft is retained in component state. */ }
+      setForm({ ...emptyForm }); setResult(null); setDraftKey(null);
+      requestId.current = ""; setSessionChanged(true);
+    }).data.subscription;
+    return () => { active = false; subscription?.unsubscribe(); };
+  }, [draftOwner]);
+  useEffect(() => {
+    if (!restored || !draftKey) return;
+    try {
+      if (result) { sessionStorage.removeItem(draftKey); return; }
+      requestId.current ||= crypto.randomUUID();
+      sessionStorage.setItem(draftKey, JSON.stringify({version: 1, form, step, preset, custom, requestId: requestId.current, updatedAt: Date.now()}));
+    } catch { setDraftNotice("No se ha podido guardar el borrador en este navegador. Mantén esta pestaña abierta hasta terminar."); }
+  }, [form, step, preset, custom, restored, draftKey, result]);
   const heading = useRef<HTMLHeadingElement>(null);
   const update = <K extends keyof OnboardingForm>(
     key: K,
@@ -237,7 +291,7 @@ export function OnboardingWizard({ create }: { create: CreateInstallation }) {
     queueMicrotask(() => heading.current?.focus());
   }
   async function submit() {
-    if (pending.current) return;
+    if (pending.current || !restored || sessionChanged) return;
     for (let i = 0; i < 3; i++) {
       const issue = validateOnboardingStep(form, i);
       if (issue) {
@@ -250,7 +304,8 @@ export function OnboardingWizard({ create }: { create: CreateInstallation }) {
     setSaving(true);
     setError("");
     try {
-      setResult(await create(form));
+      requestId.current ||= crypto.randomUUID();
+      setResult(await create(form, requestId.current));
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -263,13 +318,16 @@ export function OnboardingWizard({ create }: { create: CreateInstallation }) {
     }
   }
   const selected = serviceFields.filter(([key]) => form[key]);
+  if (sessionChanged) return <p role="alert">La sesión ha cambiado. Recarga la página antes de continuar el alta.</p>;
+  if (!restored) return <p role="status">Recuperando el borrador del alta…</p>;
   if (result)
     return (
       <section className="agency-card">
         <div className="agency-success" role="status">
           <CheckCircle2 size={26} />
           <h2 style={{ marginTop: 10 }}>Restaurante creado</h2>
-          <p>El acceso se ha enviado a {result.invited_email}.</p>
+          <p>{invitationMessages[result.invitation_status || "uncertain"]}</p>
+          <p>Correo de acceso: {result.invited_email}</p>
         </div>
         <div className="agency-wizard-title" style={{ marginTop: 24 }}>
           <h2>Ahora, termina la puesta en marcha</h2>
@@ -278,6 +336,7 @@ export function OnboardingWizard({ create }: { create: CreateInstallation }) {
             los pasos pendientes antes de entregarlo.
           </p>
         </div>
+        {result.invitation_status !== "account_ready" && <InvitationAction restaurantId={result.restaurante_id} />}
         <div className="agency-actions">
           <Link
             className="agency-button"
@@ -298,6 +357,7 @@ export function OnboardingWizard({ create }: { create: CreateInstallation }) {
   return (
     <div className="agency-wizard-layout">
       <section className="agency-card">
+        {draftNotice && <p className="agency-footnote" role="status">{draftNotice}</p>}
         <ol className="agency-wizard-steps">
           {["Datos", "Servicios", "Configuración", "Revisar"].map(
             (label, index) => (

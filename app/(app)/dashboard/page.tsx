@@ -580,14 +580,14 @@ export default function DashboardPage() {
       detalle: cierresHoy.length > 0 ? `${cierresHoy.length} cierres · ticket ${euro(ticketMedioQR)}` : "Sin cierres todavía",
       icono: Wallet,
       href: "/panel/pedidos-qr",
-      tono: "emerald",
+      tono: "blue",
     }, {
       titulo: "Mesas abiertas",
       valor: mesasAbiertas.length,
       detalle: `${pedidosAbiertos.length} pedidos activos ahora`,
       icono: Utensils,
       href: "/panel/pedidos-qr",
-      tono: "indigo",
+      tono: "blue",
     }] : []),
     ...(modules.clientes ? [{
       titulo: "Clientes semana",
@@ -595,7 +595,7 @@ export default function DashboardPage() {
       detalle: "Nuevos clientes registrados",
       icono: Users,
       href: "/clientes",
-      tono: "violet",
+      tono: "blue",
     }] : []),
     ...(modules.resenas ? [{
       titulo: "Reseñas pendientes",
@@ -603,7 +603,7 @@ export default function DashboardPage() {
       detalle: "Reseñas sin responder",
       icono: MessageSquareWarning,
       href: "/resenas",
-      tono: "violet",
+      tono: "blue",
     }] : []),
   ];
 
@@ -744,14 +744,11 @@ export default function DashboardPage() {
         </Link>
       </div> : null}
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
         {kpis.map((kpi) => {
           const Icon = kpi.icono;
           const tonos: Record<string, string> = {
             blue: "bg-blue-50 text-blue-700 border-blue-100",
-            emerald: "bg-emerald-50 text-emerald-700 border-emerald-100",
-            indigo: "bg-indigo-50 text-indigo-700 border-indigo-100",
-            violet: "bg-violet-50 text-violet-700 border-violet-100",
           };
 
           return (

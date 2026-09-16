@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "checks": [
+    "Backfill uses each restaurant’s own panel values and preserves row IDs, closed Sundays and capacity overrides.",
+    "Owner saves update both services atomically, including moves across previous ranges; invalid/overlapping input rolls back.",
+    "Real web, manual and chatbot availability RPCs return identical slots inside panel hours with the same capacity.",
+    "A dated closure survives an hours change and affects only its restaurant.",
+    "Stale web payloads and direct calendar writes cannot reintroduce other hours; closed days and tenant boundaries remain enforced.",
+    "Read-only demo and anonymous callers cannot change schedules."
+  ]
+}

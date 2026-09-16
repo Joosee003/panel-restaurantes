@@ -33,6 +33,7 @@ export type RestaurantOverview = {
   plan: string;
   status: string;
   reputationOnly: boolean;
+  invitationPending: boolean;
   services: string[];
   features: {
     bookings: boolean;
@@ -403,8 +404,7 @@ export function buildAgencyOverview(
         yes(route, "enabled") &&
         ["pilot", "private_live"].includes(text(route, "delivery_mode"));
       const needsChatbot = yes(modules, "chatbot");
-      const chatbotReady =
-        (qrConnected && yes(channel, "chatbot_enabled")) || sharedConnected;
+      const chatbotReady = qrConnected && yes(channel, "chatbot_enabled");
       const channelInfo: RestaurantOverview["channel"] = !needsChatbot
         ? {
             label: "Chatbot no contratado",
@@ -457,14 +457,20 @@ export function buildAgencyOverview(
       const pendingInvite = invitations.some((row) =>
         ["pending", "sent"].includes(text(row, "status")),
       );
+      const inviteUnsent = invitations.some(row => text(row, "status") === "pending");
+      const inviteIssue = invitations.some(row => ["failed", "uncertain", "sending"].includes(text(row, "delivery_status")));
       const hasAccess =
         rows("access").length > 0 ||
         rows("opinionAccess").some((row) => yes(row, "active"));
       add({
         id: "access",
         title: "Acceso del restaurante",
-        detail: pendingInvite
-          ? "Invitación enviada; pendiente de que el restaurante la acepte."
+        detail: inviteIssue
+          ? "Alta guardada. El correo de acceso necesita revisión; consulta su estado antes de reenviar."
+          : inviteUnsent
+            ? "Alta guardada; falta enviar o comprobar el correo de acceso."
+            : pendingInvite
+          ? "Correo de acceso solicitado; falta que el responsable lo reciba y active su cuenta."
           : hasAccess
             ? "El restaurante tiene un usuario asignado."
             : "Falta asignar el acceso del restaurante.",
@@ -538,8 +544,7 @@ export function buildAgencyOverview(
             yes(automation, "review_enabled") &&
             text(automation, "delivery_mode") === "live" &&
             yes(automation, "whatsapp_enabled") &&
-            ((qrConnected && yes(channel, "reviews_enabled")) ||
-              sharedConnected),
+            qrConnected && yes(channel, "reviews_enabled"),
           href: settings,
           panel: true,
         });
@@ -721,6 +726,7 @@ export function buildAgencyOverview(
           text(modules, "estado") ||
           (yes(config, "active") ? "activo" : "pendiente"),
         reputationOnly,
+        invitationPending: pendingInvite,
         services,
         features,
         metrics,

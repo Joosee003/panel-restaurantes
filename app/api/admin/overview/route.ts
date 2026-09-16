@@ -109,7 +109,7 @@ export async function GET(request: Request) {
       {
         key: "invitations",
         table: "restaurant_invitations",
-        columns: "id,restaurante_id,status",
+        columns: "id,restaurante_id,status,delivery_status",
       },
       {
         key: "menus",

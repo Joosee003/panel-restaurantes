@@ -224,7 +224,7 @@ test("private-number readiness does not erase an active shared number during mig
     period,
   ).restaurants[1];
   assert.equal(r.channel.label, "Número compartido activo");
-  assert.equal(r.setup.find((t) => t.id === "chatbot").ready, true);
+  assert.equal(r.setup.find((t) => t.id === "chatbot").ready, false);
 });
 test("an invitation awaiting acceptance never counts as delivered access", () => {
   const r = buildAgencyOverview(
@@ -278,4 +278,14 @@ test("follow-up aspects use the restaurant labels and only low ratings, with no 
   ).restaurants[0];
   assert.deepEqual(r.opinion.aspects, [{ label: "Cocina", count: 1 }]);
   assert.equal(r.opinion.unresolved, 1);
+});
+
+test("a shared live route never marks the required own-number services ready", () => {
+  const r = buildAgencyOverview(fixture({
+    modules: [{restaurante_id:'b', reservas:true, clientes:true, chatbot:true, resenas:true, automatizaciones:true}],
+    routes: [{restaurante_id:'b', enabled:true, delivery_mode:'live'}],
+    automation: [{restaurante_id:'b', enabled:true, delivery_mode:'live', review_enabled:true, whatsapp_enabled:true}],
+  }),period).restaurants.find(r => r.id==='b');
+  assert.equal(r.setup.find(t=>t.id==='chatbot').ready,false);
+  assert.equal(r.setup.find(t=>t.id==='review-delivery').ready,false);
 });

@@ -1,0 +1,37 @@
+{
+  "status": "passed",
+  "restored": {
+    "tables": 50,
+    "views": 5,
+    "functions": 102,
+    "triggers": 60,
+    "policies": 242,
+    "last_stage": "enable function body validation"
+  },
+  "checks": [
+    "A confirmed reservation alone cannot request a review; marking attendance schedules three hours from its start, without a manual send.",
+    "Marking attendance is distinct from confirming a booking: its status stays unchanged and no status-change message is queued.",
+    "Attendance associates an existing customer once, does not create a bill, and allows a later consumption record without duplication.",
+    "Attendance can create a missing customer but never grants WhatsApp or email permission or sends without consent.",
+    "No-show recording creates no customer; cancelled, missed and future reservations cannot be marked as attended.",
+    "Attendance RPC preserves restaurant isolation and explicitly rejects anonymous, missing-identity, service-only and demo callers.",
+    "Opening/copying a draft is not a send; manual confirmation persists and the same visit cannot be requested twice.",
+    "Reading the public link never records a click; clicking Google is recorded without marking a review confirmed.",
+    "A distinct second visit is eligible until the owner confirms the review; confirmation cancels waiting and future requests.",
+    "Opt-out persists and remains available when the restaurant removes its Google link.",
+    "A stored phone alone grants no review permission and cannot lead to an automatic send.",
+    "Legacy customer confirmations can be undone without creating or sending historical requests.",
+    "Actual RLS and function permissions isolate restaurants, block anonymous access and prevent demo/direct writes.",
+    "Automatic sends require a current lock and provider message ID; duplicate workers and repeat claims cannot resend.",
+    "A lost completion is held for human checking, never resent; late provider acceptance can still be recorded.",
+    "Ambiguous transport failures require an explicit check before another manual draft is allowed.",
+    "Test mode never marks a real WhatsApp message as sent.",
+    "A cancelled visit invalidates even a claimed automatic request.",
+    "No-shows, explicit missed attendance and pending reservations without recorded attendance cannot trigger requests.",
+    "A future booking leaves the earlier attended visit request intact and cannot schedule another request before attendance.",
+    "Recording a missed visit cancels a request even after a worker claimed it.",
+    "Recording an old visit does not trigger a burst of historical automatic messages.",
+    "Two-hour manual mode works independently; untrusted redirect destinations are rejected.",
+    "The actual public booking transaction records optional consent, matches phone formatting variants and cannot change consent on retry or revive revoked promotion permissions."
+  ]
+}

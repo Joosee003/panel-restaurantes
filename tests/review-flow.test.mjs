@@ -237,10 +237,11 @@ test('An opted-in restaurant uses its own channel and never falls back to the sh
   assert.equal(state.calls[1].args.p_message_id,channelOutcome.messageId||null);
  }
 });
-test('Only a restaurant without a WAHA selection keeps the original Meta transport',async()=>{
+test('A restaurant without an own channel cannot silently use the shared Meta sender',async()=>{
  const state=mockRpc(allowed);let sends=0;
  const result=await delivery.deliverVisitReview(event,state.rpc,env,async()=>{sends++;return Response.json(accepted);},async()=>null);
- assert.equal(result.status,'accepted_by_whatsapp');assert.equal(sends,1);
+ assert.equal(result.status,'blocked');assert.equal(sends,0);
+ assert.equal(state.calls[1].args.p_error,'own_whatsapp_number_required');
 });
 test('A channel lookup failure fails closed instead of sending from another number',async()=>{
  const state=mockRpc(allowed);

@@ -41,11 +41,17 @@ const restaurant = "72000000-0000-4000-8000-000000000201",
   invitation = "73000000-0000-4000-8000-000000000201";
 function fixture(options = {}) {
   const calls = [];
-  let linked = false,
+  let linked = Boolean(options.existingUser),
     deleted = false;
   const invited = "invited-user";
+  let invitedEmail = "owner@example.invalid";
+  let reputation = false;
   const db = {
     auth: {
+      resetPasswordForEmail: async (email, args) => {
+        calls.push(["recovery", email, args]);
+        return {error: null};
+      },
       getUser: async () => ({
         data: {
           user: options.invalidSession
@@ -56,6 +62,7 @@ function fixture(options = {}) {
       }),
       admin: {
         inviteUserByEmail: async (email, args) => {
+          invitedEmail = email;
           calls.push(["invite", email, args]);
           if (options.inviteError)
             return { data: {}, error: { code: "mail_failed" } };
@@ -66,6 +73,7 @@ function fixture(options = {}) {
         getUserById: async () => ({
           data: {
             user: {
+              email: options.wrongOwner ? "other@example.invalid" : invitedEmail,
               user_metadata: {
                 restaurante_id: options.wrongOwner ? "another" : restaurant,
               },
@@ -81,6 +89,10 @@ function fixture(options = {}) {
     },
     rpc: async (name, args) => {
       calls.push(["rpc", name, args]);
+      if (name === "admin_claim_invitation") return { data: options.unclaimed ? {claimed:false,status:"uncertain"} : { claimed: true, invitation_id: invitation, email: invitedEmail, auth_user_id: options.existingUser ? invited : null, lock: "lock" }, error: null };
+      if (name === "admin_finish_invitation") return { data: !options.cleanupError, error: null };
+      invitedEmail = args.p_config.email;
+      reputation = args.p_config.activarReputacion;
       return options.duplicate
         ? { data: null, error: { message: "EMAIL_ALREADY_REGISTERED" } }
         : {
@@ -99,6 +111,7 @@ function fixture(options = {}) {
           filters[k] = v;
           return chain;
         },
+        upsert(value) { return chain.insert(value); },
         insert(value) {
           action = "insert";
           calls.push(["insert", table, value]);
@@ -134,6 +147,7 @@ function fixture(options = {}) {
                     ? { code: "assignment_failed" }
                     : null,
                 };
+              if (table === "opinion_config") return { data: reputation ? {restaurante_id: restaurant} : null, error: null };
               if (table === "app_admins")
                 return {
                   data: options.nonAdmin ? null : { user_id: "agency-user" },
@@ -170,6 +184,7 @@ function fixture(options = {}) {
     "@/app/lib/supabaseAdmin": { getSupabaseAdmin: () => db },
     "@/lib/reviews/review-flow": flow,
     "@/lib/admin/onboarding": onboarding,
+    "@/lib/admin/invitations": compile("../lib/admin/invitations.ts", { "server-only": {} }),
     "@/lib/admin/authorize": compile("../lib/admin/authorize.ts", {
       "server-only": {},
       "@/app/lib/supabaseAdmin": { getSupabaseAdmin: () => db },
@@ -177,6 +192,15 @@ function fixture(options = {}) {
   });
   return {
     calls,
+    resend: async (token = "token") => {
+      const retry = compile("../app/api/admin/restaurantes/invitacion/route.ts", {
+        "server-only": {}, "next/server": response,
+        "@/lib/admin/invitations": compile("../lib/admin/invitations.ts", {"server-only": {}}),
+        "@/lib/admin/authorize": compile("../lib/admin/authorize.ts", {"server-only": {}, "@/app/lib/supabaseAdmin": {getSupabaseAdmin: () => db}}),
+      });
+      const result = await retry.POST(new Request("https://fixture.invalid/api/admin/restaurantes/invitacion", {method:"POST",headers:token?{authorization:`Bearer ${token}`}:{},body:JSON.stringify({restaurante_id:restaurant})}));
+      return {status:result.status,body:await result.json()};
+    },
     send: async (
       form = {
         ...onboarding.emptyForm,
@@ -192,7 +216,7 @@ function fixture(options = {}) {
         new Request("https://fixture.invalid/api/admin/restaurantes", {
           method,
           headers: token ? { authorization: `Bearer ${token}` } : {},
-          body: typeof form === "string" ? form : JSON.stringify(form),
+          body: typeof form === "string" ? form : JSON.stringify({ request_id: "74000000-0000-4000-8000-000000000201", ...form }),
         }),
       );
       return { status: r.status, body: await r.json(), headers: r.headers };
@@ -270,10 +294,10 @@ test("creates through the transaction, sends one invitation and checks its exact
   assert.equal(r.status, 201);
   assert.equal(r.body.restaurante_id, restaurant);
   assert.match(r.headers.get("cache-control"), /no-store/);
-  assert.equal(f.calls.filter((c) => c[0] === "rpc").length, 1);
+  assert.equal(f.calls.filter((c) => c[0] === "rpc" && c[1] === "admin_create_onboarding").length, 1);
   assert.equal(
     f.calls.find((c) => c[0] === "rpc")[1],
-    "admin_crear_instalacion_restaurante_v2",
+    "admin_create_onboarding",
   );
   assert.equal(f.calls.filter((c) => c[0] === "invite").length, 1);
   assert.equal(
@@ -289,45 +313,25 @@ test("duplicate email cannot send another invitation", async () => {
     false,
   );
 });
-test("a failed invitation removes the new installation without deleting an unrelated user", async () => {
-  const f = fixture({ inviteError: true }),
-    r = await f.send();
-  assert.equal(r.body.error, "INVITE_SEND_FAILED");
-  assert.equal(f.calls.filter((c) => c[0] === "delete").length, 1);
-  assert.equal(
-    f.calls.some((c) => c[0] === "deleteUser"),
-    false,
-  );
+test("email failure preserves the saved restaurant and reports a retryable invitation", async () => {
+  const f = fixture({ inviteError: true }), r = await f.send();
+  assert.equal(r.status, 201);
+  assert.equal(r.body.restaurante_id, restaurant);
+  assert.equal(r.body.invitation_status, "failed");
+  assert.equal(f.calls.some(c => ["delete", "deleteUser"].includes(c[0])), false);
 });
-test("lost invitation response recovers the created user from the exact restaurant linkage and cleans up", async () => {
-  const f = fixture({ networkError: true }),
-    r = await f.send();
-  assert.equal(r.status, 500);
-  assert.equal(r.body.error, "INVITE_SEND_FAILED");
-  assert.equal(f.calls.filter((c) => c[0] === "deleteUser").length, 1);
+test("an invitation timeout after account creation remains uncertain without destructive rollback", async () => {
+  const f = fixture({ networkError: true }), r = await f.send();
+  assert.equal(r.body.invitation_status, "uncertain");
+  assert.equal(r.body.restaurante_id, restaurant);
+  assert.equal(f.calls.some(c => ["delete", "deleteUser"].includes(c[0])), false);
 });
-test("cleanup failure is reported truthfully and never deletes a mismatched user", async () => {
-  for (const opts of [
-    { networkError: true, cleanupError: true },
-    { networkError: true, wrongOwner: true },
-  ]) {
-    const f = fixture(opts),
-      r = await f.send();
-    assert.equal(r.body.error, "CLEANUP_REQUIRED");
-    assert.equal(
-      f.calls.some((c) => c[0] === "deleteUser"),
-      false,
-    );
+test("unverified links and unpersisted email outcomes cannot be presented as sent", async () => {
+  for (const opts of [{ missingLink: true }, { cleanupError: true }]) {
+    const f = fixture(opts), r = await f.send();
+    assert.equal(r.body.invitation_status, "uncertain");
+    assert.equal(f.calls.some(c => ["delete", "deleteUser"].includes(c[0])), false);
   }
-});
-test("a missing invitation linkage is never reported as a completed installation", async () => {
-  const f = fixture({ missingLink: true }),
-    r = await f.send();
-  assert.equal(r.body.error, "INVITE_SEND_FAILED");
-  assert.equal(
-    f.calls.some((c) => c[0] === "deleteUser"),
-    true,
-  );
 });
 test("reputation onboarding explicitly assigns the new owner to that restaurant only", async () => {
   const f = fixture(),
@@ -358,4 +362,11 @@ test("preset changes retain contact details and require dependent modules when c
     onboarding.serviceDependencies({ ...form, activarCamarero: true }),
     /Carta QR/,
   );
+});
+
+test('resend is agency-only, recovers the linked account without creating another, and respects uncertain claims', async () => {
+ const denied=fixture({nonAdmin:true});assert.equal((await denied.resend()).status,403);assert.equal(denied.calls.some(c=>c[0]==='recovery'||c[0]==='invite'),false);
+ const existing=fixture({existingUser:true});const result=await existing.resend();assert.equal(result.status,200);assert.equal(result.body.invitation_status,'accepted');assert.equal(existing.calls.filter(c=>c[0]==='recovery').length,1);assert.equal(existing.calls.some(c=>c[0]==='invite'),false);assert.equal(existing.calls.find(c=>c[1]==='admin_claim_invitation')[2].p_retry,true);
+ const mismatch=fixture({existingUser:true,wrongOwner:true});assert.equal((await mismatch.resend()).body.invitation_status,'failed');assert.equal(mismatch.calls.some(c=>c[0]==='recovery'||c[0]==='invite'),false);
+ const uncertain=fixture({unclaimed:true});assert.equal((await uncertain.resend()).body.invitation_status,'uncertain');assert.equal(uncertain.calls.some(c=>c[0]==='recovery'||c[0]==='invite'),false);
 });

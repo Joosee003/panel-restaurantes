@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
 import { RestaurantContact } from "./RestaurantContact";
+import { InvitationAction } from "./InvitationAction";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -1148,6 +1149,7 @@ export function RestaurantDetail({
           </span>
           <p className="agency-muted">{restaurant.channel.detail}</p>
           <p>{restaurant.setup.find((task) => task.id === "access")?.detail}</p>
+          {restaurant.invitationPending && <InvitationAction restaurantId={restaurant.id} onSaved={reload} />}
           <Link
             className="agency-text-button"
             href={

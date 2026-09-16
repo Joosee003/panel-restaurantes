@@ -8,8 +8,8 @@ type Rpc = ReviewRpc;
 type Environment = Record<string, string | undefined>;
 export type ReviewOutcome = { outcome: "sent" | "test" | "blocked" | "uncertain" | "deferred"; messageId?: string; error?: string };
 type Outcome = ReviewOutcome;
-// Null means the restaurant has never selected its own WAHA connection. An
-// offline, disabled or incomplete WAHA connection must return a blocked result.
+// Null means the restaurant has no own WAHA connection. Production must never
+// fall back to a shared sender; the legacy transport is retained for isolated tests.
 export type ReviewChannelSender = (event: ReviewEvent, delivery: Delivery, rpc: Rpc) => Promise<Outcome | null>;
 
 export function reviewWhatsAppConfigured(env: Environment, restaurantId: string) {
@@ -140,6 +140,7 @@ export async function deliverVisitReview(event: ReviewEvent, rpc: Rpc, env: Envi
     // must not unexpectedly exercise the former shared Meta sender.
     const channelResult = channelSender ? await channelSender(event, delivery, rpc) : null;
     if (channelResult) return await finish(channelResult.outcome, channelResult.error, channelResult.messageId);
+    if (channelSender && delivery.deliveryMode === "live") return await finish("blocked", "own_whatsapp_number_required");
     if (delivery.deliveryMode === "test" && !restaurantIncluded(event.restaurante_id, env.N8N_REVIEW_TEST_RESTAURANT_IDS)) {
       return await finish("test");
     }
