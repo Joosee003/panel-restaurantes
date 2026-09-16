@@ -51,7 +51,7 @@ try{
  const book=(db,k,phone)=>result(db,"select crear_reserva_publica_con_resena($1,$2,2,'Fixture only',$3,null,null,$4,true,true,'2026-08-03',true) result",[slug,slot.inicio_at,phone,k]);
  const bookingKey='91000000-0000-4000-8000-000000000003';await a.exec('begin');const booking=await book(a,bookingKey,'+447700900122');assert.equal(booking.ok,true);
  outcome=await waiting(()=>book(b,'91000000-0000-4000-8000-000000000004','+447700900123'),()=>a.exec('commit'));
- assert.ifError(outcome.error);assert.equal(outcome.value.ok,false);assert.match(outcome.value.error||'',/SLOT_NOT_AVAILABLE|NO_DISPONIBILIDAD|AFORO/);
+ assert.equal(outcome.error?.code,'P0001');assert.match(outcome.error?.message||'',/^SLOT_NOT_AVAILABLE$/);
  assert.equal((await a.query('select count(*)::int n from reservas where restaurante_id=$1',[rid])).rows[0].n,1);assert.equal((await book(a,bookingKey,'+447700900122')).duplicate,true);checks.push('Two concurrent requests for the last two seats: one accepted, one rejected; retry returns original booking');
  stage='parallel reward redemption';await a.exec('reset role');const customer=(await a.query('select cliente_id from reservas where id=$1',[booking.reserva_id])).rows[0].cliente_id;
  await a.query('update restaurantes set puntos_activo=true where id=$1',[rid]);
