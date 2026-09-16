@@ -51,8 +51,10 @@ const contact = compile(
   "../app/admin/components/RestaurantContact.tsx",
   common,
 );
+const invitationAction = compile("../app/admin/components/InvitationAction.tsx", common);
 const views = compile("../app/admin/components/AgencyViews.tsx", {
   ...common,
+  "./InvitationAction": invitationAction,
   "./RestaurantContact": contact,
   "@/lib/admin/overview": model,
   "@/lib/reviews/review-customers": reviews,
@@ -60,6 +62,7 @@ const views = compile("../app/admin/components/AgencyViews.tsx", {
 const wizard = compile("../app/admin/components/OnboardingWorkspace.tsx", {
   ...common,
   "./AgencyViews": views,
+  "./InvitationAction": invitationAction,
   "@/lib/admin/onboarding": onboarding,
 });
 const original = globalThis.IS_REACT_ACT_ENVIRONMENT;
@@ -176,4 +179,29 @@ test("onboarding validates each step, sends only at the last step and preserves 
       ),
   );
   await act(async () => r.unmount());
+});
+
+test("reload restores one user's draft and request key; another account never inherits it", async () => {
+  const previous = globalThis.sessionStorage;
+  const items = new Map();
+  globalThis.sessionStorage = {
+    get length() { return items.size; }, key: i => [...items.keys()][i],
+    getItem: key => items.get(key) ?? null,
+    setItem: (key, value) => items.set(key, value), removeItem: key => items.delete(key),
+  };
+  try {
+    let r = await render(wizard.OnboardingWizard, { create: async () => {}, draftOwner: "agency-a" });
+    await change(r, "Nombre del restaurante", "Borrador sin enviar");
+    const first = JSON.parse(items.get("gastrohelp:onboarding:agency-a"));
+    await act(async () => r.unmount());
+    r = await render(wizard.OnboardingWizard, { create: async () => {}, draftOwner: "agency-a" });
+    assert.ok(r.root.findAllByType("input").some(n => n.props.value === "Borrador sin enviar"));
+    assert.equal(JSON.parse(items.get("gastrohelp:onboarding:agency-a")).requestId, first.requestId);
+    assert.match(text(r.toJSON()), /Hemos recuperado/);
+    await act(async () => r.unmount());
+    r = await render(wizard.OnboardingWizard, { create: async () => {}, draftOwner: "agency-b" });
+    assert.equal(items.has("gastrohelp:onboarding:agency-a"), false);
+    assert.ok(!r.root.findAllByType("input").some(n => n.props.value === "Borrador sin enviar"));
+    await act(async () => r.unmount());
+  } finally { globalThis.sessionStorage = previous; }
 });

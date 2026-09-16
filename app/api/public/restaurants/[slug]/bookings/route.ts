@@ -111,6 +111,11 @@ export async function POST(
   if (!restaurant || !restaurant.booking.enabled) {
     return json({ ok: false, error: "BOOKING_NOT_AVAILABLE" }, 404);
   }
+  // The public demonstration is visible to every demo visitor. Never store
+  // contact details submitted through that shared demonstration.
+  if (restaurant.demo) {
+    return json({ ok: false, error: "DEMO_READ_ONLY" }, 403);
+  }
 
   if (
     !isBookingStartAllowed(

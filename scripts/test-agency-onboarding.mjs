@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { checkOnboardingJourney } from "./onboarding-journey-checks.mjs";
 import { readFile, readdir } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
 import { pgcrypto } from "@electric-sql/pglite/contrib/pgcrypto";
@@ -22,7 +23,7 @@ const base = {
   activarReservas: true,
   activarClientes: true,
   activarResenas: true,
-  activarFidelizacion: false,
+  activarFidelizacion: true,
   activarMetricas: true,
   activarChatbot: true,
   activarCamarero: false,
@@ -49,7 +50,7 @@ try {
     .filter(
       (name) =>
         name >= "20260908164431" &&
-        name <= "20260915001030_agency_onboarding_foundation.sql",
+        name <= "20260916084425_resumable_agency_onboarding.sql",
     )
     .sort();
   for (const name of migrations)
@@ -154,6 +155,35 @@ try {
     before + 1,
   );
   checks.push("repeated submission does not duplicate the restaurant");
+  const requestId = "74000000-0000-4000-8000-000000000101";
+  const requestConfig = {...base, email: "resumable@example.invalid"};
+  const createStable = async (key=requestId, config=requestConfig, actor=adminId) =>
+    (await query("select public.admin_create_onboarding($1,$2,$3) result", [actor,key,config]))[0].result;
+  await db.exec("reset role;set role anon");
+  await assert.rejects(createStable(), /permission denied/);
+  await db.exec("reset role;set role authenticated");
+  await assert.rejects(createStable(), /permission denied/);
+  await db.exec("reset role;set role service_role");
+  await assert.rejects(createStable(requestId,requestConfig,userId), /ADMIN_REQUIRED/);
+  const [saved1,saved2] = await Promise.all([createStable(),createStable()]);
+  assert.equal(saved1.restaurante_id,saved2.restaurante_id);
+  assert.equal(saved2.replayed,true);
+  await assert.rejects(createStable(requestId,{...requestConfig,nombre:"Changed"}), /REQUEST_CONFLICT/);
+  checks.push("stable request key returns one saved installation; payload change is rejected; anon and owner denied");
+  const claimInvite = async (retry=false) => (await query("select public.admin_claim_invitation($1,$2,$3) result",[adminId,saved1.restaurante_id,retry]))[0].result;
+  const claims = await Promise.all([claimInvite(),claimInvite()]);
+  assert.equal(claims.filter(c=>c.claimed).length,1);
+  assert.equal((await query("select public.admin_finish_invitation($1,$2,$3,'failed','EMAIL_NOT_ACCEPTED') result",[adminId,saved1.restaurante_id,claims[0].lock]))[0].result,true);
+  assert.equal((await claimInvite()).claimed,false);
+  await query("update restaurant_invitations set delivery_attempted_at=now()-interval '2 minutes' where restaurante_id=$1",[saved1.restaurante_id]);
+  const retry=await claimInvite(true);
+  assert.equal(retry.claimed,true);
+  assert.equal((await query("select public.admin_finish_invitation($1,$2,$3,'accepted',null) result",[adminId,saved1.restaurante_id,claims[0].lock]))[0].result,false);
+  await query("update restaurant_invitations set delivery_attempted_at=now()-interval '3 minutes' where restaurante_id=$1",[saved1.restaurante_id]);
+  assert.equal((await claimInvite()).status,"uncertain");
+  assert.equal((await createStable()).restaurante_id,saved1.restaurante_id);
+  assert.equal(Number((await query("select count(*) n from restaurantes where id=$1",[saved1.restaurante_id]))[0].n),1);
+  checks.push("atomic invitation claim, bounded retry, stale completion rejected, unknown email result retained without automatic resend");
   // Exercise the real invitation trigger without sending an email or contacting any provider.
   await db.exec("reset role");
   await query(
@@ -203,6 +233,8 @@ try {
     "accepted",
   );
   await db.exec("reset role;set role service_role");
+  checks.push(await checkOnboardingJourney(db, id, userId));
+  await db.exec("reset role;set role service_role");
   const reputation = {
     ...base,
     email: "reputation-new@example.invalid",
@@ -212,6 +244,7 @@ try {
     activarMetricas: false,
     activarChatbot: false,
     activarAutomatizaciones: false,
+    activarFidelizacion: false,
     activarReputacion: true,
   };
   const rep = await create(reputation);
@@ -291,7 +324,7 @@ try {
       0,
       table,
     );
-  checks.push("rollback cascades through every installation record");
+  checks.push("deleting only the disposable local fixture removes its dependent installation records");
   console.log(JSON.stringify({ status: "passed", checks }, null, 2));
 } catch (error) {
   console.error(
@@ -300,6 +333,7 @@ try {
       message: error.message,
       code: error.code,
       where: error.where,
+      stack: error.stack,
     }),
   );
   process.exitCode = 1;

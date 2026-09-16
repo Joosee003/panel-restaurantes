@@ -23,7 +23,7 @@ export function wahaReviewText(delivery: ReviewDelivery): string {
   return `Hola ${firstName}, gracias por tu visita a ${line(delivery.restaurantName)}. ¿Nos cuentas qué tal ha ido? Puedes dejar tu reseña aquí: https://panel.gastrohelp.es/r/${delivery.token}/google\n\nPara dejar de recibir estas peticiones: https://panel.gastrohelp.es/r/${delivery.token}`;
 }
 
-/** No channel row means legacy Meta. A row always keeps this restaurant on WAHA. */
+/** Missing channel is reported to the dispatcher, which blocks live shared-number fallback. */
 export function createWahaReviewSender(db: SupabaseClient, overrides: Partial<Services> = {}): ReviewChannelSender {
   const service = { ...defaults, ...overrides };
   return async (event, delivery, rpc) => {

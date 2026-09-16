@@ -164,6 +164,7 @@ function Preview() {
             <>
               <h1>Un buen comienzo, paso a paso.</h1>
               <OnboardingWizard
+                draftOwner="visual-fixture-agency"
                 create={async (form) => ({
                   restaurante_id: "a",
                   invited_email: form.email,

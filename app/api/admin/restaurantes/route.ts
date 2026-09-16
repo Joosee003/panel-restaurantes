@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 import { googleReviewUrl } from "@/lib/reviews/review-flow";
 import { serviceDependencies } from "@/lib/admin/onboarding";
 import { authorizeAgency } from "@/lib/admin/authorize";
+import { deliverInvitation } from "@/lib/admin/invitations";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -16,6 +17,7 @@ const VALID_PLANS = new Set(["basico", "premium"]);
 type InstallationResult = {
   restaurante_id?: unknown;
   invitation_id?: unknown;
+  replayed?: boolean;
 };
 
 type NormalizedInput = {
@@ -159,16 +161,6 @@ function bearerToken(request: NextRequest) {
   return match?.[1] || null;
 }
 
-function isDuplicateEmailError(error: { code?: string; message?: string }) {
-  const detail = `${error.code || ""} ${error.message || ""}`.toLowerCase();
-  return (
-    detail.includes("email_exists") ||
-    detail.includes("already been registered") ||
-    detail.includes("already registered") ||
-    detail.includes("user already exists")
-  );
-}
-
 function rpcErrorCode(error: { message?: string }) {
   const message = error.message || "";
   const known = [
@@ -180,47 +172,13 @@ function rpcErrorCode(error: { message?: string }) {
     "INVALID_SERVICE_DEPENDENCIES",
     "NO_SERVICES",
     "INVALID_TIMEZONE",
+    "REQUEST_CONFLICT",
   ];
   return known.find((code) => message.includes(code)) || null;
 }
 
-async function rollbackInstallation(restauranteId: string) {
-  const admin = getSupabaseAdmin();
-  // Recover the linked user even if the invitation HTTP response was lost.
-  const invitation = await admin
-    .from("restaurant_invitations")
-    .select("auth_user_id")
-    .eq("restaurante_id", restauranteId)
-    .maybeSingle();
-  if (invitation.error) return false;
-  const authUserId = invitation.data?.auth_user_id;
-  if (authUserId) {
-    const { data, error } = await admin.auth.admin.getUserById(authUserId);
-    if (error || data.user?.user_metadata?.restaurante_id !== restauranteId)
-      return false;
-  }
-  const { error: restaurantError } = await admin
-    .from("restaurantes")
-    .delete()
-    .eq("id", restauranteId);
-
-  if (restaurantError) {
-    console.error("admin restaurant rollback failed", restaurantError.code);
-    return false;
-  }
-
-  if (authUserId) {
-    const { error: userError } = await admin.auth.admin.deleteUser(authUserId);
-    if (userError) {
-      console.error("admin invited user rollback failed", userError.code);
-      return false;
-    }
-  }
-  return true;
-}
-
 export async function POST(request: NextRequest) {
-  let createdRestaurantId: string | null = null;
+
   const contentLength = Number(request.headers.get("content-length") || "0");
   if (Number.isFinite(contentLength) && contentLength > MAX_BODY_BYTES) {
     return json({ ok: false, error: "INVALID_INPUT" }, 413);
@@ -258,11 +216,15 @@ export async function POST(request: NextRequest) {
     }
 
     let input: NormalizedInput;
+    let requestId: string;
     try {
       const body = await request.text();
       if (new TextEncoder().encode(body).length > MAX_BODY_BYTES)
         return json({ ok: false, error: "INVALID_INPUT" }, 413);
-      input = normalizeInput(JSON.parse(body));
+      const parsed = JSON.parse(body);
+      requestId = parsed?.request_id;
+      if (typeof requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId)) throw new InputError("request_id");
+      input = normalizeInput(parsed);
     } catch (error) {
       if (error instanceof InputError || error instanceof SyntaxError) {
         return json({ ok: false, error: "INVALID_INPUT" }, 400);
@@ -271,13 +233,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { data: installationData, error: installationError } =
-      await admin.rpc("admin_crear_instalacion_restaurante_v2", {
+      await admin.rpc("admin_create_onboarding", {
+        p_request_id: requestId,
         p_admin_user_id: user.id,
         p_config: input,
       });
 
     if (installationError) {
       const code = rpcErrorCode(installationError);
+      if (code === "REQUEST_CONFLICT") return json({ ok: false, error: code }, 409);
       if (code === "EMAIL_ALREADY_REGISTERED") {
         return json({ ok: false, error: code }, 409);
       }
@@ -313,125 +277,19 @@ export async function POST(request: NextRequest) {
       typeof installation?.invitation_id === "string"
         ? installation.invitation_id
         : null;
-    createdRestaurantId = restauranteId;
-
-    if (!restauranteId || !invitationId) {
-      console.error("admin restaurant installation returned invalid data");
-      if (restauranteId && !(await rollbackInstallation(restauranteId)))
-        return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
-      return json({ ok: false, error: "INSTALLATION_FAILED" }, 500);
+    if (!restauranteId || !invitationId) return json({ ok: false, error: "INSTALLATION_FAILED" }, 500);
+    // The SQL transaction is durable. Email is a separate, resumable action.
+    let invitationStatus = "uncertain";
+    try {
+      invitationStatus = await deliverInvitation(admin, user.id, restauranteId);
+    } catch {
+      // Return the saved restaurant even when email status is temporarily unavailable.
     }
-
-    const siteUrl = (
-      process.env.NEXT_PUBLIC_SITE_URL || "https://panel.gastrohelp.es"
-    ).replace(/\/$/, "");
-    const { data: inviteData, error: inviteError } =
-      await admin.auth.admin.inviteUserByEmail(input.email, {
-        data: {
-          invitation_id: invitationId,
-          restaurante_id: restauranteId,
-        },
-        redirectTo: `${siteUrl}/auth/accept-invite`,
-      });
-
-    if (inviteError || !inviteData.user?.id) {
-      if (!(await rollbackInstallation(restauranteId)))
-        return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
-      if (inviteError && isDuplicateEmailError(inviteError)) {
-        return json({ ok: false, error: "EMAIL_ALREADY_REGISTERED" }, 409);
-      }
-      console.error("admin restaurant invitation failed", inviteError?.code);
-      return json({ ok: false, error: "INVITE_SEND_FAILED" }, 502);
-    }
-
-    if (input.activarReputacion) {
-      const reputationAccess = await admin
-        .from("opinion_usuarios_restaurantes")
-        .insert({
-          user_id: inviteData.user.id,
-          restaurante_id: restauranteId,
-          role: "restaurante",
-          active: true,
-        });
-      if (reputationAccess.error) {
-        if (!(await rollbackInstallation(restauranteId)))
-          return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
-        return json({ ok: false, error: "INVITE_SEND_FAILED" }, 500);
-      }
-    }
-
-    const [assignmentResult, invitationResult, restaurantResult] =
-      await Promise.all([
-        admin
-          .from("usuarios_restaurantes")
-          .select("user_id")
-          .eq("user_id", inviteData.user.id)
-          .eq("restaurante_id", restauranteId)
-          .maybeSingle(),
-        admin
-          .from("restaurant_invitations")
-          .select("status, auth_user_id")
-          .eq("id", invitationId)
-          .eq("restaurante_id", restauranteId)
-          .maybeSingle(),
-        admin
-          .from("restaurantes")
-          .select("owner_id")
-          .eq("id", restauranteId)
-          .maybeSingle(),
-      ]);
-
-    const invitationLinked =
-      assignmentResult.data?.user_id === inviteData.user.id &&
-      invitationResult.data?.status === "sent" &&
-      invitationResult.data?.auth_user_id === inviteData.user.id &&
-      restaurantResult.data?.owner_id === inviteData.user.id;
-
-    if (
-      assignmentResult.error ||
-      invitationResult.error ||
-      restaurantResult.error ||
-      !invitationLinked
-    ) {
-      console.error(
-        "admin restaurant invitation linkage failed",
-        assignmentResult.error?.code ||
-          invitationResult.error?.code ||
-          restaurantResult.error?.code,
-      );
-      if (!(await rollbackInstallation(restauranteId)))
-        return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
-      return json({ ok: false, error: "INVITE_SEND_FAILED" }, 500);
-    }
-
-    return json(
-      {
-        ok: true,
-        restaurante_id: restauranteId,
-        invited_email: input.email,
-      },
-      201,
-    );
-  } catch (error) {
-    console.error(
-      "POST /api/admin/restaurantes",
-      error instanceof Error ? error.message : "unknown error",
-    );
-    if (createdRestaurantId) {
-      try {
-        if (!(await rollbackInstallation(createdRestaurantId)))
-          return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
-      } catch {
-        return json({ ok: false, error: "CLEANUP_REQUIRED" }, 500);
-      }
-    }
-    return json(
-      {
-        ok: false,
-        error: createdRestaurantId ? "INVITE_SEND_FAILED" : "SERVER_ERROR",
-      },
-      500,
-    );
+    return json({ ok: true, restaurante_id: restauranteId, invited_email: input.email,
+      invitation_status: invitationStatus, replayed: installation?.replayed === true }, installation?.replayed ? 200 : 201);
+  } catch {
+    // A lost database response can be recovered with the same request_id.
+    return json({ ok: false, error: "SERVER_ERROR" }, 503);
   }
 }
 

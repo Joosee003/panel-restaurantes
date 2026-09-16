@@ -1,0 +1,104 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> panel-restaurantes@0.1.0 build
+> node scripts/build-app.mjs --webpack
+
+▲ Next.js 16.3.4 (webpack)
+✓ Running next.config.ts took 24ms
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 7.8s
+  Running TypeScript ...
+  Finished TypeScript in 3.0s ...
+  Collecting page data using 8 workers ...
+  Generating static pages using 8 workers (0/47) ...
+  Generating static pages using 8 workers (11/47) 
+  Generating static pages using 8 workers (23/47) 
+  Generating static pages using 8 workers (35/47) 
+✓ Generating static pages using 8 workers (47/47) in 1095ms
+  Finalizing page optimization ...
+  Collecting build traces ...
+
+Route (app)
+┌ ƒ /
+├ ○ /_not-found
+├ ○ /admin
+├ ○ /admin/control
+├ ○ /admin/herramientas
+├ ƒ /admin/onboarding-restaurante
+├ ○ /admin/restaurantes
+├ ƒ /admin/restaurantes/[id]
+├ ○ /admin/seleccionar-restaurante
+├ ○ /ajustes
+├ ƒ /api/admin/overview
+├ ƒ /api/admin/restaurantes
+├ ƒ /api/admin/restaurantes/invitacion
+├ ƒ /api/automations/dispatch
+├ ƒ /api/chatbot/inbox
+├ ƒ /api/chatbot/messages
+├ ƒ /api/demo/session
+├ ƒ /api/opiniones/[slug]
+├ ƒ /api/opiniones/[slug]/events
+├ ƒ /api/public/reservations/[token]/availability
+├ ƒ /api/public/reservations/[token]/cancel
+├ ƒ /api/public/reservations/[token]/reschedule
+├ ƒ /api/public/restaurants/[slug]/availability
+├ ƒ /api/public/restaurants/[slug]/bookings
+├ ƒ /api/public/review-requests/[token]
+├ ƒ /api/reputacion/brand-asset
+├ ƒ /api/reviews/availability
+├ ƒ /api/traducir-producto
+├ ƒ /api/whatsapp/channel
+├ ƒ /api/whatsapp/channel/qr
+├ ƒ /api/whatsapp/waha/webhook
+├ ○ /apple-icon.png
+├ ○ /auth/accept-invite
+├ ○ /auth/reset-password
+├ ƒ /c/[token]
+├ ƒ /carta/[token]
+├ ƒ /chatbot/[restaurantId]/legal/[document]
+├ ○ /clientes
+├ ƒ /clientes/[id]
+├ ○ /dashboard
+├ ○ /dashboard/fidelizacion/canjes
+├ ○ /dashboard/fidelizacion/cupones
+├ ○ /dashboard/rentabilidad
+├ ○ /dashboard/rentabilidad/ingredientes
+├ ○ /dashboard/rentabilidad/platos
+├ ƒ /dashboard/rentabilidad/platos/[id]
+├ ○ /dashboard/rentabilidad/platos/nuevo
+├ ○ /dashboard/rentabilidad/ventas
+├ ○ /demo
+├ ○ /estadisticas
+├ ƒ /legal/[document]
+├ ○ /login
+├ ○ /logout
+├ ○ /manifest.webmanifest
+├ ○ /ocupacion
+├ ○ /onboarding-restaurante
+├ ƒ /opinion/[slug]
+├ ƒ /opiniones-admin
+├ ○ /panel
+├ ○ /panel/carta-ia
+├ ○ /panel/carta-productos
+├ ○ /panel/menu-dia
+├ ○ /panel/pedidos-qr
+├ ○ /panel/qr-mesas
+├ ○ /privacidad/opiniones
+├ ƒ /r/[token]
+├ ƒ /r/[token]/google
+├ ○ /reputacion/acceso
+├ ○ /reputacion/seleccionar
+├ ○ /resenas
+├ ƒ /reserva/[token]
+├ ○ /reservas
+├ ƒ /restaurante/[slug]
+├ ƒ /restaurante/[slug]/legal/[document]
+├ ƒ /robots.txt
+├ ○ /sala
+└ ƒ /sitemap.xml
+
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

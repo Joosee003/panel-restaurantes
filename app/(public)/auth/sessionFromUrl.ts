@@ -4,7 +4,7 @@ import { supabase } from "../../(app)/lib/supabaseClient";
 type AuthLinkType = "invite" | "recovery";
 
 type AuthUrlOptions = {
-  expectedType: AuthLinkType;
+  expectedType: AuthLinkType | readonly AuthLinkType[];
   requireUrlPayload?: boolean;
 };
 
@@ -31,6 +31,7 @@ export async function getSessionFromAuthUrl({
   const accessToken = hash.get("access_token");
   const refreshToken = hash.get("refresh_token");
   const hashType = hash.get("type");
+  const allowedTypes = Array.isArray(expectedType) ? expectedType : [expectedType];
   const hasAuthPayload = Boolean(
     code || tokenHash || (accessToken && refreshToken),
   );
@@ -43,17 +44,17 @@ export async function getSessionFromAuthUrl({
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (error) throw error;
   } else if (tokenHash) {
-    if (rawType !== expectedType) {
+    if (!allowedTypes.includes(rawType as AuthLinkType)) {
       throw new Error("AUTH_LINK_TYPE_INVALID");
     }
 
     const { error } = await supabase.auth.verifyOtp({
       token_hash: tokenHash,
-      type: rawType,
+      type: rawType as AuthLinkType,
     });
     if (error) throw error;
   } else if (accessToken && refreshToken) {
-    if (hashType && hashType !== expectedType) {
+    if (!hashType || !allowedTypes.includes(hashType as AuthLinkType)) {
       throw new Error("AUTH_LINK_TYPE_INVALID");
     }
 

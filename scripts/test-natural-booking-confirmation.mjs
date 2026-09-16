@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
-import {PGlite} from '../tests/sql/node_modules/@electric-sql/pglite/dist/index.js';
-import {pgcrypto} from '../tests/sql/node_modules/@electric-sql/pglite/dist/contrib/pgcrypto.js';
-import {uuid_ossp} from '../tests/sql/node_modules/@electric-sql/pglite/dist/contrib/uuid_ossp.js';
+import {PGlite} from '@electric-sql/pglite';
+import {pgcrypto} from '@electric-sql/pglite/contrib/pgcrypto';
+import {uuid_ossp} from '@electric-sql/pglite/contrib/uuid_ossp';
 import {restoreApplicationCatalog} from './recovery-catalog.mjs';
 import {reviewActor,reviewIds as I} from './review-schema-checks.mjs';
 const db=new PGlite({extensions:{pgcrypto,uuid_ossp}}), checks=[];

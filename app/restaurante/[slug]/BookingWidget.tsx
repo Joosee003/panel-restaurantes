@@ -65,6 +65,7 @@ function readableError(code: string) {
       "Esa hora acaba de ocuparse. Actualiza la disponibilidad y elige otra.",
     INVALID_BOOKING_REQUEST: "Revisa los datos antes de continuar.",
     BOOKING_NOT_AVAILABLE: "Las reservas online no están disponibles ahora mismo.",
+    DEMO_READ_ONLY: "Esta demostración es de solo lectura y no guarda reservas.",
     LEGAL_ACCEPTANCE_REQUIRED: "Debes leer la información de privacidad y aceptar las condiciones de reserva.",
     RATE_LIMITED: "Has hecho varios intentos seguidos. Espera un momento y prueba otra vez.",
   };
@@ -165,7 +166,7 @@ export default function BookingWidget({
 
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedSlot || submitting) return;
+    if (!selectedSlot || submitting || demo) return;
 
     const form = new FormData(event.currentTarget);
     if (form.get("reviewWhatsapp") === "on" && !String(form.get("phone") || "").trim()) {
@@ -410,7 +411,11 @@ export default function BookingWidget({
           ) : null}
         </div>
 
-        {selectedSlot ? (
+        {selectedSlot && demo ? (
+          <p className="rounded-xl bg-blue-50 px-4 py-4 text-sm font-semibold leading-6 text-blue-900" role="status">
+            Demostración de solo lectura. Puedes consultar fechas y horarios; aquí no se guardan reservas ni datos personales.
+          </p>
+        ) : selectedSlot ? (
           <form onSubmit={submitBooking} className="space-y-4 border-t border-slate-100 pt-6">
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">

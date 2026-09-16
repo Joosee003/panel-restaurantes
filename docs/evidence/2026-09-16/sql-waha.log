@@ -1,0 +1,12 @@
+{
+  "status": "passed",
+  "checks": [
+    "Pairing is disabled by default; immutable sessions, unique numbers, and status CAS preserve active-send generations.",
+    "Same customer/message ID remains isolated across restaurants; concurrent customer turns lock, replay deduplicates, old history is refused.",
+    "Signed input persists before provider reads while offline; staging is immutable, does not send, and is recovered once WORKING.",
+    "Engine response survives recovery; uncertain sends never repeat; signed ACKs reconcile only their channel and advance monotonically.",
+    "ACK-before-HTTP cannot regress to uncertain; crashed in-flight sends are quarantined by recovery.",
+    "Manual takeover is restaurant-specific and blocks queued replies; number changes disable the channel and invalidate pending sends.",
+    "All tables enforce RLS without browser grants; all RPCs are SECURITY INVOKER and denied to anon/authenticated."
+  ]
+}
