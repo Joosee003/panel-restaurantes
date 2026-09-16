@@ -32,6 +32,7 @@ import {
   type RestaurantModules,
 } from "../lib/restaurantModules";
 import { withTimeout } from "../lib/safeQuery";
+import { isOrderClosed, dashboardOrderFilter } from "@/lib/orders/order-state";
 
 const DashboardChart = dynamic(() => import("../components/DashboardChart"), {
   ssr: false,
@@ -126,22 +127,6 @@ function estadoLimpio(estado?: string | null) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
-}
-
-function esPedidoCerrado(estado?: string | null) {
-  const e = estadoLimpio(estado);
-  return [
-    "servido",
-    "servida",
-    "entregado",
-    "entregada",
-    "cobrado",
-    "cobrada",
-    "cerrado",
-    "cerrada",
-    "cancelado",
-    "cancelada",
-  ].includes(e);
 }
 
 function minutosDesde(fecha?: string | null) {
@@ -298,8 +283,7 @@ export default function DashboardPage() {
                 .from("pedidos_qr")
                 .select("id,mesa,estado,total,created_at,updated_at")
                 .eq("restaurante_id", restauranteId)
-                .gte("created_at", inicioHoy)
-                .lte("created_at", finHoy)
+                .or(dashboardOrderFilter(inicioHoy, finHoy))
                 .order("created_at", { ascending: false }),
               9000
             ) : Promise.resolve({ data: [], error: null }),
@@ -416,7 +400,7 @@ export default function DashboardPage() {
   }, [restauranteId, modulesReady, cargarDashboard, modules.camarero_digital, modules.resenas, modules.reservas, programarRefresh]);
 
   const pedidosAbiertos = useMemo(
-    () => pedidosHoy.filter((p) => !esPedidoCerrado(p.estado)),
+    () => pedidosHoy.filter((p) => !isOrderClosed(p.estado)),
     [pedidosHoy]
   );
 
