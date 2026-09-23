@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2, LockKeyhole, RefreshCw } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
+import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
 
 type GuardState = "checking" | "allowed" | "error";
 
@@ -37,57 +38,42 @@ export default function AuthGuard({ children }: { children: ReactNode }) {
       return;
     }
 
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
+    try {
+      const [adminResult, restauranteId] = await Promise.all([
+        supabase
+          .from("app_admins")
+          .select("user_id")
+          .eq("user_id", session.user.id)
+          .maybeSingle(),
+        getRestauranteUsuario(),
+      ]);
 
-    if (userError || !user) {
-      await supabase.auth.signOut({ scope: "local" });
-      sendToLogin();
-      return;
-    }
+      if (adminResult.error) {
+        throw adminResult.error;
+      }
 
-    const [adminResult, restaurantResult] = await Promise.all([
-      supabase
-        .from("app_admins")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("usuarios_restaurantes")
-        .select("restaurante_id")
-        .eq("user_id", user.id)
-        .limit(1),
-    ]);
+      const isAdmin = Boolean(adminResult.data?.user_id);
+      const hasRestaurant = Boolean(restauranteId);
 
-    if (adminResult.error || restaurantResult.error) {
-      console.error("No se pudo comprobar el acceso", {
-        admin: adminResult.error,
-        restaurant: restaurantResult.error,
-      });
+      if (!hasRestaurant && isAdmin) {
+        router.replace("/admin/seleccionar-restaurante");
+        router.refresh();
+        return;
+      }
+
+      if (!hasRestaurant) {
+        await supabase.auth.signOut({ scope: "local" });
+        setMessage("Tu usuario no tiene ningún restaurante asignado.");
+        setState("error");
+        return;
+      }
+
+      setState("allowed");
+    } catch (error) {
+      console.error("No se pudo comprobar el acceso", error);
       setMessage("No se ha podido comprobar tu acceso. Reinténtalo.");
       setState("error");
-      return;
     }
-
-    const isAdmin = Boolean(adminResult.data?.user_id);
-    const hasRestaurant = Boolean(restaurantResult.data?.length);
-
-    if (!hasRestaurant && isAdmin) {
-      router.replace("/admin/seleccionar-restaurante");
-      router.refresh();
-      return;
-    }
-
-    if (!hasRestaurant) {
-      await supabase.auth.signOut({ scope: "local" });
-      setMessage("Tu usuario no tiene ningún restaurante asignado.");
-      setState("error");
-      return;
-    }
-
-    setState("allowed");
   }, [router, sendToLogin]);
 
   useEffect(() => {

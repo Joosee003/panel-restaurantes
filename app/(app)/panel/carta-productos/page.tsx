@@ -94,6 +94,8 @@ const alergenosRapidos = [
   "moluscos",
 ];
 
+const NUEVO_PRODUCTO_ID = "__nuevo_producto__";
+
 function clsx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -285,51 +287,84 @@ export default function CartaProductosPage() {
   }
 
   async function guardarProducto(producto: Producto, silent = false) {
-    if (!restauranteId) return;
+    if (!restauranteId || !cartaActiva) return;
 
+    const nombre = producto.nombre.trim();
+    if (!nombre) {
+      setErrorMsg("Escribe el nombre del producto antes de guardarlo.");
+      return;
+    }
+
+    const esNuevo = producto.id === NUEVO_PRODUCTO_ID;
     setGuardandoId(producto.id);
     setErrorMsg(null);
     if (!silent) setOkMsg(null);
 
-    const { error } = await supabase
-      .from("carta_productos")
-      .update({
-        nombre: producto.nombre,
-        descripcion: producto.descripcion || "",
-        precio: toNumber(producto.precio),
-        categoria_id: producto.categoria_id || null,
-        imagen_url: producto.imagen_url || null,
-        tipo: producto.tipo || "",
-        alergenos: producto.alergenos || [],
-        recomendado: Boolean(producto.recomendado),
-        activo: Boolean(producto.activo),
-        orden: Number(producto.orden || 0),
-        traducciones: producto.traducciones || {},
-      })
-      .eq("id", producto.id)
-      .eq("restaurante_id", restauranteId);
+    const payload = {
+      nombre,
+      descripcion: producto.descripcion || "",
+      precio: toNumber(producto.precio),
+      categoria_id: producto.categoria_id || null,
+      imagen_url: producto.imagen_url || null,
+      tipo: producto.tipo || "",
+      alergenos: producto.alergenos || [],
+      recomendado: Boolean(producto.recomendado),
+      activo: Boolean(producto.activo),
+      orden: Number(producto.orden || 0),
+      traducciones: producto.traducciones || {},
+    };
 
-    if (error) {
-      setErrorMsg(error.message || "No se pudo guardar el producto.");
-      setGuardandoId(null);
-      return;
+    let productoGuardado = { ...producto, ...payload } as Producto;
+
+    if (esNuevo) {
+      const { data, error } = await supabase
+        .from("carta_productos")
+        .insert({
+          ...payload,
+          carta_id: cartaActiva.id,
+          restaurante_id: restauranteId,
+          imagen_prompt: null,
+        })
+        .select("*")
+        .single();
+
+      if (error || !data) {
+        setErrorMsg(error?.message || "No se pudo crear el producto.");
+        setGuardandoId(null);
+        return;
+      }
+
+      productoGuardado = data as Producto;
+      setProductos((actual) => [...actual, productoGuardado]);
+      setProductoEditando(productoGuardado);
+    } else {
+      const { error } = await supabase
+        .from("carta_productos")
+        .update(payload)
+        .eq("id", producto.id)
+        .eq("restaurante_id", restauranteId);
+
+      if (error) {
+        setErrorMsg(error.message || "No se pudo guardar el producto.");
+        setGuardandoId(null);
+        return;
+      }
+
+      actualizarProductoLocal(productoGuardado);
     }
 
-    actualizarProductoLocal(producto);
     if (!silent) {
-      setOkMsg("Producto guardado correctamente.");
+      setOkMsg(esNuevo ? "Producto creado correctamente." : "Producto guardado correctamente.");
       setTimeout(() => setOkMsg(null), 2500);
     }
     setGuardandoId(null);
   }
-
-  async function crearProductoManual() {
+  function crearProductoManual() {
     if (!restauranteId || !cartaActiva) {
       setErrorMsg("Este restaurante todavía no tiene carta digital creada.");
       return;
     }
 
-    setGuardandoId("nuevo");
     setErrorMsg(null);
     setOkMsg(null);
 
@@ -338,41 +373,30 @@ export default function CartaProductosPage() {
       0
     );
 
-    const { data, error } = await supabase
-      .from("carta_productos")
-      .insert({
-        carta_id: cartaActiva.id,
-        restaurante_id: restauranteId,
-        categoria_id: categorias[0]?.id || null,
-        nombre: "Nuevo producto",
-        descripcion: "",
-        precio: 0,
-        imagen_url: null,
-        imagen_prompt: null,
-        tipo: "",
-        alergenos: [],
-        recomendado: false,
-        activo: true,
-        orden: maxOrden + 1,
-        traducciones: {},
-      })
-      .select("*")
-      .single();
-
-    if (error) {
-      setErrorMsg(error.message || "No se pudo crear el producto.");
-      setGuardandoId(null);
-      return;
-    }
-
-    const producto = data as Producto;
-    setProductos((actual) => [...actual, producto]);
-    setProductoEditando(producto);
-    setGuardandoId(null);
+    setProductoEditando({
+      id: NUEVO_PRODUCTO_ID,
+      carta_id: cartaActiva.id,
+      restaurante_id: restauranteId,
+      categoria_id: categorias[0]?.id || null,
+      nombre: "",
+      descripcion: "",
+      precio: 0,
+      imagen_url: null,
+      imagen_prompt: null,
+      tipo: "",
+      alergenos: [],
+      recomendado: false,
+      activo: true,
+      orden: maxOrden + 1,
+      traducciones: {},
+    });
   }
-
   async function subirImagen(producto: Producto, file: File) {
     if (!file || !restauranteId) return;
+    if (producto.id === NUEVO_PRODUCTO_ID) {
+      setErrorMsg("Guarda primero el producto y después sube la imagen.");
+      return;
+    }
 
     setSubiendoId(producto.id);
     setErrorMsg(null);
