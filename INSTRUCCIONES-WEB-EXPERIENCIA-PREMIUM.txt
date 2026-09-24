@@ -1,3 +1,6 @@
+HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL
+Este archivo se conserva como registro. No extraigas ZIP, no sobrescribas archivos y no reutilices sus supuestos antiguos de Supabase. Consulta primero el AGENTS.md y /docs vigentes del proyecto padre GASTROHELP.
+
 WEB DEL RESTAURANTE - EXPERIENCIA PREMIUM
 
 1. Extrae este ZIP directamente en:

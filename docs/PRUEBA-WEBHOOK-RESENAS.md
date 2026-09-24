@@ -1,5 +1,9 @@
 # Comprobar la entrada de reseñas en n8n
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Este procedimiento conserva una prueba anterior. No cambies variables de Vercel, no ejecutes webhooks y no uses la plantilla o el transporte descritos sin contrastar el estado actual y el ADR de WhatsApp en `/docs` del proyecto padre GASTROHELP y obtener la autorización necesaria.
+
 La reserva «Jose · Prueba webhook» del 9 de septiembre sí guardó `atendida=true`. No creó una petición porque su cliente ya tiene `ya_dejo_resena=true`. Ese bloqueo debe mantenerse.
 
 El modo `test` sigue siendo local por defecto. La lista `N8N_REVIEW_TEST_RESTAURANT_IDS` permite comprobar una llamada HTTP a n8n sin enviar WhatsApp. Es independiente de la lista de envíos reales.

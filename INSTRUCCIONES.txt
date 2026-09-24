@@ -1,3 +1,6 @@
+HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL
+Este archivo se conserva como registro. No copies ZIP, sobrescribas archivos ni reutilices sus supuestos de Supabase, n8n o despliegue. Consulta primero el AGENTS.md y /docs vigentes del proyecto padre GASTROHELP.
+
 GASTROHELP - RESERVAS NATIVAS (SOLO ARCHIVOS CAMBIADOS)
 
 1. Cierra el servidor local si esta ejecutandose (Ctrl + C en la terminal).

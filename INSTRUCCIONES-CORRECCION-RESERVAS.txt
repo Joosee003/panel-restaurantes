@@ -1,3 +1,6 @@
+HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL
+Este archivo se conserva como registro. No extraigas ZIP, no sobrescribas archivos y no asumas que la configuración histórica de Supabase sigue vigente. Consulta primero el AGENTS.md y /docs vigentes del proyecto padre GASTROHELP.
+
 CORRECCION DEL FORMULARIO DE RESERVAS
 
 1. Extrae este ZIP directamente en:

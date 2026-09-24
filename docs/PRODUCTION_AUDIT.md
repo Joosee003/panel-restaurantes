@@ -1,5 +1,9 @@
 # Auditoría de producción del panel — 27/07/2026
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Esta auditoría se conserva como evidencia fechada. No tomes sus commits, despliegues, rutas, credenciales lógicas ni configuración de Supabase/n8n como estado actual; no la uses para reintroducir Docker, WAHA/Evolution o Amelia. Consulta el `AGENTS.md` y `/docs` del proyecto padre GASTROHELP.
+
 ## Actualización — 04/09/2026
 
 - Producción alineada con `main` en el commit `8ae16044619568fea80c210cea1e4042b75babef`.

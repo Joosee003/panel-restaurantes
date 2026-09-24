@@ -1,5 +1,9 @@
 # Copias y recuperación
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Este documento describe un estado y unos procedimientos antiguos. No ejecutes sus comandos de copia/restauración ni reconstruyas Supabase a partir de sus cifras o supuestos. Usa las políticas y el inventario de reproducibilidad vigentes en `/docs` del proyecto padre GASTROHELP.
+
 ## Estado actual
 
 - El proyecto de Supabase está en el plan Free.

@@ -1,5 +1,9 @@
 # WhatsApp propio por restaurante
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Este documento conserva el diseño WAHA por restaurante. No despliegues Docker/Compose, no vincules sesiones por QR y no actives ni migres WAHA/Evolution basándote en él. La ruta actualmente usada y comprobada para 643/Hispanos es Meta Cloud API + n8n compartido; cualquier alineación o migración requiere una decisión explícita del usuario y debe consultarse en el ADR del proyecto padre.
+
 Preparación de despliegue, 13 de septiembre de 2026. Este documento describe la instalación y las pruebas pendientes del transporte WAHA. Un archivo de Compose validado no acredita una conexión real ni un periodo de estabilidad ya completado.
 
 Cada restaurante vincula su número desde el panel. La sesión de WAHA queda asociada a un restaurante en el servidor; esa asociación decide los datos que consulta el chatbot y el número desde el que salen los mensajes. No se debe elegir el restaurante a partir del texto de un cliente, de un nombre visible de WhatsApp o de un `restaurante_id` recibido sin verificar.

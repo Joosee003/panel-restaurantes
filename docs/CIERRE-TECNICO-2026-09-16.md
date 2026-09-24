@@ -1,5 +1,9 @@
 # Registro de cierre · 16 septiembre 2026
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Este cierre es evidencia fechada, no un runbook vigente. No reactives Docker, WAHA/Evolution, Amelia, migraciones, configuración antigua de Supabase ni despliegues a partir de este documento. Contrasta cualquier acción con el `AGENTS.md` y `/docs` del proyecto padre GASTROHELP.
+
 El cierre completo NO está acreditado. Esta entrega corrige fallos comprobados y distingue pruebas locales, observación de producción y comprobaciones pendientes.
 
 ## Referencia observada

@@ -1,5 +1,9 @@
 # Continuación de las comprobaciones · 16 septiembre 2026
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Este informe es evidencia fechada y sus pendientes no son instrucciones vigentes. No despliegues, restaures, apliques configuración de Supabase ni actives Docker, WAHA/Evolution o Amelia a partir de él. Consulta el `AGENTS.md` y `/docs` del proyecto padre GASTROHELP.
+
 **El encargo sigue abierto. Hay comprobaciones críticas pendientes fuera de WhatsApp.**
 
 Se ha trabajado sobre el proyecto existente, sin añadir servicios de producto ni cambiar colores. Las escrituras de prueba y las restauraciones se han ejecutado en bases temporales con datos ficticios. En producción se han aplicado restricciones de seguridad y se han recorrido pantallas en modo lectura. No se han creado clientes de prueba en restaurantes reales, contactado clientes ni restaurado una copia sobre producción.

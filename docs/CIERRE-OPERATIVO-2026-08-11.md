@@ -1,5 +1,9 @@
 # Cierre operativo de GastroHelp — 11/08/2026
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Esta acta refleja un estado fechado. No uses sus referencias de producción, despliegue, n8n o Supabase como configuración vigente y no reactives Docker, WAHA/Evolution o Amelia a partir de ella. Consulta el `AGENTS.md` y `/docs` del proyecto padre GASTROHELP.
+
 ## Estado confirmado
 
 - Repositorio: `Joosee003/panel-restaurantes`.

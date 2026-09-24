@@ -1,5 +1,9 @@
 # Solicitudes de reseña después de una visita
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Este documento conserva el registro de una implementación y un despliegue anteriores. No ejecutes sus migraciones, generadores ni pasos de activación; tampoco uses `whatsapp-review-template.json` como plantilla vigente de Meta. Consulta el estado actual y el ADR de transporte en `/docs` del proyecto padre GASTROHELP.
+
 Cambio solicitado por Jose el 8 de septiembre de 2026 y publicado con su autorización en la [PR 40](https://github.com/Joosee003/panel-restaurantes/pull/40), rama `codex/post-visit-reviews`. El SQL se aplicó a producción el 9 de septiembre (versión remota 20260909075421) y la PR 40 se fusionó en main 45d24735. No se han enviado mensajes reales.
 
 ## Funcionamiento

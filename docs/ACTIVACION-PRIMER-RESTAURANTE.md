@@ -1,5 +1,9 @@
 # Activación del primer restaurante real
 
+> **HISTÓRICO / NO EJECUTAR COMO INSTRUCCIÓN ACTUAL**
+>
+> Esta lista se conserva como antecedente y no sustituye el onboarding vigente. No ejecutes desde aquí cambios de Supabase, Vercel, n8n, WhatsApp, Docker o producción. Consulta `ONBOARDING_OPERATIONS.md`, `CURRENT_STATE.md` y las reglas del proyecto padre GASTROHELP.
+
 Este documento separa lo que puede prepararse con antelación de las acciones que escriben datos reales o cambian servicios publicados.
 
 ## 1. Datos obligatorios
