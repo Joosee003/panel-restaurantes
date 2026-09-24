@@ -54,6 +54,12 @@ export async function GET(
     return json({ ok: false, error: "INVALID_BOOKING_REQUEST" }, 400);
   }
 
+  // The isolated La Reserva preview fixture has no database id. Keep its
+  // read-only flow usable without inventing synthetic availability.
+  if (restaurant.demo && !restaurant.restauranteId) {
+    return json({ ok: true, slots: [] });
+  }
+
   try {
     const supabase = getSupabaseAdmin();
     const allowed = await consumePublicRateLimit(

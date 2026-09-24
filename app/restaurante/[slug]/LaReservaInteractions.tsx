@@ -10,10 +10,6 @@ const BookingContext = createContext<() => void>(() => {});
 type Dish = PublicRestaurant["menu"]["sections"][number]["items"][number];
 const price = (value: number | null) => value == null ? "Consultar" : new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
 
-export function TableSignature() {
-  return <svg className={styles.tableSignature} viewBox="0 0 48 34" width="42" height="30" fill="none" aria-hidden="true"><path d="M16 27C-3 23-2 4 24 4S51 23 32 27" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /><circle className={styles.tableSeat} cx="24" cy="27" r="3" fill="currentColor" /></svg>;
-}
-
 export function ReservaShell({ children, booking, bookingEnabled }: { children: ReactNode; booking: ReactNode; bookingEnabled: boolean }) {
   const root = useRef<HTMLDivElement>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -35,12 +31,12 @@ export function ReservaShell({ children, booking, bookingEnabled }: { children: 
     setVisited(true);
     dialog.current?.showModal();
   }
-  return <BookingContext.Provider value={openBooking}><div className={styles.site} ref={root}>
+  return <BookingContext.Provider value={openBooking}><div className={`${styles.site} restaurant-public-site`} ref={root}>
     {children}
-    <div className={styles.mobileBar}><a href="#carta">Ver carta</a>{bookingEnabled ? <ReserveButton>Reservar mesa <TableSignature /></ReserveButton> : null}</div>
+    <div className={styles.mobileBar}><a href="#carta">Ver carta</a>{bookingEnabled ? <ReserveButton>Reservar mesa <ArrowUpRight size={17} aria-hidden="true" /></ReserveButton> : null}</div>
     <dialog ref={dialog} className={`${styles.dialog} ${styles.bookingDialog}`} aria-labelledby="booking-dialog-title" onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
-      <div className={styles.drawerTop}><div><span>LA RESERVA · TU SITIO EN LA MESA</span><h2 id="booking-dialog-title">El plan empieza aquí.</h2></div><button className={styles.closeButton} type="button" aria-label="Cerrar reserva" onClick={() => dialog.current?.close()}><X size={23} /></button></div>
-      <div className={styles.drawerSignature}><TableSignature /><span>Elige con quién, cuándo y a qué hora.</span></div><div className={styles.bookingWidget}>{visited ? booking : null}</div>
+      <div className={styles.drawerTop}><div><span>LA RESERVA · TU SITIO EN LA MESA</span><h2 id="booking-dialog-title">El plan empieza aquí.</h2><p>Elige con quién, cuándo y a qué hora.</p></div><button className={styles.closeButton} type="button" aria-label="Cerrar reserva" onClick={() => dialog.current?.close()}><X size={23} /></button></div>
+      <div className={styles.bookingWidget}>{visited ? booking : null}</div>
     </dialog>
   </div></BookingContext.Provider>;
 }
@@ -62,20 +58,22 @@ export function ReservaHeader({ name, bookingEnabled }: { name: string; bookingE
     const sections = new IntersectionObserver(entries => {
       entries.forEach(entry => { if (entry.isIntersecting) setActive(entry.target.id); });
     }, { rootMargin: "-20% 0px -55% 0px" });
-    document.querySelectorAll("#la-casa,#carta,#el-ambiente,#reservar").forEach(el => sections.observe(el));
+    document.querySelectorAll("#la-casa,#carta,#el-ambiente,#visitanos,#reservar").forEach(el => sections.observe(el));
     return () => { headerObserver.disconnect(); sections.disconnect(); };
   }, []);
-  const links = [{ id: "la-casa", label: "La casa" }, { id: "carta", label: "La carta" }, { id: "el-ambiente", label: "El ambiente" }];
-  return <header className={`${styles.header} ${scrolled || open ? styles.headerSolid : ""}`}>
-    <a className={styles.brand} href="#contenido" onClick={() => setOpen(false)} aria-label={`${name}, inicio`}>La Reserva<span>COCINA & SOBREMESA</span></a>
-    <nav className={styles.desktopNav} aria-label="Navegación principal">{links.map(link => <a key={link.id} href={`#${link.id}`} aria-current={active === link.id ? "location" : undefined}>{link.label}</a>)}</nav>
-    {bookingEnabled ? <ReserveButton className={styles.headerBooking}>Reservar <TableSignature /></ReserveButton> : null}
-    <button ref={toggle} className={styles.menuToggle} type="button" onClick={() => setOpen(!open)} aria-label={open ? "Cerrar menú" : "Abrir menú"} aria-expanded={open} aria-controls="reserva-mobile-nav">{open ? <X /> : <Menu />}</button>
+  const links = [{ id: "la-casa", label: "La casa" }, { id: "carta", label: "La carta" }, { id: "el-ambiente", label: "El ambiente" }, { id: "visitanos", label: "Visítanos" }];
+  return <>
+    <header className={`${styles.header} ${scrolled || open ? styles.headerSolid : ""} ${open ? styles.headerOpen : ""}`}>
+      <a className={styles.brand} href="#contenido" onClick={() => setOpen(false)} aria-label={`${name}, inicio`}>La Reserva<span>COCINA & SOBREMESA</span></a>
+      <nav className={styles.desktopNav} aria-label="Navegación principal">{links.map(link => <a key={link.id} href={`#${link.id}`} aria-current={active === link.id ? "location" : undefined}>{link.label}</a>)}</nav>
+      {bookingEnabled ? <ReserveButton className={styles.headerBooking}>Reservar <ArrowUpRight size={16} aria-hidden="true" /></ReserveButton> : null}
+      <button ref={toggle} className={styles.menuToggle} type="button" onClick={() => setOpen(!open)} aria-label={open ? "Cerrar menú" : "Abrir menú"} aria-expanded={open} aria-controls="reserva-mobile-nav">{open ? <X /> : <Menu />}</button>
+    </header>
     {open ? <nav id="reserva-mobile-nav" className={styles.mobileNav} aria-label="Navegación móvil" onKeyDown={event => { if (event.key === "Escape") { setOpen(false); toggle.current?.focus(); } }}><span>ELIGE TU PLAN</span>{links.map((link, i) => <a key={link.id} href={`#${link.id}`} onClick={() => setOpen(false)}><span>0{i + 1}</span>{link.label}<ArrowUpRight size={25} aria-hidden="true" /></a>)}<p>Producto. Fuego. Sobremesa.</p></nav> : null}
-  </header>;
+  </>;
 }
 
-// Illustrations replace only seeded demo photos; custom uploaded photos keep priority.
+// Local demo photography replaces only seeded photos; custom uploads keep priority.
 const demoDishPhotos: Record<string, { cell: number; source?: string }> = {
   "Tataki de atún": { cell: 0, source: "photo-1546069901-ba9599a7e63c" },
   "Croquetas de jamón": { cell: 1, source: "photo-1625944230945-1b7dd3b949ab" },
@@ -131,8 +129,8 @@ export function ReservaGallery({ images }: { images: string[] }) {
   function move(amount: number) { setSelected(current => (current + amount + images.length) % images.length); }
   if (!images.length) return null;
   return <div className={styles.gallery}>
-    <div className={styles.galleryStage}><Image key={selected} src={images[selected]} alt={`La Reserva, fotografía de ambiente ${selected + 1}`} fill unoptimized sizes="100vw" className={styles.galleryPhoto} /><button type="button" className={styles.expandButton} aria-label="Ampliar fotografía del ambiente" onClick={() => enlarged.current?.showModal()}><ZoomIn size={19} aria-hidden="true" /><span>Ver de cerca</span></button><span className={styles.galleryCaption}>BUENA MESA.<br /><em>Buenos momentos.</em></span></div>
+    <div className={styles.galleryStage}><Image key={selected} src={images[selected]} alt={`La Reserva, fotografía de ambiente ${selected + 1}`} fill sizes="100vw" className={styles.galleryPhoto} /><button type="button" className={styles.expandButton} aria-label="Ampliar fotografía del ambiente" onClick={() => enlarged.current?.showModal()}><ZoomIn size={19} aria-hidden="true" /><span>Ver de cerca</span></button><span className={styles.galleryCaption}>BUENA MESA.<br /><em>Buenos momentos.</em></span></div>
     <div className={styles.galleryControls}><span className={styles.galleryCount} aria-live="polite">{String(selected + 1).padStart(2, "0")} <span>/ {String(images.length).padStart(2, "0")}</span></span><div className={styles.galleryDots}>{images.map((_, index) => <button type="button" key={index} aria-label={`Ver fotografía ${index + 1}`} aria-pressed={selected === index} onClick={() => setSelected(index)} />)}</div><div className={styles.galleryArrows}><button type="button" aria-label="Fotografía anterior" onClick={() => move(-1)}><ArrowLeft size={23} /></button><button type="button" aria-label="Fotografía siguiente" onClick={() => move(1)}><ArrowRight size={23} /></button></div></div>
-    <dialog className={`${styles.dialog} ${styles.galleryDialog}`} ref={enlarged} aria-label="Fotografía del ambiente ampliada" onKeyDown={event => { if (event.key === "ArrowRight") { event.preventDefault(); move(1); } if (event.key === "ArrowLeft") { event.preventDefault(); move(-1); } }} onClick={event => { if (event.target === event.currentTarget) enlarged.current?.close(); }}><button className={styles.closeButton} type="button" aria-label="Cerrar fotografía" onClick={() => enlarged.current?.close()}><X size={24} /></button><div className={styles.enlargedPhoto}><Image src={images[selected]} alt={`Ambiente de La Reserva, fotografía ${selected + 1}`} fill unoptimized sizes="95vw" /></div><div className={styles.enlargedControls}><button type="button" aria-label="Anterior en pantalla ampliada" onClick={() => move(-1)}><ArrowLeft /></button><span aria-live="polite">{selected + 1} / {images.length}</span><button type="button" aria-label="Siguiente en pantalla ampliada" onClick={() => move(1)}><ArrowRight /></button></div></dialog>
+    <dialog className={`${styles.dialog} ${styles.galleryDialog}`} ref={enlarged} aria-label="Fotografía del ambiente ampliada" onKeyDown={event => { if (event.key === "ArrowRight") { event.preventDefault(); move(1); } if (event.key === "ArrowLeft") { event.preventDefault(); move(-1); } }} onClick={event => { if (event.target === event.currentTarget) enlarged.current?.close(); }}><button className={styles.closeButton} type="button" aria-label="Cerrar fotografía" onClick={() => enlarged.current?.close()}><X size={24} /></button><div className={styles.enlargedPhoto}><Image src={images[selected]} alt={`Ambiente de La Reserva, fotografía ${selected + 1}`} fill sizes="95vw" /></div><div className={styles.enlargedControls}><button type="button" aria-label="Anterior en pantalla ampliada" onClick={() => move(-1)}><ArrowLeft /></button><span aria-live="polite">{selected + 1} / {images.length}</span><button type="button" aria-label="Siguiente en pantalla ampliada" onClick={() => move(1)}><ArrowRight /></button></div></dialog>
   </div>;
 }

@@ -195,6 +195,143 @@ const pilotFallback: PublicRestaurant = {
   },
 };
 
+const laReservaDemoFallback: PublicRestaurant = {
+  restauranteId: null,
+  slug: "la-reserva-demo",
+  published: true,
+  demo: true,
+  name: "La Reserva",
+  eyebrow: "Castellón · Mediterráneo",
+  headline: "Cocina con calma. Mesas con vida.",
+  subtitle:
+    "Producto que se reconoce, fuego que se escucha y sobremesas sin prisa.",
+  description:
+    "Restaurante ficticio utilizado para mostrar la experiencia web y de reservas de GastroHelp.",
+  address: "Plaza del Mediterráneo 8, Castellón",
+  phone: "",
+  email: "demo@gastrohelp.es",
+  whatsapp: "",
+  mapsUrl: "",
+  instagramUrl: "",
+  facebookUrl: "",
+  logoUrl: "",
+  heroImageUrl: "/la-reserva/ambiente-demo.webp",
+  galleryUrls: [],
+  specialties: ["Producto de temporada", "Cocina mediterránea", "Brasa"],
+  primaryColor: "#25362c",
+  accentColor: "#c6a56a",
+  backgroundColor: "#f3eee4",
+  seoTitle: "La Reserva | Restaurante de demostración",
+  seoDescription:
+    "Restaurante ficticio utilizado para mostrar el sistema GastroHelp.",
+  customDomain: "",
+  legal: {
+    owner: "La Reserva",
+    taxId: "",
+    address: "Plaza del Mediterráneo 8, Castellón",
+    email: "demo@gastrohelp.es",
+    registry: "",
+    privacyEmail: "demo@gastrohelp.es",
+    bookingRetention: "",
+    updatedAt: "",
+  },
+  menu: {
+    enabled: true,
+    publicPath: "",
+    sections: [
+      {
+        title: "Entrantes",
+        items: [
+          {
+            name: "Tataki de atún",
+            description: "Sésamo, cítricos y un punto de soja.",
+            price: 18.9,
+            imageUrl: "",
+            recommended: true,
+          },
+          {
+            name: "Croquetas de jamón",
+            description: "Cremosas por dentro, crujientes por fuera.",
+            price: 12.5,
+            imageUrl: "",
+            recommended: false,
+          },
+        ],
+      },
+      {
+        title: "Principales",
+        items: [
+          {
+            name: "Arroz meloso de mar",
+            description: "Fondo casero, sepia y gamba roja.",
+            price: 22,
+            imageUrl: "",
+            recommended: true,
+          },
+          {
+            name: "Entrecot madurado",
+            description: "A la brasa, con patata y pimientos.",
+            price: 27,
+            imageUrl: "",
+            recommended: true,
+          },
+          {
+            name: "Pasta trufada",
+            description: "Pasta fresca, setas y parmesano.",
+            price: 17.5,
+            imageUrl: "",
+            recommended: false,
+          },
+        ],
+      },
+      {
+        title: "Postres",
+        items: [
+          {
+            name: "Tarta de queso",
+            description: "Cremosa, tostada y hecha en casa.",
+            price: 7.5,
+            imageUrl: "",
+            recommended: true,
+          },
+        ],
+      },
+      {
+        title: "Bebidas",
+        items: [
+          {
+            name: "Agua mineral",
+            description: "Con o sin gas.",
+            price: 2.5,
+            imageUrl: "",
+            recommended: false,
+          },
+          {
+            name: "Copa de vino tinto",
+            description: "Selección de la casa.",
+            price: 4.2,
+            imageUrl: "",
+            recommended: false,
+          },
+        ],
+      },
+    ],
+  },
+  booking: {
+    enabled: true,
+    timezone: "Europe/Madrid",
+    minParty: 1,
+    maxParty: 12,
+    minAdvanceMinutes: 60,
+    maxAdvanceDays: 60,
+    requiresPhone: true,
+    requiresEmail: false,
+    notice: "Esta demostración es de solo lectura.",
+    cancellationPolicy:
+      "Si tus planes cambian, avisa con la mayor antelación posible.",
+  },
+};
+
 function cleanSlug(slug: string) {
   return slug.trim().toLowerCase();
 }
@@ -227,8 +364,13 @@ export function publicRestaurantUrl(restaurant: PublicRestaurant) {
   return `${siteUrl}/restaurante/${restaurant.slug}`;
 }
 
-function isPilotPreview(slug: string) {
-  return process.env.NODE_ENV !== "production" && slug === pilotFallback.slug;
+function getIsolatedPreviewFallback(slug: string) {
+  const isolatedPreview =
+    process.env.NODE_ENV !== "production" || process.env.VERCEL_ENV === "preview";
+  if (!isolatedPreview) return null;
+  if (slug === pilotFallback.slug) return pilotFallback;
+  if (slug === laReservaDemoFallback.slug) return laReservaDemoFallback;
+  return null;
 }
 
 export async function getPublicRestaurant(
@@ -248,7 +390,7 @@ export async function getPublicRestaurant(
       .maybeSingle<WebRow>();
 
     if (webError) throw webError;
-    if (!web) return isPilotPreview(slug) ? pilotFallback : null;
+    if (!web) return getIsolatedPreviewFallback(slug);
 
     const { data: booking, error: bookingError } = await supabase
       .from("reservas_config")
@@ -389,8 +531,10 @@ export async function getPublicRestaurant(
       },
     };
   } catch (error) {
+    const fallback = getIsolatedPreviewFallback(slug);
+    if (fallback) return fallback;
     console.error("No se ha podido cargar la web pública", error);
-    return isPilotPreview(slug) ? pilotFallback : null;
+    return null;
   }
 }
 

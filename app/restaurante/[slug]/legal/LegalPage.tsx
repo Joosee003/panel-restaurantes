@@ -8,6 +8,7 @@ import {
   publicRestaurantUrl,
   type PublicRestaurant,
 } from "../../../lib/publicRestaurant";
+import styles from "../la-reserva.module.css";
 
 const titles: Record<LegalDocument, string> = {
   "aviso-legal": "Aviso legal",
@@ -119,6 +120,32 @@ function LegalContent({ restaurant, document }: { restaurant: PublicRestaurant; 
 }
 
 export default function LegalPage({ restaurant, document }: { restaurant: PublicRestaurant; document: LegalDocument }) {
+  if (restaurant.slug === "la-reserva-demo") {
+    return (
+      <main className={`${styles.site} ${styles.legalPage} restaurant-public-site`}>
+        <article className={styles.legalArticle}>
+          <header className={styles.legalHeader}>
+            <a href={publicRestaurantUrl(restaurant)} className={styles.legalBack}>
+              <ArrowLeft className="h-4 w-4" /> Volver a {restaurant.name}
+            </a>
+            <p>La Reserva · Información legal</p>
+            <h1>{titles[document]}</h1>
+            <span>Última actualización: {legalUpdatedLabel(restaurant.legal.updatedAt)}</span>
+          </header>
+          <div className={styles.legalBody}>
+            <LegalContent restaurant={restaurant} document={document} />
+            <nav aria-label="Otros textos legales">
+              <a href={legalPath(restaurant, "aviso-legal")}>Aviso legal</a>
+              <a href={legalPath(restaurant, "privacidad")}>Privacidad</a>
+              <a href={legalPath(restaurant, "condiciones-reserva")}>Condiciones de reserva</a>
+              <a href={legalPath(restaurant, "cookies")}>Cookies</a>
+            </nav>
+          </div>
+        </article>
+      </main>
+    );
+  }
+
   return (
     <main className="min-h-screen bg-slate-100 px-5 py-10 text-slate-950 sm:px-8 sm:py-16">
       <article className="mx-auto max-w-3xl overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-xl">

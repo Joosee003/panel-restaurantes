@@ -83,10 +83,13 @@ export async function generateMetadata({
 
   if (!restaurant) return { title: "Restaurante no encontrado" };
 
+  const restaurantUrl = publicRestaurantUrl(restaurant);
   const previewImage =
-    restaurant.heroImageUrl ||
-    restaurant.galleryUrls[0] ||
-    (restaurant.demo ? demoPhotos[0] : "");
+    restaurant.slug === "la-reserva-demo"
+      ? new URL("/la-reserva/ambiente-demo.webp", restaurantUrl).toString()
+      : restaurant.heroImageUrl ||
+        restaurant.galleryUrls[0] ||
+        (restaurant.demo ? demoPhotos[0] : "");
 
   return {
     title: restaurant.seoTitle,
@@ -95,13 +98,30 @@ export async function generateMetadata({
       ? { index: false, follow: false }
       : { index: true, follow: true },
     alternates: {
-      canonical: publicRestaurantUrl(restaurant),
+      canonical: restaurantUrl,
     },
     openGraph: {
       title: restaurant.seoTitle,
       description: restaurant.seoDescription,
       type: "website",
-      url: publicRestaurantUrl(restaurant),
+      locale: "es_ES",
+      siteName: restaurant.name,
+      url: restaurantUrl,
+      images: previewImage
+        ? [
+            {
+              url: previewImage,
+              width: 1672,
+              height: 941,
+              alt: `El ambiente de ${restaurant.name}`,
+            },
+          ]
+        : [],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: restaurant.seoTitle,
+      description: restaurant.seoDescription,
       images: previewImage ? [previewImage] : [],
     },
   };
