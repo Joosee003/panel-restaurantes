@@ -1,8 +1,9 @@
-# Design QA — La Reserva demo
+# Design QA — La Reserva
 
 ## Alcance
 
-- Ruta principal: `/restaurante/la-reserva-demo`.
+- Ruta limpia de Preview: `/restaurante/la-reserva`.
+- Ruta de comparación de la primera pasada: `/restaurante/la-reserva-demo`.
 - Recorridos: navegación, carta, detalle de plato, galería, contacto, reserva y páginas legales.
 - Viewports: 1440×1000, 1280×800, 768×1024 y 390×844.
 - Referencia: capturas de la demo previa y dirección artística «cuaderno mediterráneo de sobremesa».
@@ -26,3 +27,35 @@
 - Revisión básica de foco, contraste, nombres accesibles, `alt` y movimiento reducido.
 
 **Estado:** pendiente de la pasada final sobre la preview desplegada.
+
+## Pasada 2 — dirección «del producto al servicio»
+
+- Se conserva el hero y se sustituye la repetición de grandes titulares en
+  cursiva por una apertura de producto, una secuencia editorial horizontal y
+  titulares más contenidos.
+- Se incorporan tres fotografías provisionales creadas para esta dirección:
+  `producto-tomate.webp`, `servicio-fuego.webp` y `mesa-vivida.webp`. Buscan
+  luces, encuadres y momentos distintos (preparación, pase y mesa usada), pero
+  deben reemplazarse por fotografía propia antes de una entrega real.
+- El flujo de reserva mantiene fecha, personas, horas, validaciones, datos,
+  consentimientos y confirmación. En la Preview aislada la disponibilidad es
+  sintética y determinista, y el envío termina en una confirmación local: no
+  se ejecuta el `POST` de reserva ni se persisten datos personales.
+- El alias limpio `/restaurante/la-reserva` solo existe en desarrollo o en
+  Vercel Preview. La ficha continúa marcada como `demo` internamente y mantiene
+  `noindex`; no se convierte en una ficha pública de producción.
+
+## Datos que deben sustituirse antes de entregar a un restaurante real
+
+- Fotografías propias con autorización, créditos y recortes aprobados.
+- Nombre fiscal, NIF/CIF, domicilio, email de privacidad y responsable legal.
+- Dirección pública, teléfono, email, horarios y enlace exacto de Google Maps.
+- Carta, descripciones, precios definitivos, alérgenos y disponibilidad real.
+- Reglas de reserva: aforo, turnos, antelación, cancelaciones y contactos.
+- Dominio/canonical, imagen Open Graph y perfiles sociales definitivos.
+- Textos legales, política de cookies y plazo real de conservación.
+- Analítica y consentimiento configurados para el stack acordado con el cliente.
+
+No se deben rellenar estos campos con datos plausibles para completar el
+diseño. La publicación real exige una ficha de restaurante configurada y la
+validación del checklist de `docs/WEBSITE_DELIVERY.md` del proyecto padre.

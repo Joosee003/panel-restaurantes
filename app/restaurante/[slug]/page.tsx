@@ -84,8 +84,10 @@ export async function generateMetadata({
   if (!restaurant) return { title: "Restaurante no encontrado" };
 
   const restaurantUrl = publicRestaurantUrl(restaurant);
+  const isLaReservaPreview =
+    restaurant.demo && ["la-reserva-demo", "la-reserva"].includes(restaurant.slug);
   const previewImage =
-    restaurant.slug === "la-reserva-demo"
+    isLaReservaPreview
       ? new URL("/la-reserva/ambiente-demo.webp", restaurantUrl).toString()
       : restaurant.heroImageUrl ||
         restaurant.galleryUrls[0] ||
@@ -151,7 +153,10 @@ export async function RestaurantPageContent({ slug }: { slug: string }) {
   const restaurant = await getPublicRestaurant(slug);
   if (!restaurant) notFound();
 
-  if (restaurant.demo && restaurant.slug === "la-reserva-demo") {
+  if (
+    restaurant.demo &&
+    ["la-reserva-demo", "la-reserva"].includes(restaurant.slug)
+  ) {
     return <LaReservaExperience restaurant={restaurant} />;
   }
 

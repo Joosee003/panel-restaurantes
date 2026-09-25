@@ -16,6 +16,7 @@ import {
   dateInTimezone,
   isBookingDateAllowed,
 } from "../../lib/bookingDate";
+import styles from "./la-reserva.module.css";
 
 type AvailabilitySlot = {
   start: string;
@@ -39,6 +40,7 @@ type BookingWidgetProps = {
   primaryColor: string;
   accentColor: string;
   demo: boolean;
+  variant?: "default" | "la-reserva";
   privacyPath: string;
   conditionsPath: string;
 };
@@ -87,9 +89,11 @@ export default function BookingWidget({
   primaryColor,
   accentColor,
   demo,
+  variant = "default",
   privacyPath,
   conditionsPath,
 }: BookingWidgetProps) {
+  const editorial = variant === "la-reserva";
   const today = useMemo(() => dateInTimezone(timezone), [timezone]);
   const maxDate = useMemo(
     () => addCalendarDays(today, maxAdvanceDays),
@@ -166,13 +170,25 @@ export default function BookingWidget({
 
   async function submitBooking(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!selectedSlot || submitting || demo) return;
+    if (!selectedSlot || submitting) return;
 
     const form = new FormData(event.currentTarget);
     if (form.get("reviewWhatsapp") === "on" && !String(form.get("phone") || "").trim()) {
       setSubmitError("Indica tu teléfono si quieres recibir la petición de reseña por WhatsApp.");
       return;
     }
+
+    if (demo && editorial) {
+      setResult({
+        reservationId: "local-preview",
+        status: "preview",
+        start: selectedSlot.start,
+        managePath: "",
+      });
+      return;
+    }
+
+    if (demo) return;
     setSubmitting(true);
     setSubmitError("");
 
@@ -220,44 +236,48 @@ export default function BookingWidget({
   if (result) {
     return (
       <div
-        className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-7 text-slate-950 shadow-[0_24px_80px_rgba(15,23,42,0.12)] sm:p-9"
+        className={`${styles.reservaBookingSuccess} rounded-[2rem] border border-emerald-200 bg-emerald-50 p-7 text-slate-950 shadow-[0_24px_80px_rgba(15,23,42,0.12)] sm:p-9`}
         role="status"
       >
         <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-white">
           <Check className="h-7 w-7" strokeWidth={3} />
         </div>
         <p className="mt-6 text-xs font-black uppercase tracking-[0.22em] text-emerald-700">
-          Reserva recibida
+          {demo && editorial ? "Recorrido completado" : "Reserva recibida"}
         </p>
         <h3 className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950">
-          Tu mesa está {result.status === "confirmada" ? "confirmada" : "pendiente"}
+          {demo && editorial
+            ? "Así queda tu mesa"
+            : `Tu mesa está ${result.status === "confirmada" ? "confirmada" : "pendiente"}`}
         </h3>
         <p className="mt-3 max-w-lg text-sm font-semibold leading-6 text-slate-600">
-          Hemos registrado tu solicitud en {restaurantName}. Guarda la referencia corta por si necesitas contactar con el restaurante.
+          {demo && editorial
+            ? "Has completado la experiencia de reserva. Esta confirmación es local: no se ha enviado ni guardado información."
+            : `Hemos registrado tu solicitud en ${restaurantName}. Guarda la referencia corta por si necesitas contactar con el restaurante.`}
         </p>
-        <div className="mt-6 rounded-2xl border border-emerald-200 bg-white p-4">
+        {!demo ? <div className="mt-6 rounded-2xl border border-emerald-200 bg-white p-4">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
             Referencia
           </span>
           <p className="mt-1 font-mono text-lg font-black text-slate-950">
             {result.reservationId.slice(0, 8).toUpperCase()}
           </p>
-        </div>
-        <a
+        </div> : null}
+        {!demo ? <a
           href={result.managePath}
           className="mt-4 inline-flex items-center gap-2 rounded-xl bg-emerald-700 px-5 py-3 text-sm font-black text-white hover:bg-emerald-800"
         >
           Ver o cambiar mi reserva
           <ChevronRight className="h-4 w-4" />
-        </a>
+        </a> : null}
       </div>
     );
   }
 
   return (
-    <div className="overflow-hidden rounded-[2rem] border border-white/70 bg-white text-slate-950 shadow-[0_24px_80px_rgba(15,23,42,0.18)]">
+    <div className={`${styles.reservaBookingCard} overflow-hidden rounded-[2rem] border border-white/70 bg-white text-slate-950 shadow-[0_24px_80px_rgba(15,23,42,0.18)]`}>
       <div
-        className="flex items-center justify-between gap-4 px-6 py-5 text-white sm:px-8"
+        className={`${styles.reservaBookingHeader} flex items-center justify-between gap-4 px-6 py-5 text-white sm:px-8`}
         style={{ backgroundColor: primaryColor }}
       >
         <div>
@@ -274,15 +294,15 @@ export default function BookingWidget({
         </div>
       </div>
 
-      <div className="space-y-6 p-6 sm:p-8">
-        {demo ? (
+      <div className={`${styles.reservaBookingBody} space-y-6 p-6 sm:p-8`}>
+        {demo && !editorial ? (
           <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-xs font-bold leading-5 text-blue-900">
             Demostración de {restaurantName}: puedes consultar fechas y horarios. No se guardan reservas ni datos personales.
           </div>
         ) : null}
 
-        <ol className="grid grid-cols-3 gap-2" aria-label="Pasos de la reserva">
-          {(demo ? [["1", "Disponibilidad"]] : [
+        <ol className={`${styles.reservaBookingSteps} grid grid-cols-3 gap-2`} aria-label="Pasos de la reserva">
+          {(demo && !editorial ? [["1", "Disponibilidad"]] : [
             ["1", "Disponibilidad"],
             ["2", "Tus datos"],
             ["3", "Confirmación"],
@@ -304,8 +324,8 @@ export default function BookingWidget({
           })}
         </ol>
 
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
+        <div className="grid gap-3 sm:grid-cols-2" data-booking-controls>
+          <label className="block" data-booking-field>
             <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
               <CalendarDays className="h-4 w-4" /> Día
             </span>
@@ -320,11 +340,11 @@ export default function BookingWidget({
               style={{ colorScheme: "light" }}
             />
           </label>
-          <label className="block">
+          <label className="block" data-booking-field>
             <span className="mb-2 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-slate-500">
               <Users className="h-4 w-4" /> Personas
             </span>
-            <div className="flex h-12 items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-2">
+            <div className="flex h-12 items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-2" data-booking-party>
               <button
                 type="button"
                 aria-label="Quitar una persona"
@@ -365,7 +385,7 @@ export default function BookingWidget({
             ) : null}
           </div>
 
-          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4" aria-live="polite">
+          <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4" aria-live="polite" data-booking-slots>
             {slots.map((slot) => {
               const selected = selectedSlot?.start === slot.start;
               return (
@@ -400,7 +420,7 @@ export default function BookingWidget({
           </div>
 
           {!loadingSlots && !slotsError && slots.length === 0 ? (
-            <p className="mt-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500" role="status">
+            <p className="mt-3 rounded-xl bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-500" role="status" data-booking-empty>
               No quedan horas online para ese día. Prueba con otra fecha.
             </p>
           ) : null}
@@ -411,12 +431,12 @@ export default function BookingWidget({
           ) : null}
         </div>
 
-        {selectedSlot && demo ? (
+        {selectedSlot && demo && !editorial ? (
           <p className="rounded-xl bg-blue-50 px-4 py-4 text-sm font-semibold leading-6 text-blue-900" role="status">
             Demostración de solo lectura. Puedes consultar fechas y horarios; aquí no se guardan reservas ni datos personales.
           </p>
         ) : selectedSlot ? (
-          <form onSubmit={submitBooking} className="space-y-4 border-t border-slate-100 pt-6">
+          <form onSubmit={submitBooking} className="space-y-4 border-t border-slate-100 pt-6" data-booking-form>
             <div>
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">
                 Paso 2 de 3
@@ -428,7 +448,7 @@ export default function BookingWidget({
                 Los campos marcados con * son obligatorios.
               </p>
             </div>
-            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4">
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-4" data-booking-summary>
               <div
                 className="flex h-10 w-10 items-center justify-center rounded-xl"
                 style={{ backgroundColor: `${accentColor}33`, color: primaryColor }}
@@ -508,21 +528,21 @@ export default function BookingWidget({
               </label>
             </div>
 
-            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500">
+            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500" data-booking-legal>
               <input name="privacyInformed" type="checkbox" required className="mt-1 h-4 w-4" />
               <span>
                 He leído la <a href={privacyPath} target="_blank" rel="noreferrer" className="font-black text-slate-800 underline underline-offset-2">información de privacidad</a> y sé cómo {restaurantName} tratará los datos de esta reserva.
               </span>
             </label>
 
-            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500">
+            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500" data-booking-legal>
               <input name="conditionsAccepted" type="checkbox" required className="mt-1 h-4 w-4" />
               <span>
                 Acepto las <a href={conditionsPath} target="_blank" rel="noreferrer" className="font-black text-slate-800 underline underline-offset-2">condiciones de reserva</a> de {restaurantName}.
               </span>
             </label>
 
-            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500">
+            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500" data-booking-legal>
               <input name="reviewWhatsapp" type="checkbox" className="mt-1 h-4 w-4" />
               <span>Quiero recibir por WhatsApp una petición para compartir mi opinión después de mis visitas a {restaurantName}. Es opcional y puedo dejar de recibirlas desde el enlace del mensaje.</span>
             </label>
@@ -538,6 +558,7 @@ export default function BookingWidget({
               disabled={submitting}
               className="flex h-13 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60"
               style={{ backgroundColor: primaryColor }}
+              data-booking-submit
             >
               {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
               {submitting ? "Guardando tu reserva..." : "Confirmar reserva"}
@@ -546,7 +567,7 @@ export default function BookingWidget({
           </form>
         ) : null}
 
-        <div className="flex items-start gap-3 border-t border-slate-100 pt-5 text-xs font-semibold leading-5 text-slate-500">
+        <div className="flex items-start gap-3 border-t border-slate-100 pt-5 text-xs font-semibold leading-5 text-slate-500" data-booking-foot>
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0" style={{ color: primaryColor }} />
           <p>
             {notice || "La disponibilidad se comprueba en tiempo real."}

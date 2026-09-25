@@ -9,6 +9,12 @@ import styles from "./la-reserva.module.css";
 const BookingContext = createContext<() => void>(() => {});
 type Dish = PublicRestaurant["menu"]["sections"][number]["items"][number];
 const price = (value: number | null) => value == null ? "Consultar" : new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" }).format(value);
+const galleryCaptions = [
+  ["DESPUÉS DEL PRIMER PLATO", "La mesa ya tiene memoria."],
+  ["LA SALA", "Cada mesa encuentra su luz."],
+  ["EL PASE", "Fuego, manos y precisión."],
+  ["ANTES DE EMPEZAR", "Todo listo para recibirte."],
+];
 
 export function ReservaShell({ children, booking, bookingEnabled }: { children: ReactNode; booking: ReactNode; bookingEnabled: boolean }) {
   const root = useRef<HTMLDivElement>(null);
@@ -35,7 +41,12 @@ export function ReservaShell({ children, booking, bookingEnabled }: { children: 
     {children}
     <div className={styles.mobileBar}><a href="#carta">Ver carta</a>{bookingEnabled ? <ReserveButton>Reservar mesa <ArrowUpRight size={17} aria-hidden="true" /></ReserveButton> : null}</div>
     <dialog ref={dialog} className={`${styles.dialog} ${styles.bookingDialog}`} aria-labelledby="booking-dialog-title" onClick={event => { if (event.target === event.currentTarget) dialog.current?.close(); }}>
-      <div className={styles.drawerTop}><div><span>LA RESERVA · TU SITIO EN LA MESA</span><h2 id="booking-dialog-title">El plan empieza aquí.</h2><p>Elige con quién, cuándo y a qué hora.</p></div><button className={styles.closeButton} type="button" aria-label="Cerrar reserva" onClick={() => dialog.current?.close()}><X size={23} /></button></div>
+      <div className={styles.drawerTop}>
+        <Image className={styles.drawerImage} src="/la-reserva/mesa-vivida.webp" alt="Mesa compartida en La Reserva" fill sizes="(max-width: 760px) 100vw, 36vw" />
+        <div className={styles.drawerShade} />
+        <div className={styles.drawerCopy}><span>RESERVAS · LA RESERVA</span><h2 id="booking-dialog-title">Tu mesa,<br /><em>a tu ritmo.</em></h2><p>Elige el día. Nosotros preparamos el resto.</p></div>
+        <button className={styles.closeButton} type="button" aria-label="Cerrar reserva" onClick={() => dialog.current?.close()}><X size={23} /></button>
+      </div>
       <div className={styles.bookingWidget}>{visited ? booking : null}</div>
     </dialog>
   </div></BookingContext.Provider>;
@@ -89,7 +100,7 @@ function DishImage({ item, sizes }: { item: Dish; sizes: string }) {
   const [failed, setFailed] = useState(false);
   const photo = demoDishPhotos[item.name];
   const useIllustration = photo && (!item.imageUrl || (photo.source ? item.imageUrl.includes(photo.source) : item.imageUrl.startsWith("https://images.unsplash.com/")));
-  if (useIllustration) return <span className={styles.dishSprite} role="img" aria-label={`${item.name}, imagen ilustrativa`} style={{ backgroundPosition: `${(photo.cell % 4) * 100 / 3}% ${Math.floor(photo.cell / 4) * 100}%` }} />;
+  if (useIllustration) return <span className={styles.dishSprite} role="img" aria-label={`Presentación de ${item.name}`} style={{ backgroundPosition: `${(photo.cell % 4) * 100 / 3}% ${Math.floor(photo.cell / 4) * 100}%` }} />;
   return item.imageUrl && !failed ? <Image src={item.imageUrl} alt={item.name} fill unoptimized sizes={sizes} onError={() => setFailed(true)} /> : <div className={styles.imageFallback}><Utensils size={36} aria-hidden="true" /><span>{item.name}</span></div>;
 }
 
@@ -118,7 +129,7 @@ export function ReservaMenu({ sections, bookingEnabled }: { sections: PublicRest
     </div>
     <dialog className={`${styles.dialog} ${styles.dishDialog}`} ref={detail} aria-labelledby="dish-title" onClick={event => { if (event.target === event.currentTarget) detail.current?.close(); }}>
       <button type="button" className={styles.closeButton} aria-label="Cerrar detalle del plato" onClick={() => detail.current?.close()}><X size={22} /></button>
-      {dish ? <><div className={styles.detailPhoto}><DishImage key={dish.name} item={dish} sizes="(max-width: 760px) 95vw, 480px" /></div><div className={styles.detailCopy}><p className={styles.eyebrow}>DE NUESTRA CARTA</p><h2 id="dish-title">{dish.name}</h2><p>{dish.description}</p><strong>{price(dish.price)}</strong><p className={styles.dishDisclaimer}>Imagen ilustrativa · Precio de demostración · IVA incluido.<br />Para alérgenos e intolerancias, consulta al equipo.</p>{bookingEnabled ? <button type="button" className={styles.redButton} onClick={() => { detail.current?.close(); openBooking(); }}>Me apetece. Reservar mesa <ArrowUpRight size={20} aria-hidden="true" /></button> : null}</div></> : null}
+      {dish ? <><div className={styles.detailPhoto}><DishImage key={dish.name} item={dish} sizes="(max-width: 760px) 95vw, 480px" /></div><div className={styles.detailCopy}><p className={styles.eyebrow}>DE NUESTRA CARTA</p><h2 id="dish-title">{dish.name}</h2><p>{dish.description}</p><strong>{price(dish.price)}</strong><p className={styles.dishDisclaimer}>IVA incluido.<br />Para alérgenos e intolerancias, consulta al equipo.</p>{bookingEnabled ? <button type="button" className={styles.redButton} onClick={() => { detail.current?.close(); openBooking(); }}>Me apetece. Reservar mesa <ArrowUpRight size={20} aria-hidden="true" /></button> : null}</div></> : null}
     </dialog>
   </div>;
 }
@@ -129,7 +140,7 @@ export function ReservaGallery({ images }: { images: string[] }) {
   function move(amount: number) { setSelected(current => (current + amount + images.length) % images.length); }
   if (!images.length) return null;
   return <div className={styles.gallery}>
-    <div className={styles.galleryStage}><Image key={selected} src={images[selected]} alt={`La Reserva, fotografía de ambiente ${selected + 1}`} fill sizes="100vw" className={styles.galleryPhoto} /><button type="button" className={styles.expandButton} aria-label="Ampliar fotografía del ambiente" onClick={() => enlarged.current?.showModal()}><ZoomIn size={19} aria-hidden="true" /><span>Ver de cerca</span></button><span className={styles.galleryCaption}>BUENA MESA.<br /><em>Buenos momentos.</em></span></div>
+    <div className={styles.galleryStage}><Image key={selected} src={images[selected]} alt={`La Reserva, fotografía de ambiente ${selected + 1}`} fill sizes="100vw" className={styles.galleryPhoto} /><button type="button" className={styles.expandButton} aria-label="Ampliar fotografía del ambiente" onClick={() => enlarged.current?.showModal()}><ZoomIn size={19} aria-hidden="true" /><span>Ver de cerca</span></button><span className={styles.galleryCaption}><small>{galleryCaptions[selected]?.[0]}</small><strong>{galleryCaptions[selected]?.[1]}</strong></span></div>
     <div className={styles.galleryControls}><span className={styles.galleryCount} aria-live="polite">{String(selected + 1).padStart(2, "0")} <span>/ {String(images.length).padStart(2, "0")}</span></span><div className={styles.galleryDots}>{images.map((_, index) => <button type="button" key={index} aria-label={`Ver fotografía ${index + 1}`} aria-pressed={selected === index} onClick={() => setSelected(index)} />)}</div><div className={styles.galleryArrows}><button type="button" aria-label="Fotografía anterior" onClick={() => move(-1)}><ArrowLeft size={23} /></button><button type="button" aria-label="Fotografía siguiente" onClick={() => move(1)}><ArrowRight size={23} /></button></div></div>
     <dialog className={`${styles.dialog} ${styles.galleryDialog}`} ref={enlarged} aria-label="Fotografía del ambiente ampliada" onKeyDown={event => { if (event.key === "ArrowRight") { event.preventDefault(); move(1); } if (event.key === "ArrowLeft") { event.preventDefault(); move(-1); } }} onClick={event => { if (event.target === event.currentTarget) enlarged.current?.close(); }}><button className={styles.closeButton} type="button" aria-label="Cerrar fotografía" onClick={() => enlarged.current?.close()}><X size={24} /></button><div className={styles.enlargedPhoto}><Image src={images[selected]} alt={`Ambiente de La Reserva, fotografía ${selected + 1}`} fill sizes="95vw" /></div><div className={styles.enlargedControls}><button type="button" aria-label="Anterior en pantalla ampliada" onClick={() => move(-1)}><ArrowLeft /></button><span aria-live="polite">{selected + 1} / {images.length}</span><button type="button" aria-label="Siguiente en pantalla ampliada" onClick={() => move(1)}><ArrowRight /></button></div></dialog>
   </div>;

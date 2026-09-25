@@ -23,8 +23,10 @@ import styles from "./la-reserva.module.css";
 
 const heroPhoto = "/la-reserva/ambiente-demo.webp";
 const tablePhoto = "/la-reserva/mesa-demo.webp";
-const kitchenPhoto = "/la-reserva/cocina-demo.webp";
 const terracePhoto = "/la-reserva/terraza-demo.webp";
+const productPhoto = "/la-reserva/producto-tomate.webp";
+const servicePhoto = "/la-reserva/servicio-fuego.webp";
+const livedTablePhoto = "/la-reserva/mesa-vivida.webp";
 
 function absoluteAsset(path: string, restaurant: PublicRestaurant) {
   return new URL(path, publicRestaurantUrl(restaurant)).toString();
@@ -35,10 +37,15 @@ export default function LaReservaExperience({
 }: {
   restaurant: PublicRestaurant;
 }) {
-  const gallery = [heroPhoto, terracePhoto, kitchenPhoto, tablePhoto];
-  const location =
-    restaurant.address || restaurant.eyebrow || "Castellón · Mediterráneo";
+  const gallery = [livedTablePhoto, heroPhoto, servicePhoto, tablePhoto];
   const publicUrl = publicRestaurantUrl(restaurant);
+  const hasVisitDetails = Boolean(
+    restaurant.address ||
+      restaurant.phone ||
+      restaurant.email ||
+      restaurant.mapsUrl ||
+      restaurant.instagramUrl,
+  );
   const structuredData = {
     "@context": "https://schema.org",
     "@type": "Restaurant",
@@ -73,16 +80,14 @@ export default function LaReservaExperience({
       primaryColor="#25362c"
       accentColor="#cbb98e"
       demo={restaurant.demo}
+      variant="la-reserva"
       privacyPath={legalPath(restaurant, "privacidad")}
       conditionsPath={legalPath(restaurant, "condiciones-reserva")}
     />
   );
 
   return (
-    <ReservaShell
-      booking={booking}
-      bookingEnabled={restaurant.booking.enabled}
-    >
+    <ReservaShell booking={booking} bookingEnabled={restaurant.booking.enabled}>
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -110,8 +115,8 @@ export default function LaReservaExperience({
           />
           <div className={styles.heroShade} />
           <div className={styles.heroTopline}>
-            <span>{restaurant.eyebrow || "Castellón · Mediterráneo"}</span>
-            <span>Restaurante demo</span>
+            <span>{restaurant.eyebrow}</span>
+            <span>Producto · Fuego · Sobremesa</span>
           </div>
           <div className={styles.heroContent}>
             <p className={styles.heroKicker}>Cocina con calma · Mesas con vida</p>
@@ -137,12 +142,15 @@ export default function LaReservaExperience({
             </div>
           </div>
           <div className={styles.heroMeta}>
+            {restaurant.address ? (
+              <span>
+                <MapPin size={14} aria-hidden="true" /> {restaurant.address}
+              </span>
+            ) : (
+              <span>Producto · Brasa · Temporada</span>
+            )}
             <span>
-              <MapPin size={14} aria-hidden="true" /> {location}
-            </span>
-            <span>
-              <Clock3 size={14} aria-hidden="true" /> Consulta disponibilidad
-              al reservar
+              <Clock3 size={14} aria-hidden="true" /> Reserva online
             </span>
           </div>
           <a className={styles.heroScroll} href="#la-casa">
@@ -150,10 +158,7 @@ export default function LaReservaExperience({
           </a>
         </section>
 
-        <aside
-          className={styles.runningLine}
-          aria-label="La esencia de La Reserva"
-        >
+        <aside className={styles.runningLine} aria-label="La esencia de La Reserva">
           <span>Producto de temporada</span>
           <em>·</em>
           <span>Cocina mediterránea</span>
@@ -161,40 +166,34 @@ export default function LaReservaExperience({
           <span>Sobremesas sin prisa</span>
         </aside>
 
-        <section
-          id="la-casa"
-          className={styles.story}
-          aria-labelledby="casa-title"
-        >
+        <section id="la-casa" className={styles.story} aria-labelledby="casa-title">
           <div className={styles.sectionIndex}>
             <span>01</span>
             <p>La casa</p>
           </div>
-          <div className={styles.storyLead} data-reveal>
+          <div className={`${styles.storyLead} ${styles.storyLeadCompact}`} data-reveal>
             <p className={styles.eyebrow}>Muy de aquí. Muy a tu aire.</p>
-            <h2 id="casa-title">
-              Una mesa no es un lugar. <em>Es lo que ocurre alrededor.</em>
-            </h2>
+            <h2 id="casa-title">La cocina empieza mucho antes del plato.</h2>
           </div>
           <figure className={styles.tableFigure} data-reveal>
             <div className={styles.tablePhoto}>
               <Image
-                src={tablePhoto}
-                alt="Mesa preparada con vino, aceitunas y luz de tarde"
+                src={productPhoto}
+                alt="Manos preparando tomates y hierbas frescas en cocina"
                 fill
                 sizes="(max-width: 760px) 86vw, 38vw"
               />
             </div>
             <figcaption>
-              <span>La primera copa</span>
-              <span>Imagen de demostración</span>
+              <span>Materia prima</span>
+              <span>Antes del servicio</span>
             </figcaption>
           </figure>
           <div className={styles.storyCopy} data-reveal>
             <p>
-              Nos gustan los planes que empiezan con algo al centro y terminan
-              sin mirar el reloj. Cocina reconocible, producto bien tratado y
-              una sala pensada para quedarse.
+              Aquí el producto se toca, se corta y pasa por el fuego sin perder
+              su nombre. La sala hace el resto: servir, observar y dejar que la
+              mesa encuentre su ritmo.
             </p>
             <ul aria-label="Especialidades de La Reserva">
               {(restaurant.specialties.length
@@ -210,44 +209,65 @@ export default function LaReservaExperience({
           </div>
         </section>
 
-        <section
-          className={styles.kitchen}
-          aria-label="La cocina de La Reserva"
-        >
-          <div className={styles.kitchenPhoto}>
-            <Image
-              src={kitchenPhoto}
-              alt="Cocina abierta de La Reserva durante el servicio"
-              fill
-              sizes="100vw"
-            />
+        <section className={styles.serviceSequence} aria-labelledby="servicio-title">
+          <header className={styles.sequenceHeader} data-reveal>
+            <div className={styles.sectionIndexLight}>
+              <span>02</span>
+              <p>Dentro del servicio</p>
+            </div>
+            <h2 id="servicio-title">Tres gestos. Una misma mesa.</h2>
+            <p>
+              Del primer corte al último plato: materia, fuego y una sobremesa
+              que ya ha empezado a desordenarlo todo.
+            </p>
+          </header>
+          <div className={styles.sequenceTrack}>
+            <figure className={`${styles.sequenceFrame} ${styles.sequenceProduct}`} data-reveal>
+              <div className={styles.sequenceImage}>
+                <Image
+                  src={productPhoto}
+                  alt="Tomates, hierbas y manos trabajando sobre una mesa de cocina"
+                  fill
+                  sizes="(max-width: 760px) 82vw, 30vw"
+                />
+              </div>
+              <figcaption><span>01</span><p>El producto llega sin disfraz.</p></figcaption>
+            </figure>
+            <figure className={`${styles.sequenceFrame} ${styles.sequenceService}`} data-reveal>
+              <div className={styles.sequenceImage}>
+                <Image
+                  src={servicePhoto}
+                  alt="Cocinero terminando un plato junto al fuego durante el servicio"
+                  fill
+                  sizes="(max-width: 760px) 82vw, 36vw"
+                />
+              </div>
+              <figcaption><span>02</span><p>El pase exige pulso.</p></figcaption>
+            </figure>
+            <figure className={`${styles.sequenceFrame} ${styles.sequenceTable}`} data-reveal>
+              <div className={styles.sequenceImage}>
+                <Image
+                  src={livedTablePhoto}
+                  alt="Mesa vivida después del primer plato, con pan, vino y servilletas"
+                  fill
+                  sizes="(max-width: 760px) 82vw, 27vw"
+                />
+              </div>
+              <figcaption><span>03</span><p>La mesa guarda la historia.</p></figcaption>
+            </figure>
           </div>
-          <div className={styles.kitchenShade} />
-          <p className={styles.kitchenLabel}>
-            Cocina a la vista · Servicio en marcha
-          </p>
-          <blockquote>
-            El punto exacto del fuego. <em>Y luego, dejar hablar al producto.</em>
-          </blockquote>
-          <span className={styles.kitchenNote}>02 — Entre cocina y sala</span>
         </section>
 
-        <section
-          id="carta"
-          className={styles.menuSection}
-          aria-labelledby="carta-title"
-        >
+        <section id="carta" className={styles.menuSection} aria-labelledby="carta-title">
           <div className={styles.sectionIndex}>
             <span>03</span>
             <p>La carta</p>
           </div>
-          <div className={styles.menuIntro} data-reveal>
-            <h2 id="carta-title">
-              Empieza compartiendo. <em>Sigue como quieras.</em>
-            </h2>
+          <div className={`${styles.menuIntro} ${styles.menuIntroCompact}`} data-reveal>
+            <h2 id="carta-title">Una carta breve, pensada para volver.</h2>
             <p>
-              Una carta breve para elegir por apetito, no por inercia. Los
-              platos y precios que ves pertenecen a esta demostración.
+              Empieza al centro, sigue por lo que marque el apetito y deja sitio
+              para el último bocado.
             </p>
           </div>
           <ReservaMenu
@@ -255,52 +275,35 @@ export default function LaReservaExperience({
             bookingEnabled={restaurant.booking.enabled}
           />
           <div className={styles.menuFooter}>
-            <p>
-              Precios de demostración · IVA incluido. Consulta al equipo sobre
-              alérgenos e intolerancias.
-            </p>
+            <p>IVA incluido. Para alérgenos e intolerancias, consulta al equipo.</p>
             {restaurant.menu.enabled && restaurant.menu.publicPath ? (
-              <a
-                className={styles.editorialLink}
-                href={restaurant.menu.publicPath}
-              >
-                Abrir carta digital{" "}
-                <ArrowUpRight size={18} aria-hidden="true" />
+              <a className={styles.editorialLink} href={restaurant.menu.publicPath}>
+                Abrir carta digital <ArrowUpRight size={18} aria-hidden="true" />
               </a>
             ) : null}
           </div>
         </section>
 
-        <section
-          id="el-ambiente"
-          className={styles.ambience}
-          aria-labelledby="ambiente-title"
-        >
-          <div className={styles.ambienceHeading} data-reveal>
+        <section id="el-ambiente" className={styles.ambience} aria-labelledby="ambiente-title">
+          <div className={`${styles.ambienceHeading} ${styles.ambienceHeadingCompact}`} data-reveal>
             <div className={styles.sectionIndexLight}>
               <span>04</span>
-              <p>El ambiente</p>
+              <p>La mesa vivida</p>
             </div>
-            <h2 id="ambiente-title">
-              La luz baja. <em>El plan se alarga.</em>
-            </h2>
+            <h2 id="ambiente-title">Cuando la sala empieza a contar cosas.</h2>
             <p>
-              Hay noches que empiezan con una reserva y acaban convirtiéndose
-              en recuerdo.
+              Migas, copas a medias, el pase en marcha. La belleza está en lo
+              que ocurre, no en dejarlo todo intacto.
             </p>
           </div>
           <ReservaGallery images={gallery} />
         </section>
 
-        <section
-          id="visitanos"
-          className={styles.visit}
-          aria-labelledby="visitanos-title"
-        >
+        <section id="visitanos" className={styles.visit} aria-labelledby="visitanos-title">
           <div className={styles.visitPhoto} data-reveal>
             <Image
               src={terracePhoto}
-              alt="Terraza mediterránea de La Reserva al anochecer"
+              alt="Terraza de La Reserva al anochecer"
               fill
               sizes="(max-width: 900px) 100vw, 58vw"
             />
@@ -308,131 +311,84 @@ export default function LaReservaExperience({
           <div className={styles.visitContent} data-reveal>
             <div className={styles.sectionIndex}>
               <span>05</span>
-              <p>Ven a vernos</p>
+              <p>La próxima mesa</p>
             </div>
-            <h2 id="visitanos-title">
-              Tu próxima sobremesa <em>empieza aquí.</em>
-            </h2>
-            <dl>
-              <div>
-                <dt>Ubicación</dt>
-                <dd>
-                  {restaurant.address ||
-                    "Dirección pública pendiente de configurar"}
-                </dd>
-              </div>
-              <div>
-                <dt>Horario</dt>
-                <dd>
-                  Horario público pendiente de configurar en esta demostración.
-                </dd>
-              </div>
-              {restaurant.phone ? (
-                <div>
-                  <dt>Teléfono</dt>
-                  <dd>
-                    <a href={`tel:${restaurant.phone}`}>
-                      <Phone size={16} aria-hidden="true" /> {restaurant.phone}
-                    </a>
-                  </dd>
+            <h2 id="visitanos-title">Ven con hambre. Quédate sin prisa.</h2>
+            {hasVisitDetails ? (
+              <>
+                <dl>
+                  {restaurant.address ? (
+                    <div><dt>Ubicación</dt><dd>{restaurant.address}</dd></div>
+                  ) : null}
+                  {restaurant.phone ? (
+                    <div><dt>Teléfono</dt><dd><a href={`tel:${restaurant.phone}`}><Phone size={16} aria-hidden="true" /> {restaurant.phone}</a></dd></div>
+                  ) : null}
+                  {restaurant.email ? (
+                    <div><dt>Contacto</dt><dd><a href={`mailto:${restaurant.email}`}><Mail size={16} aria-hidden="true" /> {restaurant.email}</a></dd></div>
+                  ) : null}
+                </dl>
+                <div className={styles.visitActions}>
+                  {restaurant.mapsUrl ? (
+                    <a href={restaurant.mapsUrl} target="_blank" rel="noreferrer">Abrir en Maps <ArrowUpRight size={18} aria-hidden="true" /></a>
+                  ) : null}
+                  {restaurant.instagramUrl ? (
+                    <a href={restaurant.instagramUrl} target="_blank" rel="noreferrer"><Instagram size={17} aria-hidden="true" /> Instagram</a>
+                  ) : null}
                 </div>
-              ) : null}
-              {restaurant.email ? (
-                <div>
-                  <dt>Contacto</dt>
-                  <dd>
-                    <a href={`mailto:${restaurant.email}`}>
-                      <Mail size={16} aria-hidden="true" /> {restaurant.email}
-                    </a>
-                  </dd>
-                </div>
-              ) : null}
-            </dl>
-            <div className={styles.visitActions}>
-              {restaurant.mapsUrl ? (
-                <a
-                  href={restaurant.mapsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Abrir en Maps <ArrowUpRight size={18} aria-hidden="true" />
-                </a>
-              ) : null}
-              {restaurant.instagramUrl ? (
-                <a
-                  href={restaurant.instagramUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <Instagram size={17} aria-hidden="true" /> Instagram
-                </a>
-              ) : null}
-            </div>
-            <p className={styles.missingDataNote}>
-              La dirección mostrada es ficticia. El horario, teléfono y enlace
-              de Maps se publicarán cuando el restaurante aporte datos reales.
-            </p>
+              </>
+            ) : (
+              <div className={styles.visitReserve}>
+                <p>
+                  Elige el día, las personas y una hora. Nosotros empezamos a
+                  preparar la mesa.
+                </p>
+                {restaurant.booking.enabled ? (
+                  <ReserveButton className={styles.primaryButton}>
+                    Ver mesas disponibles <ArrowUpRight size={18} aria-hidden="true" />
+                  </ReserveButton>
+                ) : null}
+              </div>
+            )}
           </div>
         </section>
 
-        <section
-          id="reservar"
-          className={styles.bookingSection}
-          aria-labelledby="mesa-title"
-        >
+        <section id="reservar" className={styles.bookingSection} aria-labelledby="mesa-title">
           <div className={styles.bookingIndex}>06 — Reserva</div>
           <div className={styles.bookingContent} data-reveal>
-            <h2 id="mesa-title">
-              La mesa está puesta. <em>Faltas tú.</em>
-            </h2>
+            <h2 id="mesa-title">La mesa está puesta.</h2>
             <div className={styles.bookingAside}>
-              <p>
-                Elige día, número de personas y una hora disponible. En esta
-                demo puedes recorrer el flujo sin guardar datos.
-              </p>
+              <p>Día, comensales y hora. Tres decisiones antes de sentarte.</p>
               {restaurant.booking.enabled ? (
                 <ReserveButton className={styles.bookingButton}>
-                  Buscar una mesa{" "}
-                  <ArrowUpRight size={18} aria-hidden="true" />
+                  Buscar una mesa <ArrowUpRight size={18} aria-hidden="true" />
                 </ReserveButton>
               ) : (
                 <p>Las reservas online están en pausa.</p>
               )}
             </div>
           </div>
-          <div className={styles.bookingNote}>
-            <span>Demostración segura</span>
-            <p>
-              La Reserva es un restaurante ficticio. La disponibilidad puede
-              consultarse, pero no se crean reservas ni se guardan datos
-              personales.
-            </p>
-          </div>
         </section>
       </main>
 
       <footer className={styles.footer}>
         <div className={styles.footerLead}>
-          <a href="#contenido" aria-label="La Reserva, volver al inicio">
-            La Reserva
-          </a>
+          <a href="#contenido" aria-label="La Reserva, volver al inicio">La Reserva</a>
           <p>Producto · Fuego · Sobremesa</p>
         </div>
         <nav aria-label="Navegación del pie">
           <a href="#la-casa">La casa</a>
           <a href="#carta">La carta</a>
-          <a href="#el-ambiente">El ambiente</a>
-          <a href="#visitanos">Visítanos</a>
+          <a href="#el-ambiente">La mesa</a>
+          <a href="#visitanos">Reserva</a>
         </nav>
         <div className={styles.footerLegal}>
-          <span>© {new Date().getFullYear()} La Reserva · Restaurante demo</span>
+          <span>© {new Date().getFullYear()} La Reserva</span>
           <div>
             <a href={legalPath(restaurant, "aviso-legal")}>Aviso legal</a>
             <a href={legalPath(restaurant, "privacidad")}>Privacidad</a>
             <a href={legalPath(restaurant, "condiciones-reserva")}>Condiciones</a>
             <a href={legalPath(restaurant, "cookies")}>Cookies</a>
           </div>
-          <span>Web conectada por GastroHelp</span>
         </div>
       </footer>
     </ReservaShell>

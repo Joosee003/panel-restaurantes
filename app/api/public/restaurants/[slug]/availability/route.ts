@@ -54,10 +54,21 @@ export async function GET(
     return json({ ok: false, error: "INVALID_BOOKING_REQUEST" }, 400);
   }
 
-  // The isolated La Reserva preview fixture has no database id. Keep its
-  // read-only flow usable without inventing synthetic availability.
+  // The isolated La Reserva preview fixture has no database id. Return a
+  // deterministic, non-persistent schedule so the complete booking UI can be
+  // reviewed without reading or writing restaurant data.
   if (restaurant.demo && !restaurant.restauranteId) {
-    return json({ ok: true, slots: [] });
+    const times = ["13:30", "14:00", "20:30", "21:00"];
+    return json({
+      ok: true,
+      slots: times.map((time) => ({
+        start: `${date}T${time}:00`,
+        end: `${date}T${time === "13:30" ? "15:00" : time === "14:00" ? "15:30" : time === "20:30" ? "22:00" : "22:30"}:00`,
+        time,
+        shift: time < "18:00" ? "Comida" : "Cena",
+        availableCapacity: Math.max(party, 8),
+      })),
+    });
   }
 
   try {

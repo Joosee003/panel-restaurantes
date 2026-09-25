@@ -201,15 +201,15 @@ const laReservaDemoFallback: PublicRestaurant = {
   published: true,
   demo: true,
   name: "La Reserva",
-  eyebrow: "Castellón · Mediterráneo",
+  eyebrow: "Cocina mediterránea contemporánea",
   headline: "Cocina con calma. Mesas con vida.",
   subtitle:
     "Producto que se reconoce, fuego que se escucha y sobremesas sin prisa.",
   description:
-    "Restaurante ficticio utilizado para mostrar la experiencia web y de reservas de GastroHelp.",
-  address: "Plaza del Mediterráneo 8, Castellón",
+    "Una casa de cocina mediterránea, producto de temporada y sobremesas sin prisa.",
+  address: "",
   phone: "",
-  email: "demo@gastrohelp.es",
+  email: "",
   whatsapp: "",
   mapsUrl: "",
   instagramUrl: "",
@@ -221,17 +221,17 @@ const laReservaDemoFallback: PublicRestaurant = {
   primaryColor: "#25362c",
   accentColor: "#c6a56a",
   backgroundColor: "#f3eee4",
-  seoTitle: "La Reserva | Restaurante de demostración",
+  seoTitle: "La Reserva | Cocina mediterránea y sobremesa",
   seoDescription:
-    "Restaurante ficticio utilizado para mostrar el sistema GastroHelp.",
+    "La Reserva reúne producto, fuego y una forma tranquila de sentarse a la mesa.",
   customDomain: "",
   legal: {
     owner: "La Reserva",
     taxId: "",
-    address: "Plaza del Mediterráneo 8, Castellón",
-    email: "demo@gastrohelp.es",
+    address: "",
+    email: "",
     registry: "",
-    privacyEmail: "demo@gastrohelp.es",
+    privacyEmail: "",
     bookingRetention: "",
     updatedAt: "",
   },
@@ -326,7 +326,7 @@ const laReservaDemoFallback: PublicRestaurant = {
     maxAdvanceDays: 60,
     requiresPhone: true,
     requiresEmail: false,
-    notice: "Esta demostración es de solo lectura.",
+    notice: "La disponibilidad se actualiza al elegir día y número de personas.",
     cancellationPolicy:
       "Si tus planes cambian, avisa con la mayor antelación posible.",
   },
@@ -370,6 +370,9 @@ function getIsolatedPreviewFallback(slug: string) {
   if (!isolatedPreview) return null;
   if (slug === pilotFallback.slug) return pilotFallback;
   if (slug === laReservaDemoFallback.slug) return laReservaDemoFallback;
+  if (slug === "la-reserva") {
+    return { ...laReservaDemoFallback, slug };
+  }
   return null;
 }
 

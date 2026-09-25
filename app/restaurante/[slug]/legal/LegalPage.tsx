@@ -120,12 +120,12 @@ function LegalContent({ restaurant, document }: { restaurant: PublicRestaurant; 
 }
 
 export default function LegalPage({ restaurant, document }: { restaurant: PublicRestaurant; document: LegalDocument }) {
-  if (restaurant.slug === "la-reserva-demo") {
+  if (["la-reserva-demo", "la-reserva"].includes(restaurant.slug)) {
     return (
       <main className={`${styles.site} ${styles.legalPage} restaurant-public-site`}>
         <article className={styles.legalArticle}>
           <header className={styles.legalHeader}>
-            <a href={publicRestaurantUrl(restaurant)} className={styles.legalBack}>
+            <a href={`/restaurante/${restaurant.slug}`} className={styles.legalBack}>
               <ArrowLeft className="h-4 w-4" /> Volver a {restaurant.name}
             </a>
             <p>La Reserva · Información legal</p>
