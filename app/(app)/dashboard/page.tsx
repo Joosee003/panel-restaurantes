@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -20,7 +20,6 @@ import {
   Users,
   Utensils,
   Wallet,
-  Zap,
 } from "lucide-react";
 
 import { supabase } from "../lib/supabaseClient";
@@ -33,6 +32,7 @@ import {
 } from "../lib/restaurantModules";
 import { withTimeout } from "../lib/safeQuery";
 import { isOrderClosed, dashboardOrderFilter } from "@/lib/orders/order-state";
+import { TurnoMetric, TurnoPageHeader } from "../components/turno-vivo/TurnoPrimitives";
 
 const DashboardChart = dynamic(() => import("../components/DashboardChart"), {
   ssr: false,
@@ -592,81 +592,30 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="min-h-screen space-y-6 bg-slate-50 text-slate-950">
-      <section className="overflow-hidden rounded-[28px] border border-blue-100 bg-white shadow-sm">
-        <div className="relative p-6 sm:p-8">
-          <div className="absolute right-0 top-0 h-40 w-40 rounded-full bg-blue-100 blur-3xl" />
-          <div className="absolute bottom-0 left-1/3 h-32 w-32 rounded-full bg-cyan-100 blur-3xl" />
-
-          <div className="relative flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-extrabold uppercase tracking-widest text-blue-700">
-                <Zap size={14} /> Panel inteligente
-              </div>
-
-              <h1 className="text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
-                {restauranteNombre}
-              </h1>
-              <p className="mt-2 max-w-2xl text-sm font-medium text-slate-600">
-                {modules.camarero_digital
-                  ? "Resumen de hoy, cocina, mesas, reservas y acciones importantes para el restaurante."
-                  : "Resumen de hoy con reservas, clientes, reseñas y acciones importantes para el restaurante."}
-              </p>
-
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs font-bold text-slate-500">
-                <span className="rounded-full bg-slate-100 px-3 py-1">{lastUpdated}</span>
-                {refreshing && (
-                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1 text-blue-700">
-                    <RefreshCw size={13} className="animate-spin" /> Refrescando
-                  </span>
-                )}
-                {modules.camarero_digital && pedidosUrgentes.length > 0 && (
-                  <span className="rounded-full bg-rose-50 px-3 py-1 text-rose-700">
-                    {pedidosUrgentes.length} urgente{pedidosUrgentes.length === 1 ? "" : "s"}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-end">
-              <button
-                onClick={() => cargarDashboard("refresh")}
-                disabled={loading || refreshing}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:opacity-50"
-              >
-                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} /> Actualizar
-              </button>
-              {modules.camarero_digital ? (
-                <Link
-                  href="/panel/pedidos-qr"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-extrabold text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-800 hover:shadow-md"
-                >
-                  <ChefHat size={16} /> Cocina
-                </Link>
-              ) : null}
-              {modules.reservas ? (
-                <Link
-                  href="/reservas"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <CalendarDays size={16} /> Reservas
-                </Link>
-              ) : null}
-              {modules.menu_digital ? (
-                <Link
-                  href="/panel/menu-dia"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-extrabold text-slate-900 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
-                >
-                  <Utensils size={16} /> Menú
-                </Link>
-              ) : null}
-            </div>
-          </div>
-        </div>
-      </section>
+    <div className="gh-turno-page gh-dashboard text-slate-950">
+      <TurnoPageHeader
+        eyebrow="Turno vivo · Hoy"
+        title={restauranteNombre}
+        description={modules.camarero_digital
+          ? "Lo que está ocurriendo ahora en sala, cocina y reservas, ordenado por prioridad."
+          : "Reservas, clientes y reputación de hoy, ordenados para decidir rápido."}
+        meta={<>
+          <span>{lastUpdated}</span>
+          {refreshing ? <span className="inline-flex items-center gap-1 text-blue-700"><RefreshCw size={13} className="animate-spin" /> Refrescando</span> : null}
+          {modules.camarero_digital && pedidosUrgentes.length > 0 ? <span className="text-rose-700">{pedidosUrgentes.length} urgente{pedidosUrgentes.length === 1 ? "" : "s"}</span> : null}
+        </>}
+        actions={<>
+          <button onClick={() => cargarDashboard("refresh")} disabled={loading || refreshing} className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold disabled:opacity-50">
+            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} /> Actualizar
+          </button>
+          {modules.reservas ? <Link href="/reservas" className="gh-turno-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><CalendarDays size={16} /> Reservas</Link> : null}
+          {modules.camarero_digital ? <Link href="/panel/pedidos-qr" className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><ChefHat size={16} /> Cocina</Link> : null}
+          {modules.menu_digital ? <Link href="/panel/menu-dia" className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><Utensils size={16} /> Menú</Link> : null}
+        </>}
+      />
 
       {error && (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+        <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
           {error}
         </div>
       )}
@@ -728,35 +677,23 @@ export default function DashboardPage() {
         </Link>
       </div> : null}
 
-      <section className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <section className="gh-turno-metrics" style={{ "--gh-metric-count": kpis.length } as CSSProperties} aria-label="Indicadores de hoy">
         {kpis.map((kpi) => {
           const Icon = kpi.icono;
-          const tonos: Record<string, string> = {
-            blue: "bg-blue-50 text-blue-700 border-blue-100",
-          };
-
           return (
             <Link
               href={kpi.href}
               key={kpi.titulo}
-              className="group rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:shadow-lg"
+              className="group min-w-0 text-inherit"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${tonos[kpi.tono]}`}>
-                  <Icon size={22} />
-                </div>
-                <ArrowRight size={17} className="mt-1 text-slate-300 transition group-hover:translate-x-1 group-hover:text-blue-700" />
-              </div>
-              <p className="mt-5 text-xs font-black uppercase tracking-widest text-slate-500">{kpi.titulo}</p>
-              <p className="mt-2 text-3xl font-black text-slate-950">{loading ? "..." : kpi.valor}</p>
-              <p className="mt-2 text-sm font-semibold text-slate-500">{kpi.detalle}</p>
+              <TurnoMetric label={kpi.titulo} value={loading ? "…" : kpi.valor} detail={kpi.detalle} icon={<Icon size={17} />} />
             </Link>
           );
         })}
       </section>
 
       <section className={`grid grid-cols-1 gap-5 ${modules.camarero_digital ? "xl:grid-cols-3" : ""}`}>
-        <div className={`rounded-3xl border border-slate-200 bg-white p-5 shadow-sm ${modules.camarero_digital ? "xl:col-span-2" : ""}`}>
+        <div className={`gh-legacy-surface p-5 sm:p-6 ${modules.camarero_digital ? "xl:col-span-2" : ""}`}>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-black uppercase tracking-widest text-slate-500">Qué hacer ahora</p>
@@ -783,7 +720,7 @@ export default function DashboardPage() {
                 <Link
                   href={accion.href}
                   key={accion.id}
-                  className={`group flex flex-col gap-3 rounded-2xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md sm:flex-row sm:items-center sm:justify-between ${prioridadClass}`}
+                  className={`group flex flex-col gap-3 rounded-xl border-l-[3px] border-y-0 border-r-0 p-4 transition hover:bg-white sm:flex-row sm:items-center sm:justify-between ${prioridadClass}`}
                 >
                   <div className="flex items-start gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/80 shadow-sm">
@@ -803,7 +740,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {modules.camarero_digital ? <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        {modules.camarero_digital ? <div className="gh-legacy-surface p-5">
           <div className="mb-5 flex items-center justify-between">
             <div>
               <p className="text-sm font-black uppercase tracking-widest text-slate-500">Cocina</p>
@@ -859,7 +796,7 @@ export default function DashboardPage() {
       </section>
 
       <section className={`grid grid-cols-1 gap-5 ${modules.camarero_digital ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
-        {modules.camarero_digital ? <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        {modules.camarero_digital ? <div className="gh-legacy-surface p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-sm font-black uppercase tracking-widest text-slate-500">Mesas</p>
@@ -891,7 +828,7 @@ export default function DashboardPage() {
           </div>
         </div> : null}
 
-        {modules.reservas ? <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        {modules.reservas ? <div className="gh-legacy-surface p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-sm font-black uppercase tracking-widest text-slate-500">Reservas</p>
@@ -923,7 +860,7 @@ export default function DashboardPage() {
           </div>
         </div> : null}
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="gh-legacy-surface p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <p className="text-sm font-black uppercase tracking-widest text-slate-500">Actividad</p>
@@ -954,7 +891,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="gh-legacy-surface p-5 sm:p-6">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-black uppercase tracking-widest text-slate-500">Tendencia</p>

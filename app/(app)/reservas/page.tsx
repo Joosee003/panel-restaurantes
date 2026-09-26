@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -24,6 +24,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import AddReservaModal from "../components/AddReservaModal";
 import { useRestaurante } from "../../hooks/useRestaurante";
+import { TurnoMetric, TurnoPageHeader } from "../components/turno-vivo/TurnoPrimitives";
 
 type EstadoReserva = "pendiente" | "confirmada" | "cancelada" | "no-show" | "ha venido";
 type VistaReservas = "calendario" | "hoy" | "semana" | "lista" | "bloqueos";
@@ -262,16 +263,63 @@ function Badge({ children, className = "" }: { children: React.ReactNode; classN
   return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${className}`}>{children}</span>;
 }
 
-function StatCard({ label, value, sub, icon }: { label: string; value: string | number; sub?: string; icon: React.ReactNode }) {
+function ReservaControls({
+  reserva,
+  mesas,
+  saving,
+  fidelizacionActiva,
+  onEstado,
+  onHaVenido,
+  onNoShow,
+  onRegistrarConsumo,
+  onMesa,
+  onCopiar,
+}: {
+  reserva: Reserva;
+  mesas: Mesa[];
+  saving: boolean;
+  fidelizacionActiva: boolean;
+  onEstado: (reserva: Reserva, estado: EstadoReserva) => void;
+  onHaVenido: (reserva: Reserva) => void;
+  onNoShow: (reserva: Reserva, valor: boolean | null) => void;
+  onRegistrarConsumo: (reserva: Reserva) => void;
+  onMesa: (reserva: Reserva, mesaId: string | null) => void;
+  onCopiar: (texto: string) => void;
+}) {
+  const linkConfirmar = buildWhatsAppLink(reserva, "confirmar");
+  const linkRecordar = buildWhatsAppLink(reserva, "recordar");
+
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-wide text-slate-500">{label}</p>
-          <p className="mt-2 text-2xl font-black text-slate-950">{value}</p>
-          {sub ? <p className="mt-1 text-xs text-slate-500">{sub}</p> : null}
-        </div>
-        <div className="rounded-xl bg-blue-50 p-2 text-blue-700">{icon}</div>
+    <div className="gh-reservation-controls">
+      <label className="block text-[11px] font-black uppercase tracking-wide text-slate-500">
+        Mesa
+        <select
+          value={reserva.mesa_id || ""}
+          disabled={saving}
+          onChange={(e) => onMesa(reserva, e.target.value || null)}
+          className="mt-2 h-11 w-full border bg-white px-3 text-sm font-bold text-slate-900 outline-none"
+        >
+          <option value="">Sin mesa</option>
+          {mesas.map((m) => (
+            <option key={m.id} value={m.id} disabled={m.bloqueada === true || Number(m.capacidad || 0) < reserva.personas}>
+              {m.nombre}{m.capacidad ? ` · ${m.capacidad}p` : ""}{m.bloqueada ? " · bloqueada" : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {reserva.estado === "pendiente" ? <button disabled={saving} onClick={() => onEstado(reserva, "confirmada")} className="gh-turno-primary inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-bold disabled:opacity-60"><Check size={16} /> Confirmar</button> : null}
+        {(reserva.estado === "pendiente" || reserva.estado === "confirmada") && reserva.atendida !== true && reserva.atendida !== false && !reserva.consumo_registrado_en ? <button disabled={saving} onClick={() => onHaVenido(reserva)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-bold text-white disabled:opacity-60"><UserCheck size={16} /> Ha venido</button> : null}
+        {!ESTADOS_FINALES.has(reserva.estado) ? <button disabled={saving} onClick={() => onEstado(reserva, "cancelada")} className="inline-flex items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 disabled:opacity-60"><X size={16} /> Cancelar</button> : null}
+        {(reserva.estado === "confirmada" || reserva.estado === "ha venido" || reserva.atendida === true) && reserva.atendida !== false && !reserva.consumo_registrado_en ? <button disabled={saving} onClick={() => onRegistrarConsumo(reserva)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 disabled:opacity-60"><Banknote size={16} /> Consumo{fidelizacionActiva ? " y puntos" : ""}</button> : null}
+        {reserva.estado === "confirmada" && !reserva.consumo_registrado_en && reserva.atendida !== false ? <button disabled={saving} onClick={() => onNoShow(reserva, false)} className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 disabled:opacity-60"><UserX size={16} /> No-show</button> : null}
+      </div>
+
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+        {linkConfirmar ? <a href={linkConfirmar} target="_blank" rel="noreferrer" className="gh-turno-secondary inline-flex items-center gap-2 px-3 py-2 text-xs font-bold"><MessageCircle size={14} /> Confirmar por WhatsApp</a> : null}
+        {linkRecordar ? <a href={linkRecordar} target="_blank" rel="noreferrer" className="gh-turno-secondary inline-flex items-center gap-2 px-3 py-2 text-xs font-bold"><MessageCircle size={14} /> Recordatorio</a> : null}
+        <button onClick={() => onCopiar(buildWhatsAppText(reserva, "recordar"))} className="gh-turno-secondary inline-flex items-center gap-2 px-3 py-2 text-xs font-bold"><Copy size={14} /> Copiar mensaje</button>
       </div>
     </div>
   );
@@ -301,11 +349,19 @@ function ReservaCard({
   onCopiar: (texto: string) => void;
 }) {
   const riesgo = Number(reserva.cliente?.no_show_total || 0) + Number(reserva.cliente?.cancelaciones_totales || 0);
-  const linkConfirmar = buildWhatsAppLink(reserva, "confirmar");
-  const linkRecordar = buildWhatsAppLink(reserva, "recordar");
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="gh-turno-row p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -331,77 +387,30 @@ function ReservaCard({
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-2 sm:min-w-52">
-          <label className="text-[11px] font-black uppercase tracking-wide text-slate-500">Mesa</label>
-          <select
-            value={reserva.mesa_id || ""}
-            disabled={saving}
-            onChange={(e) => onMesa(reserva, e.target.value || null)}
-            className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100"
-          >
-            <option value="">Sin mesa</option>
-            {mesas.map((m) => (
-              <option
-                key={m.id}
-                value={m.id}
-                disabled={m.bloqueada === true || Number(m.capacidad || 0) < reserva.personas}
-              >
-                {m.nombre}{m.capacidad ? ` · ${m.capacidad}p` : ""}{m.bloqueada ? " · bloqueada" : ""}
-              </option>
-            ))}
-          </select>
+        <div className="shrink-0 text-left sm:text-right">
+          <p className="text-2xl font-black tabular-nums tracking-[-0.04em] text-slate-950">{horaCorta(reserva.fecha_hora_reserva)}</p>
+          <p className="mt-1 text-xs font-bold text-slate-500">{nombreMesa(reserva, mesas)}</p>
         </div>
       </div>
 
-      <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        {reserva.estado === "pendiente" ? (
-          <button disabled={saving} onClick={() => onEstado(reserva, "confirmada")} className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-3 py-2 text-sm font-bold text-white hover:bg-blue-700 disabled:opacity-60">
-            <Check size={16} /> Confirmar reserva
-          </button>
-        ) : null}
-        {(reserva.estado === "pendiente" || reserva.estado === "confirmada") &&
-        reserva.atendida !== true &&
-        reserva.atendida !== false &&
-        !reserva.consumo_registrado_en ? (
-          <button disabled={saving} onClick={() => onHaVenido(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-60">
-            <UserCheck size={16} /> Ha venido
-          </button>
-        ) : null}
-        {!ESTADOS_FINALES.has(reserva.estado) ? (
-          <button disabled={saving} onClick={() => onEstado(reserva, "cancelada")} className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-60">
-            <X size={16} /> Cancelar
-          </button>
-        ) : null}
-        {(reserva.estado === "confirmada" || reserva.estado === "ha venido" || reserva.atendida === true) &&
-        reserva.atendida !== false &&
-        !reserva.consumo_registrado_en ? (
-          <button disabled={saving} onClick={() => onRegistrarConsumo(reserva)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-700 hover:bg-emerald-100 disabled:opacity-60">
-            <Banknote size={16} /> Registrar consumo
-          </button>
-        ) : null}
-        {reserva.estado === "confirmada" && !reserva.consumo_registrado_en && reserva.atendida !== false ? (
-          <button disabled={saving} onClick={() => onNoShow(reserva, false)} className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-60">
-            <UserX size={16} /> No-show
-          </button>
-        ) : null}
+      <div className="mt-4 hidden border-t border-slate-200 pt-4 sm:block">
+        <ReservaControls reserva={reserva} mesas={mesas} saving={saving} fidelizacionActiva={fidelizacionActiva} onEstado={onEstado} onHaVenido={onHaVenido} onNoShow={onNoShow} onRegistrarConsumo={onRegistrarConsumo} onMesa={onMesa} onCopiar={onCopiar} />
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-        {linkConfirmar ? (
-          <a href={linkConfirmar} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
-            <MessageCircle size={14} /> WhatsApp confirmar
-          </a>
-        ) : null}
-        {linkRecordar ? (
-          <a href={linkRecordar} target="_blank" className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
-            <MessageCircle size={14} /> Recordatorio
-          </a>
-        ) : null}
-        <button onClick={() => onCopiar(buildWhatsAppText(reserva, "recordar"))} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50">
-          <Copy size={14} /> Copiar mensaje
-        </button>
-      </div>
-    </div>
+      <button type="button" onClick={() => setMobileOpen(true)} className="gh-turno-primary mt-4 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-bold sm:hidden"><Table2 size={16} /> Gestionar reserva</button>
+
+      {mobileOpen ? (
+        <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 sm:hidden" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMobileOpen(false); }}>
+          <div role="dialog" aria-modal="true" aria-label={`Gestionar reserva de ${reserva.nombre_cliente || "cliente"}`} className="gh-reservation-sheet w-full max-h-[88vh] overflow-y-auto rounded-t-[24px] bg-[#fffefa] p-5 shadow-2xl">
+            <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
+              <div><p className="gh-turno-eyebrow">Reserva · {horaCorta(reserva.fecha_hora_reserva)}</p><h2 className="mt-1 text-xl font-black text-slate-950">{reserva.nombre_cliente || "Cliente"}</h2></div>
+              <button type="button" onClick={() => setMobileOpen(false)} className="gh-turno-secondary inline-flex h-10 w-10 items-center justify-center" aria-label="Cerrar detalle"><X size={18} /></button>
+            </div>
+            <ReservaControls reserva={reserva} mesas={mesas} saving={saving} fidelizacionActiva={fidelizacionActiva} onEstado={onEstado} onHaVenido={onHaVenido} onNoShow={onNoShow} onRegistrarConsumo={onRegistrarConsumo} onMesa={onMesa} onCopiar={onCopiar} />
+          </div>
+        </div>
+      ) : null}
+    </article>
   );
 }
 
@@ -412,7 +421,7 @@ export default function ReservasPage() {
   const [reservas, setReservas] = useState<Reserva[]>([]);
   const [mesas, setMesas] = useState<Mesa[]>([]);
   const [bloqueos, setBloqueos] = useState<Bloqueo[]>([]);
-  const [vista, setVista] = useState<VistaReservas>("calendario");
+  const [vista, setVista] = useState<VistaReservas>("hoy");
   const [filtro, setFiltro] = useState<FiltroEstado>("todas");
   const [busqueda, setBusqueda] = useState("");
   const [diaActivo, setDiaActivo] = useState(fechaISO(new Date()));
@@ -822,51 +831,40 @@ export default function ReservasPage() {
   }
 
   return (
-    <div className="space-y-6 bg-slate-50 text-slate-950">
-      <div className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-blue-700">
-              <CalendarDays size={14} /> Reservas Pro
-            </div>
-            <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Reservas</h1>
-            <p className="mt-1 max-w-2xl text-sm text-slate-600">Controla confirmaciones, mesas, no-shows, bloqueos y recordatorios desde una sola pantalla.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <button onClick={() => setVista("calendario")} className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-bold text-blue-700 hover:bg-blue-100">
-              <CalendarDays size={16} /> Calendario
-            </button>
-            <button onClick={() => cargarTodo()} className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-50">
-              <RefreshCw size={16} /> Refrescar
-            </button>
-            <button onClick={() => setOpenModal(true)} className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white hover:bg-blue-700">
-              <Plus size={16} /> Nueva reserva
-            </button>
-          </div>
-        </div>
-      </div>
+    <div className="gh-turno-page gh-reservations text-slate-950">
+      <TurnoPageHeader
+        eyebrow="Operación · Reservas"
+        title="Reservas"
+        description="Lee el servicio de hoy, resuelve pendientes y gestiona cada visita sin perder el contexto."
+        meta={<><span>{fechaCompleta(diaActivo)}</span><span>{reservasDia.length} reservas visibles</span></>}
+        actions={<>
+          <button onClick={() => setVista("calendario")} className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><CalendarDays size={16} /> Calendario</button>
+          <button onClick={() => cargarTodo()} className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><RefreshCw size={16} /> Refrescar</button>
+          <button onClick={() => setOpenModal(true)} className="gh-turno-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><Plus size={16} /> Nueva reserva</button>
+        </>}
+      />
 
-      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</div> : null}
-      {copiado ? <div className="fixed right-5 top-5 z-50 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-lg">Mensaje copiado</div> : null}
-      {saving ? <div className="fixed bottom-5 right-5 z-50 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg">Guardando...</div> : null}
+      {error ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</div> : null}
+      {copiado ? <div role="status" aria-live="polite" className="fixed right-5 top-5 z-50 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-lg">Mensaje copiado</div> : null}
+      {saving ? <div role="status" aria-live="polite" className="fixed bottom-5 right-5 z-50 rounded-xl bg-blue-600 px-4 py-2 text-sm font-bold text-white shadow-lg">Guardando...</div> : null}
       {(openModal || consumoModal || bloqueoEnEdicion) && !saving ? (
         <div className="fixed bottom-5 right-5 z-50 rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-black text-amber-800 shadow-lg">
           Autoactualización pausada mientras editas
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Reservas hoy" value={stats.hoy} sub={`${stats.personasHoy} personas`} icon={<ClipboardList size={18} />} />
-        <StatCard label="Pendientes" value={stats.pendientes} sub="sin confirmar" icon={<Clock3 size={18} />} />
-        <StatCard label="Sin mesa" value={stats.sinMesa} sub="por asignar" icon={<Table2 size={18} />} />
-        <StatCard label="No-shows" value={stats.noShows} sub="marcados" icon={<UserX size={18} />} />
-        <StatCard label="Bloqueos" value={bloqueos.filter((b) => b.activo).length} sub="activos" icon={<DoorClosed size={18} />} />
+      <div className="gh-turno-metrics" style={{ "--gh-metric-count": 5 } as CSSProperties}>
+        <TurnoMetric label="Reservas hoy" value={stats.hoy} detail={`${stats.personasHoy} personas`} icon={<ClipboardList size={17} />} />
+        <TurnoMetric label="Pendientes" value={stats.pendientes} detail="sin confirmar" icon={<Clock3 size={17} />} />
+        <TurnoMetric label="Sin mesa" value={stats.sinMesa} detail="por asignar" icon={<Table2 size={17} />} />
+        <TurnoMetric label="No-shows" value={stats.noShows} detail="marcados" icon={<UserX size={17} />} />
+        <TurnoMetric label="Bloqueos" value={bloqueos.filter((b) => b.activo).length} detail="activos" icon={<DoorClosed size={17} />} />
       </div>
 
       <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="gh-turno-controlbar">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex flex-wrap gap-2">
+            <div className="gh-turno-filterrail flex gap-2 overflow-x-auto pb-1">
               {([
                 ["calendario", "Calendario"],
                 ["hoy", "Vista día"],
@@ -906,7 +904,7 @@ export default function ReservasPage() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="gh-legacy-surface p-4">
           <div className="flex items-center gap-2 text-sm font-black text-slate-950">
             <AlertTriangle size={17} className="text-blue-600" /> Acciones recomendadas
           </div>
@@ -922,7 +920,7 @@ export default function ReservasPage() {
       </div>
 
       {vista === "calendario" ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="gh-legacy-surface p-4">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-black capitalize text-slate-950">{monthTitle(mesActivo)}</h2>
@@ -956,7 +954,7 @@ export default function ReservasPage() {
             ))}
           </div>
 
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-7">
+          <div className="gh-reservation-calendar grid grid-cols-1 gap-3 sm:grid-cols-7">
             {diasCalendario.map((dia) => {
               const key = fechaISO(dia);
               const reservasDelDia = reservasFiltradas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === key);
@@ -1021,7 +1019,7 @@ export default function ReservasPage() {
 
       {vista === "hoy" ? (
         <div className="grid gap-4 xl:grid-cols-[280px_1fr]">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="gh-legacy-surface p-4">
             <label className="text-xs font-black uppercase tracking-wide text-slate-500">Día</label>
             <input
               type="date"
@@ -1046,17 +1044,17 @@ export default function ReservasPage() {
 
           <div className="space-y-4">
             {Object.keys(reservasAgrupadasDia).length ? Object.entries(reservasAgrupadasDia).map(([turno, items]) => (
-              <section key={turno} className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-4 flex items-center justify-between">
+              <section key={turno} className="gh-legacy-surface overflow-hidden p-0">
+                <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
                   <h2 className="text-lg font-black text-slate-950">{turno}</h2>
                   <Badge className="border-slate-200 bg-slate-50 text-slate-600">{items.length} reserva{items.length === 1 ? "" : "s"}</Badge>
                 </div>
-                <div className="space-y-3">
+                <div className="divide-y divide-slate-200">
                   {items.map((r) => <ReservaCard key={r.id} reserva={r} mesas={mesas} saving={Boolean(saving)} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onHaVenido={marcarHaVenido} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} />)}
                 </div>
               </section>
             )) : (
-              <div className="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
+              <div className="gh-legacy-surface p-10 text-center">
                 <p className="text-lg font-black text-slate-950">No hay reservas para este día</p>
                 <p className="mt-1 text-sm text-slate-500">Cambia de fecha o añade una nueva reserva.</p>
               </div>
@@ -1066,7 +1064,7 @@ export default function ReservasPage() {
       ) : null}
 
       {vista === "semana" ? (
-        <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="gh-legacy-surface p-4">
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-black text-slate-950">Semana</h2>
@@ -1077,7 +1075,7 @@ export default function ReservasPage() {
               <button onClick={() => setDiaActivo(fechaISO(addDays(semanaInicio, 7)))} className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold text-slate-700">Semana siguiente</button>
             </div>
           </div>
-          <div className="grid gap-3 lg:grid-cols-7">
+          <div className="gh-reservation-week grid gap-3 lg:grid-cols-7">
             {diasSemana.map((dia) => {
               const key = fechaISO(dia);
               const items = reservasFiltradas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === key);
@@ -1106,7 +1104,7 @@ export default function ReservasPage() {
       ) : null}
 
       {vista === "lista" ? (
-        <div className="rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="gh-turno-list">
           <div className="border-b border-slate-100 p-4">
             <h2 className="text-lg font-black text-slate-950">Lista completa</h2>
             <p className="text-sm text-slate-500">{reservasFiltradas.length} reservas visibles con los filtros actuales.</p>
@@ -1120,7 +1118,7 @@ export default function ReservasPage() {
 
       {vista === "bloqueos" ? (
         <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="gh-legacy-surface p-4">
             <h2 className="text-lg font-black text-slate-950">Bloquear horario</h2>
             <p className="mt-1 text-sm text-slate-500">Útil para eventos privados, descansos, cocina cerrada o aforo completo.</p>
             <div className="mt-4 space-y-3">
@@ -1148,7 +1146,7 @@ export default function ReservasPage() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="gh-legacy-surface p-4">
             <h2 className="text-lg font-black text-slate-950">Bloqueos creados</h2>
             <div className="mt-4 space-y-3">
               {bloqueos.map((b) => (
@@ -1171,7 +1169,7 @@ export default function ReservasPage() {
 
       {consumoModal ? (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-4 sm:items-center">
-          <div className="w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-5 shadow-2xl">
+          <div className="gh-turno-modal w-full max-w-lg p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-700">

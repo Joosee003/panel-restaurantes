@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import {
   CalendarDays,
@@ -19,7 +19,6 @@ import {
   Star,
   Trophy,
   Users,
-  type LucideIcon,
 } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
@@ -35,6 +34,7 @@ import {
   type CustomerLevel,
   type CustomerLevelsConfig,
 } from "../lib/customerLevels";
+import { TurnoMetric, TurnoPageHeader } from "../components/turno-vivo/TurnoPrimitives";
 
 type ClienteResumen = {
   id: string;
@@ -226,6 +226,18 @@ export default function ClientesPage() {
   const [nivelesConfig, setNivelesConfig] = useState<NivelesClienteConfig>(DEFAULT_NIVELES_CONFIG);
   const [nivelesForm, setNivelesForm] = useState<NivelesClienteConfig>(DEFAULT_NIVELES_CONFIG);
   const [nuevoCliente, setNuevoCliente] = useState({ nombre: "", telefono: "", email: "" });
+
+  useEffect(() => {
+    if (!modalNuevo && !modalRanking && !modalNiveles) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setModalNuevo(false);
+      setModalRanking(false);
+      setModalNiveles(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [modalNiveles, modalNuevo, modalRanking]);
 
   const nivelesActuales = useMemo(() => construirNiveles(nivelesConfig), [nivelesConfig]);
 
@@ -560,84 +572,52 @@ export default function ClientesPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 text-slate-900 md:p-6">
-      <div className="mx-auto max-w-[1500px] space-y-6">
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.14em] text-blue-700 ring-1 ring-blue-100">
-                <Users className="h-4 w-4" /> {fidelizacionActiva ? "Clientes y niveles" : "Base de clientes"}
-              </div>
-              <h1 className="mt-4 text-3xl font-black tracking-tight !text-slate-950">Clientes</h1>
-              <p className="mt-2 max-w-2xl text-sm font-semibold text-slate-500">
-                {fidelizacionActiva
-                  ? "Reservas, visitas, gasto, puntos y niveles de cada cliente."
-                  : "Contactos, reservas, visitas y seguimiento básico de cada cliente."}
-              </p>
-            </div>
+    <main className="gh-turno-page gh-clients text-slate-900">
+      <div className="space-y-7">
+        <TurnoPageHeader
+          eyebrow={fidelizacionActiva ? "Relación · Clientes y niveles" : "Relación · Base de clientes"}
+          title="Clientes"
+          description={fidelizacionActiva
+            ? "Una lectura operativa de quién vuelve, quién necesita atención y cómo evoluciona cada relación."
+            : "Contactos, reservas, visitas y seguimiento básico del restaurante."}
+          meta={<><span>{resumen.total} clientes</span><span>{resumen.dormidos} sin visita en más de 30 días</span></>}
+          actions={<>
+            {fidelizacionActiva ? <button onClick={() => setModalRanking(true)} className="gh-turno-secondary inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-black"><Trophy className="h-4 w-4" /> Ranking</button> : null}
+            {fidelizacionActiva ? <button onClick={() => { setNivelesForm(nivelesConfig); setModalNiveles(true); }} className="gh-turno-secondary inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-black"><SlidersHorizontal className="h-4 w-4" /> Niveles</button> : null}
+            <button onClick={() => setModalNuevo(true)} className="gh-turno-primary inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-black"><Plus className="h-4 w-4" /> Añadir cliente</button>
+          </>}
+        />
 
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <div className="relative w-full sm:w-80">
-                <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  value={busqueda}
-                  onChange={(e) => setBusqueda(e.target.value)}
-                  placeholder="Buscar cliente, teléfono o email"
-                  className="w-full rounded-2xl border border-slate-200 bg-slate-50 py-3 pl-11 pr-4 text-sm font-bold text-slate-900 outline-none ring-blue-100 transition focus:border-blue-300 focus:ring-4"
-                />
-              </div>
-              {fidelizacionActiva ? (
-                <>
-                  <button
-                    onClick={() => setModalRanking(true)}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-amber-50 px-4 py-3 text-xs font-black text-amber-800 ring-1 ring-amber-200 transition hover:bg-amber-100"
-                  >
-                    <Trophy className="h-4 w-4" /> Ranking clientes
-                  </button>
-                  <button
-                    onClick={() => {
-                      setNivelesForm(nivelesConfig);
-                      setModalNiveles(true);
-                    }}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 text-xs font-black text-slate-700 ring-1 ring-slate-200 transition hover:bg-slate-50"
-                  >
-                    <SlidersHorizontal className="h-4 w-4" /> Niveles
-                  </button>
-                </>
-              ) : null}
-              <button
-                onClick={() => setModalNuevo(true)}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800"
-              >
-                <Plus className="h-4 w-4" /> Añadir cliente
-              </button>
-            </div>
+        <div className="gh-turno-controlbar">
+          <div className="relative w-full">
+            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente, teléfono o email" className="h-12 w-full border bg-white pl-11 pr-4 text-sm font-bold text-slate-900 outline-none" />
           </div>
-        </section>
+        </div>
 
-        <section className={`grid gap-4 md:grid-cols-2 ${fidelizacionActiva ? "xl:grid-cols-7" : "xl:grid-cols-4"}`}>
-          <KpiCard icon={Users} label="Clientes" value={resumen.total} help="Base total" />
+        <section className="gh-turno-metrics" style={{ "--gh-metric-count": fidelizacionActiva ? 7 : 4 } as CSSProperties}>
+          <TurnoMetric icon={<Users size={17} />} label="Clientes" value={resumen.total} detail="Base total" />
           {fidelizacionActiva ? (
             <>
-              <KpiCard icon={Star} label="Nuevos" value={resumen.nuevo} help={nivelesActuales.nuevo.range} />
-              <KpiCard icon={MessageCircle} label="Frecuentes" value={resumen.frecuente} help={nivelesActuales.frecuente.range} />
-              <KpiCard icon={Sparkles} label="Habituales" value={resumen.habitual} help={nivelesActuales.habitual.range} />
-              <KpiCard icon={Crown} label="VIP" value={resumen.vip} help={nivelesActuales.vip.range} />
-              <KpiCard icon={Trophy} label="Maestros" value={resumen.maestro} help={nivelesActuales.maestro.range} />
+              <TurnoMetric icon={<Star size={17} />} label="Nuevos" value={resumen.nuevo} detail={nivelesActuales.nuevo.range} />
+              <TurnoMetric icon={<MessageCircle size={17} />} label="Frecuentes" value={resumen.frecuente} detail={nivelesActuales.frecuente.range} />
+              <TurnoMetric icon={<Sparkles size={17} />} label="Habituales" value={resumen.habitual} detail={nivelesActuales.habitual.range} />
+              <TurnoMetric icon={<Crown size={17} />} label="VIP" value={resumen.vip} detail={nivelesActuales.vip.range} />
+              <TurnoMetric icon={<Trophy size={17} />} label="Maestros" value={resumen.maestro} detail={nivelesActuales.maestro.range} />
             </>
           ) : (
             <>
-              <KpiCard icon={CalendarDays} label="Visitas" value={totalVisitas} help="Visitas registradas" />
-              <KpiCard icon={MessageCircle} label="Sin reseña" value={resumen.sinResena} help="Pendientes" />
+              <TurnoMetric icon={<CalendarDays size={17} />} label="Visitas" value={totalVisitas} detail="Visitas registradas" />
+              <TurnoMetric icon={<MessageCircle size={17} />} label="Sin reseña" value={resumen.sinResena} detail="Pendientes" />
             </>
           )}
-          <KpiCard icon={Clock3} label="Dormidos" value={resumen.dormidos} help="+30 días" />
+          <TurnoMetric icon={<Clock3 size={17} />} label="Dormidos" value={resumen.dormidos} detail="+30 días" />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
           <div className="space-y-5">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex gap-2 overflow-x-auto pb-1">
+            <div className="gh-turno-controlbar">
+              <div className="gh-turno-filterrail flex gap-2 overflow-x-auto pb-1">
                 {filtrosActivos.map((item) => (
                   <button
                     key={item.key}
@@ -655,7 +635,7 @@ export default function ClientesPage() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+            <div className="gh-turno-list">
               <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
                 <div>
                   <h2 className="font-black !text-slate-950">Base de clientes</h2>
@@ -664,7 +644,7 @@ export default function ClientesPage() {
                 {cargando && <Loader2 className="h-5 w-5 animate-spin text-slate-400" />}
               </div>
 
-              {error && <div className="m-5 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700 ring-1 ring-red-100">{error}</div>}
+              {error && <div role="alert" className="m-5 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700 ring-1 ring-red-100">{error}</div>}
 
               <div className="divide-y divide-slate-100">
                 {!cargando && clientesFiltrados.length === 0 && (
@@ -680,7 +660,7 @@ export default function ClientesPage() {
                   const progreso = progresoNivel(cliente, nivelesConfig);
 
                   return (
-                    <article key={cliente.id} className="p-5 transition hover:bg-slate-50/70">
+                    <article key={cliente.id} className="gh-turno-row p-5">
                       <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-center">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-3">
@@ -704,7 +684,7 @@ export default function ClientesPage() {
                           </div>
 
                           {fidelizacionActiva ? (
-                            <div className="mt-4 max-w-3xl rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
+                              <div className="mt-4 max-w-3xl border-l-2 border-blue-700 bg-[#f7f6f1] px-4 py-3">
                               <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em] text-slate-400">
                                 <span>{textoSiguienteNivel(cliente, nivelesConfig)}</span>
                                 <span>{config.range}</span>
@@ -717,7 +697,7 @@ export default function ClientesPage() {
                               </p>
                             </div>
                           ) : (
-                            <div className="mt-4 max-w-3xl rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-600 ring-1 ring-slate-100">
+                            <div className="mt-4 max-w-3xl border-l-2 border-slate-300 bg-[#f7f6f1] px-4 py-3 text-sm font-semibold text-slate-600">
                               {numero(cliente.total_reservas)} reservas · {numero(cliente.total_atendidas)} atendidas · {numero(cliente.total_canceladas_reales)} canceladas
                             </div>
                           )}
@@ -747,7 +727,7 @@ export default function ClientesPage() {
           </div>
 
           <aside className="space-y-5">
-            {fidelizacionActiva ? <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+            {fidelizacionActiva ? <div className="gh-legacy-surface p-5">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Crown className="h-5 w-5" /></div>
                 <div>
@@ -772,7 +752,7 @@ export default function ClientesPage() {
                 })}
               </div>
             </div> : (
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="gh-legacy-surface p-5">
                 <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Users className="h-5 w-5" /></div>
                 <h2 className="mt-4 font-black !text-slate-950">Clientes básico</h2>
                 <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
@@ -781,7 +761,7 @@ export default function ClientesPage() {
               </div>
             )}
 
-            {fidelizacionActiva ? <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+            {fidelizacionActiva ? <div className="gh-legacy-surface p-5">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Sparkles className="h-5 w-5" /></div>
                 <div>
@@ -818,13 +798,13 @@ export default function ClientesPage() {
 
       {modalRanking && fidelizacionActiva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-[2rem] bg-slate-950 text-white shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="client-ranking-title" className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-[20px] bg-slate-950 text-white shadow-2xl">
             <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-white/10 bg-slate-950/95 p-5 backdrop-blur sm:p-6">
               <div>
                 <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">
                   <Trophy className="h-4 w-4" /> Ranking clientes
                 </div>
-                <h2 className="mt-2 text-2xl font-black tracking-tight !text-white">Los clientes más fieles</h2>
+                <h2 id="client-ranking-title" className="mt-2 text-2xl font-black tracking-tight !text-white">Los clientes más fieles</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-400">Visitas reales, gasto registrado y puntos disponibles.</p>
               </div>
               <button onClick={() => setModalRanking(false)} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/15">Cerrar</button>
@@ -877,10 +857,10 @@ export default function ClientesPage() {
 
       {modalNiveles && fidelizacionActiva && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-xl rounded-[2rem] bg-white p-6 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="customer-levels-title" className="gh-turno-modal w-full max-w-xl p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black !text-slate-950">Configurar niveles de clientes</h2>
+                <h2 id="customer-levels-title" className="text-xl font-black !text-slate-950">Configurar niveles de clientes</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">Cada restaurante decide desde cuántas visitas un cliente sube de nivel.</p>
               </div>
               <button onClick={() => setModalNiveles(false)} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-black text-slate-600">Cerrar</button>
@@ -968,10 +948,10 @@ export default function ClientesPage() {
 
       {modalNuevo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-[2rem] bg-white p-6 shadow-2xl">
+          <div role="dialog" aria-modal="true" aria-labelledby="new-customer-title" className="gh-turno-modal w-full max-w-lg p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-black !text-slate-950">Nuevo cliente</h2>
+                <h2 id="new-customer-title" className="text-xl font-black !text-slate-950">Nuevo cliente</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">
                   {fidelizacionActiva
                     ? "Empieza como cliente nuevo y subirá de nivel según sus visitas."
@@ -982,7 +962,7 @@ export default function ClientesPage() {
             </div>
 
             <div className="mt-5 space-y-3">
-              <input value={nuevoCliente.nombre} onChange={(e) => setNuevoCliente((a) => ({ ...a, nombre: e.target.value }))} placeholder="Nombre" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
+              <input autoFocus value={nuevoCliente.nombre} onChange={(e) => setNuevoCliente((a) => ({ ...a, nombre: e.target.value }))} placeholder="Nombre" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
               <input value={nuevoCliente.telefono} onChange={(e) => setNuevoCliente((a) => ({ ...a, telefono: e.target.value }))} placeholder="Teléfono" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
               <input value={nuevoCliente.email} onChange={(e) => setNuevoCliente((a) => ({ ...a, email: e.target.value }))} placeholder="Email" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
               <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800 ring-1 ring-amber-100">
@@ -997,22 +977,5 @@ export default function ClientesPage() {
         </div>
       )}
     </main>
-  );
-}
-
-function KpiCard({ icon: Icon, label, value, help }: { icon: LucideIcon; label: string; value: number; help: string }) {
-  return (
-    <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{label}</p>
-          <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
-          <p className="mt-1 text-xs font-bold text-slate-500">{help}</p>
-        </div>
-        <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100">
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-    </div>
   );
 }

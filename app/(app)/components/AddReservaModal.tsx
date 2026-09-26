@@ -127,6 +127,26 @@ export default function AddReservaModal({
     };
   }, [fecha, open, personas, restauranteId]);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || loading) return;
+      setNombre("");
+      setTelefono("");
+      setEmail("");
+      setFecha(fechaLocalHoy());
+      setPersonas(2);
+      setNotas("");
+      setSlots([]);
+      setSlotSeleccionado("");
+      setErrorMsg(null);
+      idempotencyKey.current = null;
+      onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [loading, onClose, open]);
+
   if (!open) return null;
 
   const limpiarFormulario = () => {
@@ -211,13 +231,13 @@ export default function AddReservaModal({
 
   return (
     <div className={`fixed inset-0 z-50 flex items-end justify-center p-3 sm:items-center ${overlayClass}`}>
-      <div className={`max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-[2rem] border p-5 shadow-2xl sm:p-6 ${modalClass}`}>
+      <div role="dialog" aria-modal="true" aria-labelledby="add-reservation-title" className={`gh-turno-modal max-h-[94vh] w-full max-w-xl overflow-y-auto border p-5 shadow-2xl sm:p-6 ${modalClass}`}>
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">
               Nueva reserva
             </p>
-            <h2 className="mt-1 text-2xl font-black tracking-tight">Añadir al calendario</h2>
+            <h2 id="add-reservation-title" className="mt-1 text-2xl font-black tracking-tight">Añadir al calendario</h2>
             <p className={`mt-1 text-sm font-semibold ${isDark ? "text-slate-400" : "text-slate-500"}`}>
               Solo se muestran horas con capacidad disponible.
             </p>
@@ -227,7 +247,7 @@ export default function AddReservaModal({
             onClick={cerrarModal}
             disabled={loading}
             aria-label="Cerrar"
-            className={`rounded-2xl border p-2 disabled:opacity-40 ${isDark ? "border-slate-700 hover:bg-slate-900" : "border-slate-200 hover:bg-slate-50"}`}
+            className={`rounded-lg border p-2 disabled:opacity-40 ${isDark ? "border-slate-700 hover:bg-slate-900" : "border-slate-200 hover:bg-slate-50"}`}
           >
             <X size={19} />
           </button>
@@ -241,6 +261,7 @@ export default function AddReservaModal({
               onChange={(event) => setNombre(event.target.value)}
               placeholder="Nombre del cliente"
               autoComplete="name"
+              autoFocus
               className={`mt-1 h-12 w-full rounded-2xl border px-4 text-sm font-bold outline-none focus:ring-4 ${inputClass}`}
             />
           </label>

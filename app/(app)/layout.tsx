@@ -1,7 +1,7 @@
 "use client";
 
 import "../globals.css";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "./components/Sidebar";
 import ThemeProvider from "./components/ThemeProvider";
@@ -10,6 +10,7 @@ import AuthGuard from "./components/AuthGuard";
 import DemoModeGuard from "./components/DemoModeGuard";
 import ModuleRouteGuard from "./components/ModuleRouteGuard";
 import RestaurantScope from "./components/RestaurantScope";
+import "./components/turno-vivo/turno-vivo.css";
 
 const pageNames: Record<string, string> = {
   "/dashboard": "Dashboard",
@@ -29,12 +30,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   const pathname = usePathname();
 
   const isLogin = pathname === "/login";
+  const isTurnoSurface =
+    pathname === "/dashboard" ||
+    pathname === "/reservas" ||
+    pathname === "/clientes" ||
+    pathname.startsWith("/clientes/");
   const title = useMemo(() => {
     const exact = pageNames[pathname];
     if (exact) return exact;
     const found = Object.entries(pageNames).find(([path]) => pathname.startsWith(`${path}/`));
     return found?.[1] || "Panel";
   }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [mobileOpen]);
 
   return (
     <RestaurantScope><AuthGuard>
@@ -43,13 +58,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <>{children}</>
         ) : (
         <RequireLandscape>
-          <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-950">
-            <div className="sticky top-0 z-40 flex items-center justify-between border-b border-slate-200 bg-white/95 p-4 backdrop-blur lg:hidden">
+          <div className="gh-panel-shell min-h-screen overflow-x-hidden bg-slate-50 text-slate-950">
+            <div className="gh-panel-mobilebar sticky top-0 z-40 flex items-center justify-between border-b p-3 backdrop-blur lg:hidden">
               <button
                 onClick={() => setMobileOpen(true)}
-                className="rounded-2xl border border-slate-200 bg-white px-3 py-2 text-sm font-black text-slate-900 shadow-sm transition hover:bg-slate-50"
+                className="gh-panel-mobilebar__menu text-sm font-black text-slate-900 transition"
+                aria-label="Abrir navegación"
               >
-                ☰
+                <span aria-hidden="true">☰</span>
               </button>
               <span className="text-sm font-black uppercase tracking-widest text-slate-700">{title}</span>
               <span className="h-9 w-9" />
@@ -58,7 +74,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {mobileOpen && (
               <div className="fixed inset-0 z-50 lg:hidden">
                 <div className="absolute inset-0 bg-slate-950/40" onClick={() => setMobileOpen(false)} />
-                <div className="absolute left-0 top-0 h-full w-64 shadow-2xl">
+                <div className="absolute left-0 top-0 h-full w-64 shadow-2xl" role="dialog" aria-modal="true" aria-label="Navegación principal">
                   <Sidebar mobile onNavigate={() => setMobileOpen(false)} />
                 </div>
               </div>
@@ -69,7 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Sidebar />
               </div>
 
-              <main className="flex min-h-screen min-w-0 flex-1 flex-col p-4 sm:p-6 lg:ml-64">
+              <main className={`gh-panel-main flex min-h-screen min-w-0 flex-1 flex-col p-4 sm:p-6 lg:ml-64 ${isTurnoSurface ? "gh-turno-scope" : ""}`}>
                 <DemoModeGuard />
                 <div className="w-full min-w-0 flex-1">
                   <ModuleRouteGuard>{children}</ModuleRouteGuard>

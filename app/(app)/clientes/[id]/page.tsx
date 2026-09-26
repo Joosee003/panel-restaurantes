@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
@@ -20,9 +20,7 @@ import {
   Send,
   Star,
   Tag,
-  UserRound,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { getRestauranteUsuario } from "../../lib/getRestauranteUsuario";
@@ -35,6 +33,7 @@ import {
   normalizeCustomerLevels,
   type CustomerLevelsConfig,
 } from "../../lib/customerLevels";
+import { TurnoMetric, TurnoPageHeader } from "../../components/turno-vivo/TurnoPrimitives";
 
 type Cliente = {
   id: string;
@@ -475,7 +474,7 @@ export default function ClienteFichaPage() {
     return (
       <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
         <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
-          <p className="font-black text-red-700">{error || "Cliente no encontrado"}</p>
+          <p role="alert" className="font-black text-red-700">{error || "Cliente no encontrado"}</p>
           <Link href="/clientes" className="mt-4 inline-flex rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Volver a clientes</Link>
         </div>
       </main>
@@ -483,54 +482,31 @@ export default function ClienteFichaPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 p-4 text-slate-900 md:p-6">
-      <div className="mx-auto max-w-[1500px] space-y-6">
-        <section className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
-          <Link href="/clientes" className="inline-flex items-center gap-2 text-sm font-black text-slate-500 hover:text-slate-900">
-            <ArrowLeft className="h-4 w-4" /> Volver a clientes
-          </Link>
+    <main className="gh-turno-page gh-customer-detail text-slate-900">
+      <div className="space-y-7">
+        <Link href="/clientes" className="inline-flex items-center gap-2 text-sm font-black text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Clientes</Link>
+        <TurnoPageHeader
+          eyebrow={fidelizacionActiva && cliente.ranking_posicion ? `Relación · Nº ${cliente.ranking_posicion} del ranking` : "Relación · Ficha de cliente"}
+          title={cliente.nombre || "Cliente sin nombre"}
+          description="Visitas, reservas, permisos y actividad en una lectura cronológica de la relación con el restaurante."
+          meta={<div className="flex flex-wrap gap-2">{segmentos.map((segmento) => <span key={segmento} className={`rounded-full border px-3 py-1.5 text-xs font-black ${badgeSegmento(segmento)}`}>{segmento}</span>)}</div>}
+          actions={fidelizacionActiva && accion ? <>
+            <button onClick={() => abrirWhatsApp(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-700 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"><MessageCircle className="h-4 w-4" /> WhatsApp</button>
+            <button onClick={() => copiarMensaje(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className="gh-turno-secondary inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"><Copy className="h-4 w-4" /> {copiado ? "Copiado" : "Copiar mensaje"}</button>
+          </> : undefined}
+        />
 
-          <div className="mt-5 flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-            <div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="rounded-3xl bg-blue-50 p-4 text-blue-700 ring-1 ring-blue-100"><UserRound className="h-7 w-7" /></div>
-                <div>
-                  <h1 className="text-3xl font-black tracking-tight text-slate-950">{cliente.nombre || "Cliente sin nombre"}</h1>
-                  <p className="mt-1 text-sm font-semibold text-slate-500">
-                    Ficha de cliente{fidelizacionActiva && cliente.ranking_posicion ? ` · Nº ${cliente.ranking_posicion} del ranking` : ""}
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-5 flex flex-wrap gap-2">
-                {segmentos.map((segmento) => (
-                  <span key={segmento} className={`rounded-full border px-3 py-1.5 text-xs font-black ${badgeSegmento(segmento)}`}>{segmento}</span>
-                ))}
-              </div>
-            </div>
-
-            {fidelizacionActiva && accion ? <div className="grid gap-3 sm:grid-cols-2 xl:min-w-[420px]">
-              <button onClick={() => abrirWhatsApp(accion?.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion?.tipo || "cupon")} className="rounded-2xl bg-green-600 px-5 py-3 text-sm font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
-                <MessageCircle className="mr-2 inline h-4 w-4" /> WhatsApp
-              </button>
-              <button onClick={() => copiarMensaje(accion?.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion?.tipo || "cupon")} className="rounded-2xl bg-white px-5 py-3 text-sm font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
-                <Copy className="mr-2 inline h-4 w-4" /> {copiado ? "Copiado" : "Copiar mensaje"}
-              </button>
-            </div> : null}
-          </div>
-        </section>
-
-        <section className={`grid gap-4 md:grid-cols-2 ${fidelizacionActiva ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
-          <Kpi icon={Star} label="Visitas" value={getCustomerVisits(cliente)} help="Reservas e historial unificados" />
-          {fidelizacionActiva ? <Kpi icon={Crown} label="Puntos" value={getCustomerPoints(cliente)} help="Saldo actual" /> : null}
-          <Kpi icon={Clock3} label="Última visita" value={diasDesde(cliente.ultima_visita_real || cliente.ultima_visita) === 9999 ? "-" : `${diasDesde(cliente.ultima_visita_real || cliente.ultima_visita)}d`} help={formatFecha(cliente.ultima_visita_real || cliente.ultima_visita)} />
-          <Kpi icon={Cake} label="Cumpleaños" value={cumple === null ? "-" : `${cumple}d`} help={formatFecha(cliente.fecha_nacimiento)} />
-          <Kpi icon={CheckCircle2} label="Reservas" value={numero(cliente.total_reservas)} help={`${numero(cliente.total_atendidas)} atendidas`} />
+        <section className="gh-turno-metrics" style={{ "--gh-metric-count": fidelizacionActiva ? 5 : 4 } as CSSProperties}>
+          <TurnoMetric icon={<Star size={17} />} label="Visitas" value={getCustomerVisits(cliente)} detail="Reservas e historial" />
+          {fidelizacionActiva ? <TurnoMetric icon={<Crown size={17} />} label="Puntos" value={getCustomerPoints(cliente)} detail="Saldo actual" /> : null}
+          <TurnoMetric icon={<Clock3 size={17} />} label="Última visita" value={diasDesde(cliente.ultima_visita_real || cliente.ultima_visita) === 9999 ? "-" : `${diasDesde(cliente.ultima_visita_real || cliente.ultima_visita)}d`} detail={formatFecha(cliente.ultima_visita_real || cliente.ultima_visita)} />
+          <TurnoMetric icon={<Cake size={17} />} label="Cumpleaños" value={cumple === null ? "-" : `${cumple}d`} detail={formatFecha(cliente.fecha_nacimiento)} />
+          <TurnoMetric icon={<CheckCircle2 size={17} />} label="Reservas" value={numero(cliente.total_reservas)} detail={`${numero(cliente.total_atendidas)} atendidas`} />
         </section>
 
         <section className="grid gap-6 xl:grid-cols-[1fr_420px]">
           <div className="space-y-6">
-            {fidelizacionActiva && accion ? <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            {fidelizacionActiva && accion ? <div className="gh-legacy-surface border-l-[3px] border-l-blue-700 p-6">
               <div className="flex items-start gap-4">
                 <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><SparkIcon /></div>
                 <div className="flex-1">
@@ -559,7 +535,7 @@ export default function ClienteFichaPage() {
               </div>
             </div> : null}
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="gh-legacy-surface p-6">
               <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
                   <h2 className="font-black text-slate-950">Historial de reservas</h2>
@@ -571,7 +547,7 @@ export default function ClienteFichaPage() {
               <div className="space-y-3">
                 {reservas.length === 0 && <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">Sin reservas registradas.</p>}
                 {reservas.map((reserva) => (
-                  <article key={reserva.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <article key={reserva.id} className="relative border-l border-slate-300 py-1 pl-6 before:absolute before:-left-[5px] before:top-2 before:h-2.5 before:w-2.5 before:rounded-full before:bg-blue-700">
                     <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                       <div>
                         <p className="font-black text-slate-950">{formatFechaHora(reserva.fecha_hora_reserva)}</p>
@@ -583,14 +559,14 @@ export default function ClienteFichaPage() {
                         <span className="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200">Reseña: {reserva.resena_solicitada ? "pedida" : "no"}</span>
                       </div>
                     </div>
-                    {reserva.notas && <p className="mt-3 rounded-xl bg-white p-3 text-sm font-semibold text-slate-600 ring-1 ring-slate-100">{reserva.notas}</p>}
+                    {reserva.notas && <p className="mt-3 border-l-2 border-slate-200 pl-3 text-sm font-semibold text-slate-600">{reserva.notas}</p>}
                   </article>
                 ))}
               </div>
             </div>
 
             <div className={`grid gap-6 ${fidelizacionActiva ? "xl:grid-cols-2" : "grid-cols-1"}`}>
-              {fidelizacionActiva ? <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              {fidelizacionActiva ? <div className="gh-legacy-surface p-6">
                 <h2 className="font-black text-slate-950">Puntos</h2>
                 <div className="mt-4 space-y-3">
                   {movimientos.length === 0 && <p className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-400">Sin movimientos de puntos.</p>}
@@ -606,7 +582,7 @@ export default function ClienteFichaPage() {
                 </div>
               </div> : null}
 
-              <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="gh-legacy-surface p-6">
                 <h2 className="font-black text-slate-950">Acciones guardadas</h2>
                 <div className="mt-4 space-y-3">
                   {notificaciones.length === 0 && <p className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-400">Sin acciones guardadas.</p>}
@@ -623,7 +599,7 @@ export default function ClienteFichaPage() {
           </div>
 
           <aside className="space-y-6">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="gh-legacy-surface p-6">
               <h2 className="font-black text-slate-950">Contacto</h2>
               <div className="mt-4 space-y-3 text-sm font-semibold text-slate-600">
                 <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-slate-400" /> {cliente.telefono || "Sin teléfono"}</p>
@@ -632,7 +608,7 @@ export default function ClienteFichaPage() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="gh-legacy-surface p-6">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="font-black text-slate-950">Etiquetas</h2>
                 <Tag className="h-5 w-5 text-slate-400" />
@@ -662,7 +638,7 @@ export default function ClienteFichaPage() {
               </div>
             </div>
 
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="gh-legacy-surface p-6">
               <div className="mb-4 flex items-center justify-between gap-3">
                 <h2 className="font-black text-slate-950">Notas internas</h2>
                 <Edit3 className="h-5 w-5 text-slate-400" />
@@ -676,21 +652,6 @@ export default function ClienteFichaPage() {
         </section>
       </div>
     </main>
-  );
-}
-
-function Kpi({ icon: Icon, label, value, help }: { icon: LucideIcon; label: string; value: string | number; help: string }) {
-  return (
-    <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{label}</p>
-          <p className="mt-2 text-3xl font-black text-slate-950">{value}</p>
-          <p className="mt-1 text-xs font-bold text-slate-500">{help}</p>
-        </div>
-        <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Icon className="h-5 w-5" /></div>
-      </div>
-    </div>
   );
 }
 

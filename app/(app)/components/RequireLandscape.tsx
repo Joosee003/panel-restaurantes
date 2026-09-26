@@ -1,14 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 export default function RequireLandscape({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
   const [isMobile, setIsMobile] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
+  const allowsPortrait =
+    pathname === "/dashboard" ||
+    pathname === "/reservas" ||
+    pathname === "/clientes" ||
+    pathname.startsWith("/clientes/");
 
   useEffect(() => {
     const check = () => {
@@ -29,7 +36,7 @@ export default function RequireLandscape({
     };
   }, []);
 
-  if (isMobile && isPortrait) {
+  if (!allowsPortrait && isMobile && isPortrait) {
     return (
       <div className="fixed inset-0 z-[9999] flex flex-col items-center justify-center bg-black text-white text-center px-6">
         <div className="text-2xl font-semibold mb-4">

@@ -212,14 +212,14 @@ export default function Sidebar({
   return (
     <aside
       className={[
-        "flex h-full w-64 flex-col border-r border-slate-200 bg-white p-5 text-slate-900 shadow-sm",
+        "gh-panel-sidebar flex h-full w-64 flex-col border-r p-4 text-slate-900",
         mobile ? "" : "fixed left-0 top-0 h-screen",
       ].join(" ")}
     >
-      <div className="rounded-3xl bg-slate-50 p-4">
-        <p className="text-[11px] font-black uppercase tracking-widest text-slate-400">Panel Restaurante</p>
-        <h1 className="mt-1 truncate text-lg font-black text-slate-950">{restauranteNombre}</h1>
-        <p className="mt-1 text-xs font-semibold text-slate-500">Vista general</p>
+      <div className="gh-sidebar-brand p-4">
+        <p className="text-[10px] font-black uppercase tracking-[0.19em] text-white/45">GastroHelp · Turno vivo</p>
+        <h1 className="mt-2 truncate text-[17px] font-bold !text-white">{restauranteNombre}</h1>
+        <p className="mt-1 text-xs font-semibold text-white/45">Operación del restaurante</p>
       </div>
 
       <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto pr-1 text-sm">
@@ -233,10 +233,10 @@ export default function Sidebar({
               href={item.href}
               onClick={onNavigate}
               className={[
-                "flex items-center justify-between rounded-2xl px-3 py-3 font-bold transition",
+                "flex items-center justify-between rounded-xl px-3 py-2.5 font-bold transition",
                 isActive
-                  ? "bg-blue-700 text-white shadow-sm"
-                  : "text-slate-700 hover:bg-slate-100 hover:text-slate-950",
+                  ? "gh-sidebar-active"
+                  : "gh-sidebar-idle",
               ].join(" ")}
             >
               <span className="flex items-center gap-3">
@@ -256,8 +256,8 @@ export default function Sidebar({
               className={[
                 "flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left font-black transition",
                 menuDigitalActivo
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "text-slate-800 hover:bg-slate-100",
+                  ? "gh-sidebar-active"
+                  : "gh-sidebar-idle",
               ].join(" ")}
             >
               <span className="flex items-center gap-3">
@@ -281,8 +281,8 @@ export default function Sidebar({
                       className={[
                         "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition",
                         isActive
-                          ? "bg-blue-700 text-white shadow-sm"
-                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                          ? "gh-sidebar-active"
+                          : "gh-sidebar-idle",
                       ].join(" ")}
                     >
                       <Icon size={16} />
@@ -303,8 +303,8 @@ export default function Sidebar({
               className={[
                 "flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left font-black transition",
                 camareroDigitalActivo
-                  ? "bg-slate-950 text-white shadow-sm"
-                  : "text-slate-800 hover:bg-slate-100",
+                  ? "gh-sidebar-active"
+                  : "gh-sidebar-idle",
               ].join(" ")}
             >
               <span className="flex items-center gap-3">
@@ -328,8 +328,8 @@ export default function Sidebar({
                       className={[
                         "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition",
                         isActive
-                          ? "bg-blue-700 text-white shadow-sm"
-                          : "text-slate-600 hover:bg-slate-100 hover:text-slate-950",
+                          ? "gh-sidebar-active"
+                          : "gh-sidebar-idle",
                       ].join(" ")}
                     >
                       <Icon size={16} />
@@ -349,8 +349,8 @@ export default function Sidebar({
             className={[
               "flex items-center gap-3 rounded-2xl px-3 py-3 font-bold transition",
               isItemActive("/ajustes")
-                ? "bg-blue-700 text-white shadow-sm"
-                : "text-slate-700 hover:bg-slate-100 hover:text-slate-950",
+                ? "gh-sidebar-active"
+                : "gh-sidebar-idle",
             ].join(" ")}
           >
             <Settings size={18} />

@@ -577,7 +577,7 @@ export default function LoginPage() {
                   GastroHelp.
                 </p>
                 <a
-                  href="https://panel.gastrohelp.es/demo"
+                  href="/demo"
                   className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-blue-700 transition hover:text-blue-950"
                 >
                   ¿Todavía no eres cliente? Explora la demo{" "}
