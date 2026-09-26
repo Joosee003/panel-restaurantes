@@ -370,9 +370,6 @@ function getIsolatedPreviewFallback(slug: string) {
   if (!isolatedPreview) return null;
   if (slug === pilotFallback.slug) return pilotFallback;
   if (slug === laReservaDemoFallback.slug) return laReservaDemoFallback;
-  if (slug === "la-reserva") {
-    return { ...laReservaDemoFallback, slug };
-  }
   return null;
 }
 
@@ -380,6 +377,10 @@ export async function getPublicRestaurant(
   requestedSlug: string,
 ): Promise<PublicRestaurant | null> {
   const slug = cleanSlug(requestedSlug);
+
+  if (slug === "la-reserva") {
+    return { ...laReservaDemoFallback, slug };
+  }
 
   try {
     const supabase = getSupabaseAdmin();
