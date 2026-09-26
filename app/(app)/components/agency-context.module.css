@@ -1,0 +1,17 @@
+.bar { position: sticky; top: 0; z-index: 45; min-height: 42px; padding: 0 32px; display: flex; align-items: center; justify-content: space-between; gap: 12px; border-bottom: 1px solid #cdd9e4; background: #edf3ff; color: #172d35; font-size: 12px; }
+.bar > div { display: flex; align-items: center; gap: 16px; min-width: 0; }
+.bar strong { font-weight: 650; overflow-wrap: anywhere; }
+.identity { font-size: 10px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: #2454a4; white-space: nowrap; }
+.bar button { min-height: 42px; flex-shrink: 0; color: #174aaf; font-weight: 650; }
+.agency :global(.gh-service-nav), .agency :global(.gh-mobile-top) { top: 42px; }
+.agency :global(.gh-mobile-navigation) :global(.gh-service-nav) { top: auto; }
+.state { padding: 40px 24px; color: #172d35; }
+.state h1 { font-size: 22px; font-weight: 650; }
+.state p { margin-block: 12px; }
+.state button { min-height: 44px; color: #174aaf; }
+@media (max-width: 767px) {
+  .bar { min-height: 76px; padding-inline: 16px; gap: 8px; }
+  .bar > div { display: grid; gap: 3px; }
+  .bar button { min-height: 44px; max-width: 118px; text-align: right; }
+  .agency :global(.gh-mobile-top) { top: 76px; }
+}

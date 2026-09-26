@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { RestaurantContact } from "./RestaurantContact";
 import { InvitationAction } from "./InvitationAction";
+import EnterRestaurantButton from "./EnterRestaurantButton";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -436,6 +437,7 @@ function RestaurantCard({ restaurant }: { restaurant: RestaurantOverview }) {
         Ver seguimiento
         <ArrowRight size={16} />
       </Link>
+      <EnterRestaurantButton restaurantId={restaurant.id} />
     </article>
   );
 }

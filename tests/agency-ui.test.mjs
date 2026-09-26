@@ -52,10 +52,16 @@ const contact = compile(
   common,
 );
 const invitationAction = compile("../app/admin/components/InvitationAction.tsx", common);
+const agencyAccess = compile("../app/admin/components/agencyRestaurantAccess.ts", common);
+const enterRestaurant = compile("../app/admin/components/EnterRestaurantButton.tsx", {
+  ...common,
+  "./agencyRestaurantAccess": agencyAccess,
+});
 const views = compile("../app/admin/components/AgencyViews.tsx", {
   ...common,
   "./InvitationAction": invitationAction,
   "./RestaurantContact": contact,
+  "./EnterRestaurantButton": enterRestaurant,
   "@/lib/admin/overview": model,
   "@/lib/reviews/review-customers": reviews,
 });

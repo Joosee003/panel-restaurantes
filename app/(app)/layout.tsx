@@ -12,6 +12,7 @@ import AuthGuard from "./components/AuthGuard";
 import DemoModeGuard from "./components/DemoModeGuard";
 import ModuleRouteGuard from "./components/ModuleRouteGuard";
 import RestaurantScope from "./components/RestaurantScope";
+import AgencyRestaurantContext from "./components/AgencyRestaurantContext";
 import "./components/turno-vivo/turno-vivo.css";
 import "./components/product/product.css";
 
@@ -65,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {isLogin ? children : (
           <RequireLandscape>
             <div className="gh-panel-shell gh-product-shell min-h-screen">
+              <AgencyRestaurantContext>
               <a href="#gh-workspace" className="gh-skip-link">Saltar al contenido</a>
               <div className="gh-desktop-navigation"><Sidebar /></div>
               <div className="gh-mobile-top">
@@ -85,6 +87,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <footer className="gh-product-footer"><span>GastroHelp</span><span>Tu restaurante, en orden.</span></footer>
                 </div>
               </main>
+              </AgencyRestaurantContext>
             </div>
           </RequireLandscape>
         )}
