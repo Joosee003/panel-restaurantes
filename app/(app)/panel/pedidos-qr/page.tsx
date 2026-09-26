@@ -1,4 +1,5 @@
 "use client";
+import styles from "../../components/product/modules.module.css";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -280,13 +281,9 @@ export default function PedidosQRPage() {
   const totalActivo = pedidosActivos.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
   const totalHistorial = pedidosFinalizados.reduce((sum, pedido) => sum + Number(pedido.total || 0), 0);
 
-  const pageClass = isDark
-    ? "min-h-screen bg-slate-950 p-6 text-slate-100"
-    : "min-h-screen bg-slate-50 p-6 text-slate-900";
+  const pageClass = `${styles.workspace} ${styles.formWorkspace}`;
 
-  const iconBoxClass = isDark
-    ? "relative rounded-2xl bg-white/5 p-3 text-white shadow-sm ring-1 ring-white/10"
-    : "relative rounded-2xl bg-slate-900 p-3 text-white shadow-sm";
+  const iconBoxClass = isDark ? "relative text-slate-200" : "relative text-slate-500";
 
   const titleClass = isDark ? "text-3xl font-black text-white" : "text-3xl font-black text-slate-900";
   const subtitleClass = isDark ? "mt-1 text-slate-400" : "mt-1 text-slate-500";
@@ -294,17 +291,11 @@ export default function PedidosQRPage() {
   const mainTextClass = isDark ? "text-white" : "text-slate-900";
   const secondaryTextClass = isDark ? "text-slate-200" : "text-slate-700";
 
-  const primaryButtonClass = isDark
-    ? "flex items-center justify-center gap-2 rounded-2xl bg-white/5 px-5 py-3 text-sm font-black text-white shadow-sm ring-1 ring-white/10 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
-    : "flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50";
+  const primaryButtonClass = styles.kitchenAction;
 
-  const normalCardClass = isDark
-    ? "rounded-3xl border border-white/10 bg-white/5 p-6 shadow-sm"
-    : "rounded-3xl border border-slate-200 bg-white p-6 shadow-sm";
+  const normalCardClass = `${styles.compactPanel} py-5`;
 
-  const columnClass = isDark
-    ? "rounded-[2rem] border border-white/10 bg-white/[0.03] p-4 shadow-sm"
-    : "rounded-[2rem] border border-slate-200 bg-white p-4 shadow-sm";
+  const columnClass = styles.kitchenColumn;
 
   const getAudioContext = useCallback(() => {
     if (typeof window === "undefined") return null;
@@ -835,9 +826,9 @@ export default function PedidosQRPage() {
   }
 
   return (
-    <main className={pageClass}>
+    <div className={pageClass}>
       <div className="mx-auto max-w-7xl">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
+        <div className={`${styles.compactHeader} flex flex-col justify-between gap-5 lg:flex-row lg:items-center`}>
           <div className="flex items-center gap-4">
             <div className={iconBoxClass}>
               <ShoppingBag className="h-6 w-6" />
@@ -853,7 +844,7 @@ export default function PedidosQRPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className={styles.kitchenTools}>
             <button onClick={activarSonido} className={primaryButtonClass}>
               {sonidoActivo ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
               {sonidoActivo ? "Sonido activo" : "Activar sonido"}
@@ -873,7 +864,7 @@ export default function PedidosQRPage() {
           </div>
         </div>
 
-        <section className="mt-6 grid gap-4 md:grid-cols-4">
+        <section className={`${styles.metricStrip} ${styles.compactTotals}`}>
           <div className={normalCardClass}>
             <p className={`text-sm font-black ${mutedTextClass}`}>Activos</p>
             <p className={`mt-1 text-3xl font-black ${mainTextClass}`}>{pedidosActivos.length}</p>
@@ -892,7 +883,7 @@ export default function PedidosQRPage() {
           </div>
         </section>
 
-        <div className="mt-6 flex gap-2 overflow-x-auto pb-2">
+        <div className={`${styles.tabs} mt-3`}>
           {[
             { key: "cocina" as TabVista, label: "Cocina", icon: ChefHat },
             { key: "mesas" as TabVista, label: "Mesas abiertas", icon: Table2 },
@@ -904,13 +895,8 @@ export default function PedidosQRPage() {
               <button
                 key={tab.key}
                 onClick={() => setVista(tab.key)}
-                className={`flex shrink-0 items-center gap-2 rounded-2xl px-5 py-3 text-sm font-black transition ${
-                  activo
-                    ? "bg-blue-500 text-white shadow-sm"
-                    : isDark
-                    ? "bg-white/5 text-slate-300 ring-1 ring-white/10 hover:bg-white/10"
-                    : "bg-white text-slate-700 shadow-sm ring-1 ring-slate-200 hover:bg-slate-50"
-                }`}
+                aria-pressed={activo}
+                className={`${styles.tab} flex items-center gap-2`}
               >
                 <Icon className="h-4 w-4" />
                 {tab.label}
@@ -946,7 +932,7 @@ export default function PedidosQRPage() {
         )}
 
         {!cargando && !error && vista === "cocina" && (
-          <section className="mt-8 grid gap-5 xl:grid-cols-3">
+          <section className={styles.kitchenBoard}>
             {columnasCocina.map((columna) => {
               const Icon = columna.icon;
               const pedidosColumna = pedidosActivos.filter((pedido) => normalizarEstado(pedido.estado) === columna.key);
@@ -1093,6 +1079,6 @@ export default function PedidosQRPage() {
           </section>
         )}
       </div>
-    </main>
+    </div>
   );
 }

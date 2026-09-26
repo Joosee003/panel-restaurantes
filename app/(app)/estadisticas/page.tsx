@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
+import styles from "../components/product/modules.module.css";
 import {
   ArrowLeft,
   ArrowRight,
-  BarChart3,
   CalendarDays,
   ChefHat,
   MessageSquare,
@@ -190,38 +190,19 @@ function statusColor(diff: number, dark: boolean) {
 function TrendPill({ diff, pct, dark }: { diff: number; pct: number; dark: boolean }) {
   const Icon = diff > 0 ? TrendingUp : diff < 0 ? TrendingDown : Minus;
   return (
-    <span className={clsx("inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-black", statusColor(diff, dark))}>
+    <span className={clsx(styles.trend, "inline-flex items-center gap-1 text-xs", statusColor(diff, dark))}>
       <Icon size={13} /> {fmtPct(pct)}
     </span>
   );
 }
 
 function KpiCard({ metric, dark }: { metric: Metric; dark: boolean }) {
-  const Icon = metric.icon;
-  const tones = {
-    blue: dark ? "bg-blue-500/15 text-blue-200" : "bg-blue-50 text-blue-700",
-    emerald: dark ? "bg-emerald-500/15 text-emerald-200" : "bg-emerald-50 text-emerald-700",
-    violet: dark ? "bg-violet-500/15 text-violet-200" : "bg-violet-50 text-violet-700",
-    amber: dark ? "bg-amber-500/15 text-amber-200" : "bg-amber-50 text-amber-700",
-  } as const;
-
   return (
-    <div className={clsx("rounded-3xl border p-5 shadow-sm", dark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white")}>
-      <div className="flex items-start justify-between gap-3">
-        <div className={clsx("flex h-12 w-12 items-center justify-center rounded-2xl", tones[metric.tone])}>
-          <Icon size={22} />
-        </div>
-        <TrendPill diff={metric.diff} pct={metric.pct} dark={dark} />
-      </div>
-
-      <p className={clsx("mt-5 text-xs font-black uppercase tracking-widest", dark ? "text-slate-400" : "text-slate-500")}>
-        {metric.label}
-      </p>
-      <p className={clsx("mt-2 text-3xl font-black tracking-tight", dark ? "text-white" : "text-slate-950")}>{metric.value}</p>
-      <p className={clsx("mt-1 text-sm font-semibold", dark ? "text-slate-400" : "text-slate-500")}>{metric.previous}</p>
-      <p className={clsx("mt-4 rounded-2xl px-3 py-2 text-xs font-bold", dark ? "bg-slate-900 text-slate-300" : "bg-slate-50 text-slate-600")}>
-        {metric.help}
-      </p>
+    <div className={styles.metric}>
+      <p className={styles.metricLabel}>{metric.label}</p>
+      <div className={styles.metricValue}><strong>{metric.value}</strong><TrendPill diff={metric.diff} pct={metric.pct} dark={dark} /></div>
+      <p className={styles.metricNote}>{metric.previous}</p>
+      <p className={styles.metricNote}>{metric.help}</p>
     </div>
   );
 }
@@ -240,7 +221,7 @@ function ChartCard({
   className?: string;
 }) {
   return (
-    <div className={clsx("rounded-3xl border p-5 shadow-sm", dark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white", className)}>
+    <div className={clsx(styles.chart, className)}>
       <div className="mb-4 flex items-start justify-between gap-3">
         <div>
           <h2 className={clsx("text-lg font-black", dark ? "text-white" : "text-slate-950")}>{title}</h2>
@@ -274,7 +255,6 @@ export default function EstadisticasPage() {
   const [pedidos, setPedidos] = useState<PedidoQR[]>([]);
   const [cierres, setCierres] = useState<CierreMesa[]>([]);
 
-  const pageBg = dark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-950";
   const chartGrid = dark ? "#1f2937" : "#e2e8f0";
   const chartText = dark ? "#cbd5e1" : "#475569";
 
@@ -625,8 +605,8 @@ export default function EstadisticasPage() {
   const pieColors = ["#2563eb", "#059669", "#7c3aed", "#f59e0b", "#64748b"];
 
   return (
-    <div className={clsx("min-h-screen space-y-6 p-4 md:p-6", pageBg)}>
-      <section className={clsx("overflow-hidden rounded-[30px] border p-5 shadow-sm md:p-7", dark ? "border-slate-800 bg-slate-950" : "border-blue-100 bg-white")}>
+    <div className={`${styles.workspace} space-y-5`}>
+      <section className={styles.compactHeader}>
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <Link
@@ -635,11 +615,8 @@ export default function EstadisticasPage() {
             >
               <ArrowLeft size={14} /> Volver al dashboard
             </Link>
-            <div className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-widest text-blue-700">
-              <BarChart3 size={14} /> Informe para restaurante
-            </div>
-            <h1 className={clsx("mt-4 text-3xl font-black tracking-tight md:text-4xl", dark ? "text-white" : "text-slate-950")}>
-              Métricas claras de {restauranteNombre}
+            <h1>
+              Métricas · {restauranteNombre}
             </h1>
             <p className={clsx("mt-2 max-w-3xl text-sm font-semibold leading-6", dark ? "text-slate-400" : "text-slate-600")}>
               {camareroDigitalActivo
@@ -652,7 +629,7 @@ export default function EstadisticasPage() {
             <button
               onClick={cargar}
               disabled={refreshing}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-800 disabled:opacity-60"
+              className={`${styles.button} inline-flex items-center justify-center gap-2 bg-blue-700 px-4 py-2 text-white hover:bg-blue-800 disabled:opacity-60`}
             >
               <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} /> Recargar
             </button>
@@ -680,7 +657,7 @@ export default function EstadisticasPage() {
         </div>
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+          <section className={styles.metricStrip} aria-label="Comparación con el mes anterior">
             {metrics.map((metric) => (
               <KpiCard key={metric.id} metric={metric} dark={dark} />
             ))}
@@ -688,7 +665,7 @@ export default function EstadisticasPage() {
 
           <section className={`grid grid-cols-1 gap-5 ${camareroDigitalActivo ? "xl:grid-cols-3" : ""}`}>
             {camareroDigitalActivo ? <ChartCard dark={dark} title="Embudo del camarero digital" subtitle="De pedido QR a dinero cobrado" className="xl:col-span-2">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+              <div className={styles.funnel}>
                 <div className={clsx("rounded-2xl p-5", dark ? "bg-slate-900" : "bg-blue-50")}>
                   <p className="text-xs font-black uppercase tracking-widest text-blue-700">1. Pedidos QR</p>
                   <p className={clsx("mt-3 text-4xl font-black", dark ? "text-white" : "text-slate-950")}>{fmtInt(data.pedidosActual.length)}</p>
@@ -710,8 +687,8 @@ export default function EstadisticasPage() {
             <ChartCard dark={dark} title="Avisos de impacto" subtitle="Solo lo que merece atención">
               <div className="space-y-3">
                 {insights.map((item, index) => (
-                  <div key={item} className={clsx("flex gap-3 rounded-2xl p-3 text-sm font-semibold leading-6", dark ? "bg-slate-900 text-slate-300" : "bg-slate-50 text-slate-700")}>
-                    <span className="mt-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-blue-700 text-xs font-black text-white">{index + 1}</span>
+                  <div key={item} className={`${styles.insight} flex gap-3 leading-6`}>
+                    <span className="shrink-0 font-mono text-xs text-slate-500">0{index + 1}</span>
                     <p>{item}</p>
                   </div>
                 ))}
@@ -719,7 +696,7 @@ export default function EstadisticasPage() {
             </ChartCard>
           </section>
 
-          <section className="grid grid-cols-1 gap-5 2xl:grid-cols-2">
+          <section className={`${styles.chartLayout} grid grid-cols-1 xl:grid-cols-2`}>
             {camareroDigitalActivo ? <ChartCard dark={dark} title="Dinero generado por el sistema" subtitle="Mes actual vs mes anterior">
               <div className="h-[360px]">
                 <ResponsiveContainer width="100%" height="100%">
@@ -804,7 +781,7 @@ export default function EstadisticasPage() {
               )}
             </ChartCard> : null}
 
-            <section className={clsx("rounded-3xl border p-5 shadow-sm", camareroDigitalActivo && "xl:col-span-2", dark ? "border-slate-800 bg-slate-950/60" : "border-slate-200 bg-white")}>
+            <section className={clsx(styles.report, camareroDigitalActivo && "xl:col-span-2")}>
               <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
                   <h2 className={clsx("text-xl font-black", dark ? "text-white" : "text-slate-950")}>Resumen para enseñar al restaurante</h2>

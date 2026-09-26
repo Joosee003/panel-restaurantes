@@ -1,12 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, MessageCircle, RefreshCw, Search, Star } from "lucide-react";
+import { Loader2, RefreshCw, Search, Star } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import ResponderResenaModal from "../components/ResponderResenaModal";
 import { useTheme } from "../components/ThemeProvider";
 import { useRestaurante } from "../../hooks/useRestaurante";
 import ReviewRequestsPanel from "./ReviewRequestsPanel";
+import styles from "../components/product/modules.module.css";
 
 type Resena = {
   id: string;
@@ -29,7 +30,7 @@ function StoredReviews({ restauranteId, dark, tab }: { restauranteId: string; da
   const [revision, setRevision] = useState(0);
   const refresh = useCallback(() => { setLoading(true); setError(""); setRevision(value=>value+1); }, []);
   const muted = dark ? "text-slate-400" : "text-slate-500";
-  const card = `rounded-3xl border p-5 ${dark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"}`;
+  const card = styles.section;
   useEffect(() => {
     let active = true;
     void supabase.from("resenas").select('id,nombre_cliente,rating,comentario,responded,respuesta_texto,"fecha_reseña",created_at')
@@ -51,7 +52,7 @@ function StoredReviews({ restauranteId, dark, tab }: { restauranteId: string; da
     {loading ? <Loader2 className="mx-auto my-12 animate-spin" aria-label="Cargando reseñas"/> : visible.length ? visible.map(review=>{
       const rating = Math.max(0,Math.min(5,Math.round(Number(review.rating)||0)));
       const date = review.fecha_reseña || review.created_at;
-      return <article key={review.id} className={`rounded-2xl border p-5 ${dark ? "border-slate-700" : "border-slate-200"}`}>
+      return <article key={review.id} className={`${styles.reviewArticle} ${dark ? "border-slate-700" : "border-slate-200"}`}>
         <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold">{review.nombre_cliente || "Cliente"}</h3><div className="mt-2 flex gap-1" aria-label={`${rating} de 5 estrellas`}>{Array.from({length:5},(_,i)=><Star key={i} size={16} className={i<rating ? "fill-amber-400 text-amber-400" : "text-slate-300"}/>)}</div></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${review.responded ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-900"}`}>{review.responded ? "Respondida" : "Sin responder"}</span></div>
         <p className={`mt-4 whitespace-pre-wrap text-sm leading-6 ${dark ? "text-slate-200" : "text-slate-700"}`}>{review.comentario || "Sin comentario escrito."}</p>
         {date && <p className={`mt-2 text-xs ${muted}`}>{new Date(date).toLocaleDateString("es-ES",{day:"2-digit",month:"short",year:"numeric"})}</p>}
@@ -68,10 +69,10 @@ export default function ResenasPage() {
   const { data: restaurant, isLoading } = useRestaurante();
   const [tab, setTab] = useState<Tab>("solicitudes");
   const restauranteId = restaurant?.id ? String(restaurant.id) : null;
-  return <div className={`min-h-screen space-y-6 px-4 py-6 sm:px-6 lg:px-8 ${dark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-950"}`}>
-    <header><div className="flex items-center gap-3"><span className="rounded-2xl bg-indigo-100 p-3 text-indigo-700"><MessageCircle size={24}/></span><div><h1 className="text-3xl font-black tracking-tight">Reseñas</h1><p className={`mt-1 text-sm ${dark ? "text-slate-400" : "text-slate-500"}`}>Revisa las opiniones de tus clientes y abre su chat de WhatsApp desde aquí.</p></div></div></header>
-    <nav className="flex flex-wrap gap-2" aria-label="Apartados de reseñas">
-      {([["solicitudes","Seguimiento"],["resenas","Reseñas guardadas"],["respondidas","Respondidas"]] as [Tab,string][]).map(([key,label])=><button type="button" key={key} onClick={()=>setTab(key)} aria-current={tab===key ? "page" : undefined} className={`rounded-xl px-4 py-3 text-sm font-bold ${tab===key ? "bg-[#1601ad] text-white" : dark ? "bg-slate-800 text-slate-200" : "border border-slate-200 bg-white text-slate-600"}`}>{label}</button>)}
+  return <div className={`${styles.workspace} space-y-5`}>
+    <header className={styles.header}><div><p className={styles.eyebrow}>Relación con el cliente</p><h1>Reseñas</h1><p className={styles.subtitle}>Consulta las opiniones, revisa cada petición y conserva el contexto de la visita.</p></div></header>
+    <nav className={styles.tabs} aria-label="Apartados de reseñas">
+      {([["solicitudes","Seguimiento"],["resenas","Reseñas guardadas"],["respondidas","Respondidas"]] as [Tab,string][]).map(([key,label])=><button type="button" key={key} onClick={()=>setTab(key)} aria-current={tab===key ? "page" : undefined} className={styles.tab}>{label}</button>)}
     </nav>
     {isLoading ? <Loader2 className="mx-auto my-20 animate-spin" aria-label="Cargando restaurante"/> : !restauranteId ? <p role="alert">Selecciona el restaurante para ver sus reseñas.</p> : tab==="solicitudes" ? <ReviewRequestsPanel key={restauranteId} restauranteId={restauranteId} dark={dark}/> : <StoredReviews key={restauranteId} restauranteId={restauranteId} dark={dark} tab={tab}/>}
   </div>;

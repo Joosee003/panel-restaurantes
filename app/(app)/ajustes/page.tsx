@@ -1,4 +1,5 @@
 "use client";
+import styles from "../components/product/modules.module.css";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
@@ -101,18 +102,18 @@ function StatCard({
   icon: ReactNode;
 }) {
   return (
-    <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+    <div className={styles.metric}>
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">
             {label}
           </p>
-          <p className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+          <p className="mt-2 text-xl font-semibold tracking-tight text-slate-950">
             {value}
           </p>
           <p className="mt-1 text-xs font-bold text-slate-500">{sub}</p>
         </div>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+        <div className="text-slate-400 [&_svg]:h-4 [&_svg]:w-4">
           {icon}
         </div>
       </div>
@@ -132,10 +133,10 @@ function SectionCard({
   icon?: ReactNode;
 }) {
   return (
-    <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <section className={`${styles.compactPanel} ${styles.formWorkspace}`}>
       <div className="mb-5 flex items-start gap-3">
         {icon ? (
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
+          <div className="shrink-0 text-slate-500 [&_svg]:h-5 [&_svg]:w-5">
             {icon}
           </div>
         ) : null}
@@ -576,15 +577,15 @@ export default function AjustesPage() {
   }
 
   return (
-    <div className="space-y-6 pb-10 text-slate-950">
-      <div className="rounded-[32px] border border-slate-200 bg-white p-6 shadow-sm sm:p-7">
+    <div className={`${styles.settingsShell} space-y-5 text-slate-950`}>
+      <div className={styles.compactHeader}>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-blue-700">
               <Settings2 className="h-3.5 w-3.5" />
               Configuración del restaurante
             </div>
-            <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-950 sm:text-4xl">
+            <h1 className="mt-3 text-2xl font-semibold tracking-tight text-slate-950">
               Ajustes
             </h1>
             <p className="mt-2 max-w-3xl text-sm font-semibold text-slate-500">
@@ -611,7 +612,7 @@ export default function AjustesPage() {
           </div> : null}
         </div>
 
-        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className={styles.metricStrip}>
           <StatCard
             label="Restaurante"
             value={nombre || restaurante?.nombre || "Sin nombre"}
@@ -659,22 +660,22 @@ export default function AjustesPage() {
         )}
       </div>
 
-      <div className="rounded-[28px] border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-6">
+      <div>
+        <div className={styles.settingsNavigation}>
           {tabs.map((item) => {
             const active = tab === item.key;
             return (
               <button
                 key={item.key}
                 onClick={() => setTab(item.key)}
-                className={`rounded-2xl px-4 py-3 text-left transition ${
+                className={`px-4 py-3 text-left transition ${
                   active
-                    ? "bg-blue-600 text-white shadow-sm"
-                    : "bg-slate-50 text-slate-700 hover:bg-slate-100"
+                    ? "border-blue-600 text-blue-700"
+                    : "border-transparent text-slate-700 hover:bg-slate-100"
                 }`}
               >
                 <div className="text-sm font-black">{item.label}</div>
-                <div className={`text-xs font-bold ${active ? "text-blue-100" : "text-slate-400"}`}>
+                <div className={`text-xs ${active ? "text-blue-600" : "text-slate-400"}`}>
                   {item.description}
                 </div>
               </button>

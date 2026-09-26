@@ -1,0 +1,75 @@
+.page { padding: 0; color: var(--gh-ink, #172d35); min-width: 0; }
+.page :is(button, a, input):focus-visible { outline: 2px solid var(--gh-blue, #245be0); outline-offset: 3px; }
+.page button { cursor: pointer; }
+.page button:disabled { cursor: not-allowed; }
+.page :global(.font-black), .detail :global(.font-black) { font-weight: 600; }
+.header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 18px; margin-bottom: 20px; }
+.heading { display: flex; flex-wrap: wrap; align-items: baseline; gap: 16px; }
+.heading h1 { font-size: 25px; font-weight: 670; letter-spacing: -.035em; }
+.heading p { font-size: 13px; color: var(--gh-muted, #63767d); }
+.dateControls { display: flex; align-items: center; gap: 6px; }
+.dateControls input { border: 1px solid var(--gh-line, #dce3e3); border-radius: 4px; background: transparent; font-size: 12px; padding: 7px; max-width: 145px; }
+.button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--gh-line, #dce3e3); border-radius: 4px; padding: 7px 10px; min-height: 32px; color: var(--gh-ink, #172d35); background: transparent; font-size: 12px; font-weight: 550; white-space: nowrap; }
+.button:hover { background: #eaf0f1; }
+.buttonActive { color: white; background: var(--gh-ink, #172d35); border-color: var(--gh-ink, #172d35); }
+.buttonActive:hover { background: #26434c; }
+.summary { display: flex; flex-wrap: wrap; column-gap: 22px; row-gap: 9px; padding-block: 13px; border-block: 1px solid var(--gh-line, #dce3e3); font-size: 12px; color: var(--gh-muted, #63767d); }
+.summary strong { color: var(--gh-ink, #172d35); font-weight: 650; font-variant-numeric: tabular-nums; }
+.summaryDate { margin-right: auto; text-transform: capitalize; }
+.timeControls { margin-bottom: 25px; }
+.turnos { display: flex; gap: 24px; border-bottom: 1px solid var(--gh-line, #dce3e3); }
+.turnos .button { border: 0; border-radius: 0; padding: 16px 0; background: transparent; color: var(--gh-muted, #63767d); border-bottom: 2px solid transparent; }
+.turnos .buttonActive { border-bottom-color: var(--gh-blue, #245be0); color: var(--gh-ink, #172d35); }
+.franjas { display: flex; gap: 0; padding-top: 12px; overflow-x: auto; }
+.franjas .button { border: 0; border-radius: 0; color: var(--gh-muted, #63767d); padding: 9px 18px; border-bottom: 1px solid var(--gh-line, #dce3e3); }
+.franjas .franjaActive { background: #eaf0ff; border-bottom: 2px solid var(--gh-blue, #245be0); color: var(--gh-blue, #245be0); }
+.workspace { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 28px; }
+.floor { min-width: 0; }
+.floorHeading { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; justify-content: space-between; border-bottom: 1px solid var(--gh-line, #dce3e3); padding-bottom: 13px; margin-bottom: 22px; }
+.floorHeading h2 { font-size: 14px; font-weight: 650; }
+.floorHeading span { font-size: 12px; color: var(--gh-muted, #63767d); }
+.zoneHeading { margin-bottom: 13px; }
+.zoneHeading > div { display: flex; align-items: baseline; gap: 12px; }
+.zoneHeading h2 { font-size: 14px; font-weight: 650; }
+.zoneHeading p { font-size: 11px; color: var(--gh-muted, #63767d); }
+.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 18px; padding: 7px 0 10px; }
+.table { position: relative; border: 1px solid #c6d4d3; border-radius: 5px; padding: 12px; min-height: 120px; text-align: left; transition: border-color .15s, background .15s; background: #f4f7f5; color: var(--gh-ink, #172d35); }
+.table::before { content: ""; position: absolute; width: 28px; height: 4px; background: #b2c7bf; border-radius: 2px 2px 0 0; top: -5px; left: calc(50% - 14px); }
+.table::after { content: ""; position: absolute; width: 28px; height: 4px; background: #b2c7bf; border-radius: 0 0 2px 2px; bottom: -5px; left: calc(50% - 14px); }
+.table:hover { border-color: var(--gh-blue, #245be0); background: #edf3f2; }
+.table[data-state="ocupada"] { border-color: #85a0c6; background: #eaf0f8; }
+.table[data-state="reservada"] { border-color: #d5c097; background: #f8f4e9; }
+.table[data-state="atendida"] { border-color: #b4aad0; background: #f0edf7; }
+.table[data-state="bloqueada"] { border-color: #d5b0b0; background: repeating-linear-gradient(135deg, #faf1f1, #faf1f1 7px, #f7eeee 7px, #f7eeee 8px); }
+.table[data-state="ocupada"]::before, .table[data-state="ocupada"]::after { background: #85a0c6; }
+.table[data-state="reservada"]::before, .table[data-state="reservada"]::after { background: #d5c097; }
+.table[data-state="atendida"]::before, .table[data-state="atendida"]::after { background: #b4aad0; }
+.table[data-state="bloqueada"]::before, .table[data-state="bloqueada"]::after { background: #d5b0b0; }
+.table h3 { font-size: 18px; letter-spacing: -.025em; font-weight: 650; }
+.capacity { font-size: 10px; color: var(--gh-muted, #63767d); margin-top: 2px; }
+.tableStatus { padding: 0; border: 0; background: transparent !important; font-size: 10px; display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.tableStatus::before { content: ""; width: 4px; height: 4px; background: currentColor; border-radius: 50%; }
+.tableBooking { margin-top: 14px; font-size: 11px; line-height: 1.6; }
+.tableBooking > p:first-child { font-size: 12px; }
+.tableHint { font-size: 10px; color: var(--gh-muted, #63767d); }
+.contextRail { border-left: 1px solid var(--gh-line, #dce3e3); padding-left: 24px; min-width: 0; }
+.section { background: transparent; padding: 0 0 20px !important; margin-bottom: 20px; border-bottom: 1px solid var(--gh-line, #dce3e3); }
+.section h2 { font-size: 14px; font-weight: 650; }
+.section > div:first-child > div > p { font-size: 11px; }
+.section > div:first-child > span { padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 14px; font-variant-numeric: tabular-nums; }
+.contextRow { border-bottom: 1px solid var(--gh-line, #dce3e3); border-radius: 0; background: transparent; padding: 11px 0 !important; }
+.contextRow p { font-size: 12px; }
+.contextRow p + p { font-size: 11px; }
+.contextRow button { font-size: 11px; border-radius: 4px; padding: 6px 8px; }
+.contextRail > .section:last-child > div { display: flex; flex-wrap: wrap; gap: 8px 15px; }
+.contextRail > .section:last-child > div > span { border: 0; border-radius: 0; background: transparent; padding: 0; font-size: 10px; }
+.contextRail > .section:last-child > div > span::before { content: "● "; font-size: 8px; }
+.contextRow > div > span { border: 0; border-radius: 0; background: transparent; padding: 0; font-size: 10px; color: var(--gh-muted, #63767d); }
+.detail h2 { font-size: 25px; font-weight: 650; letter-spacing: -.035em; }
+.detail :global(.rounded-full) { border-radius: 0; background: transparent; padding: 0; font-size: 12px; }
+.detail > div:global(.grid) { display: flex; flex-wrap: wrap; }
+.detail .contextRow { width: 100%; margin-block: 0; }
+.detail button, .detail a { font-size: 12px; border-radius: 4px; }
+.detail :global(.rounded-2xl) { border-radius: 4px; }
+@media (max-width: 1150px) { .workspace { grid-template-columns: minmax(0, 1fr) 260px; gap: 22px; } .tables { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); } .dateControls { flex-wrap: wrap; } .header { gap: 13px; } .contextRail { padding-left: 20px; } }
+@media (max-width: 760px) { .page { padding: 0; } .heading { display: block; } .heading h1 { font-size: 23px; } .heading p { font-size: 12px; margin-top: 3px; } .dateControls { gap: 6px; width: 100%; } .dateLabel { display: none; } .dateControls .button { font-size: 10px; padding: 6px; min-height: 34px; } .dateControls input { max-width: 128px; padding: 6px; font-size: 11px; } .summary { font-size: 11px; gap: 7px 14px; } .summaryDate { width: 100%; } .turnos { gap: 22px; } .turnos .button { font-size: 11px; } .franjas { scrollbar-width: none; } .franjas .button { font-size: 11px; padding-inline: 13px; } .workspace { display: flex; flex-direction: column; gap: 28px; } .floorHeading h2 { font-size: 13px; } .floorHeading span { font-size: 11px; } .tables { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px 13px; } .table { padding: 10px; min-height: 120px; } .table > div:first-child { gap: 5px; } .table h3 { font-size: 17px; } .tableStatus { font-size: 9px; } .contextRail { border-left: 0; padding-left: 0; } .zoneHeading > div { justify-content: space-between; } .contextRail .contextRow button { min-height: 36px; } }

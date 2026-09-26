@@ -1,4 +1,5 @@
 "use client";
+import styles from "../../components/product/modules.module.css";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -554,16 +555,16 @@ export default function MenuDiaPage() {
 
   if (cargando || loadingRestaurante) {
     return (
-      <main className="flex min-h-[60vh] items-center justify-center bg-slate-50">
+      <div className="flex min-h-[60vh] items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-slate-500" />
-      </main>
+      </div>
     );
   }
 
   return (
-    <main className="min-h-screen overflow-x-hidden bg-slate-50 p-4 text-slate-950 md:p-8">
+    <div className={`${styles.workspace} ${styles.formWorkspace}`}>
       <div className="mx-auto max-w-[1420px] space-y-6">
-        <header className="rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+        <header className={styles.compactHeader}>
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-blue-700">
@@ -609,7 +610,7 @@ export default function MenuDiaPage() {
           </div>
         )}
 
-        <section className="grid gap-4 md:grid-cols-4">
+        <section className={`${styles.metricStrip} ${styles.compactTotals}`}>
           <div className="rounded-[1.5rem] border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">Carta activa</p>
             <p className="mt-2 truncate text-xl font-black">{cartaActiva?.nombre || "Sin carta"}</p>
@@ -644,7 +645,7 @@ export default function MenuDiaPage() {
 
         <section className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
           <div className="space-y-6">
-            <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className={styles.compactPanel}>
               <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
@@ -977,6 +978,6 @@ export default function MenuDiaPage() {
           </aside>
         </section>
       </div>
-    </main>
+    </div>
   );
 }

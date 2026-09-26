@@ -1,25 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import {
-  CalendarDays,
-  Clock3,
-  Copy,
-  Crown,
-  Loader2,
-  Mail,
-  Medal,
-  MessageCircle,
-  Phone,
-  Plus,
-  Search,
-  SlidersHorizontal,
-  Sparkles,
-  Star,
-  Trophy,
-  Users,
-} from "lucide-react";
+import { ChevronRight, Copy, Loader2, Mail, MessageCircle, Phone, Plus, Search, X } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
 import {
@@ -34,7 +17,8 @@ import {
   type CustomerLevel,
   type CustomerLevelsConfig,
 } from "../lib/customerLevels";
-import { TurnoMetric, TurnoPageHeader } from "../components/turno-vivo/TurnoPrimitives";
+import { CrmDialog } from "./CrmDialog";
+import styles from "./crm.module.css";
 
 type ClienteResumen = {
   id: string;
@@ -195,21 +179,6 @@ function mensajeCliente(cliente: ClienteResumen, tipo: TipoMensaje) {
   return mensajes[tipo].replace(/  +/g, " ").trim();
 }
 
-function badgeNivel(nivel: NivelCliente) {
-  if (nivel === "maestro") return "border-amber-300 bg-amber-50 text-amber-800";
-  if (nivel === "vip") return "border-purple-200 bg-purple-50 text-purple-700";
-  if (nivel === "habitual") return "border-blue-200 bg-blue-50 text-blue-700";
-  if (nivel === "frecuente") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  return "border-slate-200 bg-slate-50 text-slate-700";
-}
-
-function badgeEstado(estado: string) {
-  if (estado === "Dormido") return "border-amber-200 bg-amber-50 text-amber-700";
-  if (estado === "Sin reseña") return "border-violet-200 bg-violet-50 text-violet-700";
-  if (estado === "Riesgo") return "border-red-200 bg-red-50 text-red-700";
-  return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700";
-}
-
 export default function ClientesPage() {
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
   const [clientes, setClientes] = useState<ClienteResumen[]>([]);
@@ -226,6 +195,8 @@ export default function ClientesPage() {
   const [nivelesConfig, setNivelesConfig] = useState<NivelesClienteConfig>(DEFAULT_NIVELES_CONFIG);
   const [nivelesForm, setNivelesForm] = useState<NivelesClienteConfig>(DEFAULT_NIVELES_CONFIG);
   const [nuevoCliente, setNuevoCliente] = useState({ nombre: "", telefono: "", email: "" });
+  const [selectedClienteId, setSelectedClienteId] = useState<string | null>(null);
+  const selectedCliente = clientes.find((cliente) => cliente.id === selectedClienteId) || null;
 
   useEffect(() => {
     if (!modalNuevo && !modalRanking && !modalNiveles) return;
@@ -572,410 +543,91 @@ export default function ClientesPage() {
   }
 
   return (
-    <main className="gh-turno-page gh-clients text-slate-900">
-      <div className="space-y-7">
-        <TurnoPageHeader
-          eyebrow={fidelizacionActiva ? "Relación · Clientes y niveles" : "Relación · Base de clientes"}
-          title="Clientes"
-          description={fidelizacionActiva
-            ? "Una lectura operativa de quién vuelve, quién necesita atención y cómo evoluciona cada relación."
-            : "Contactos, reservas, visitas y seguimiento básico del restaurante."}
-          meta={<><span>{resumen.total} clientes</span><span>{resumen.dormidos} sin visita en más de 30 días</span></>}
-          actions={<>
-            {fidelizacionActiva ? <button onClick={() => setModalRanking(true)} className="gh-turno-secondary inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-black"><Trophy className="h-4 w-4" /> Ranking</button> : null}
-            {fidelizacionActiva ? <button onClick={() => { setNivelesForm(nivelesConfig); setModalNiveles(true); }} className="gh-turno-secondary inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-black"><SlidersHorizontal className="h-4 w-4" /> Niveles</button> : null}
-            <button onClick={() => setModalNuevo(true)} className="gh-turno-primary inline-flex items-center justify-center gap-2 px-5 py-2 text-sm font-black"><Plus className="h-4 w-4" /> Añadir cliente</button>
-          </>}
-        />
-
-        <div className="gh-turno-controlbar">
-          <div className="relative w-full">
-            <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente, teléfono o email" className="h-12 w-full border bg-white pl-11 pr-4 text-sm font-bold text-slate-900 outline-none" />
-          </div>
+    <div className={styles.page}>
+      <header className={styles.heading}>
+        <div><h1>Clientes</h1><p>La relación con quienes vuelven.</p></div>
+        <div className={styles.headingActions}>
+          {fidelizacionActiva ? <button onClick={() => setModalRanking(true)} className={styles.button}>Ranking</button> : null}
+          {fidelizacionActiva ? <button onClick={() => { setNivelesForm(nivelesConfig); setModalNiveles(true); }} className={styles.button}>Niveles</button> : null}
+          <button onClick={() => setModalNuevo(true)} className={styles.primary}><Plus size={15} /> Añadir cliente</button>
         </div>
-
-        <section className="gh-turno-metrics" style={{ "--gh-metric-count": fidelizacionActiva ? 7 : 4 } as CSSProperties}>
-          <TurnoMetric icon={<Users size={17} />} label="Clientes" value={resumen.total} detail="Base total" />
-          {fidelizacionActiva ? (
-            <>
-              <TurnoMetric icon={<Star size={17} />} label="Nuevos" value={resumen.nuevo} detail={nivelesActuales.nuevo.range} />
-              <TurnoMetric icon={<MessageCircle size={17} />} label="Frecuentes" value={resumen.frecuente} detail={nivelesActuales.frecuente.range} />
-              <TurnoMetric icon={<Sparkles size={17} />} label="Habituales" value={resumen.habitual} detail={nivelesActuales.habitual.range} />
-              <TurnoMetric icon={<Crown size={17} />} label="VIP" value={resumen.vip} detail={nivelesActuales.vip.range} />
-              <TurnoMetric icon={<Trophy size={17} />} label="Maestros" value={resumen.maestro} detail={nivelesActuales.maestro.range} />
-            </>
-          ) : (
-            <>
-              <TurnoMetric icon={<CalendarDays size={17} />} label="Visitas" value={totalVisitas} detail="Visitas registradas" />
-              <TurnoMetric icon={<MessageCircle size={17} />} label="Sin reseña" value={resumen.sinResena} detail="Pendientes" />
-            </>
-          )}
-          <TurnoMetric icon={<Clock3 size={17} />} label="Dormidos" value={resumen.dormidos} detail="+30 días" />
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
-          <div className="space-y-5">
-            <div className="gh-turno-controlbar">
-              <div className="gh-turno-filterrail flex gap-2 overflow-x-auto pb-1">
-                {filtrosActivos.map((item) => (
-                  <button
-                    key={item.key}
-                    onClick={() => setFiltro(item.key)}
-                    className={`shrink-0 rounded-2xl px-4 py-3 text-left text-sm font-black transition ${
-                      filtro === item.key
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "bg-slate-50 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-100"
-                    }`}
-                  >
-                    {item.label}
-                    <span className={`block text-[11px] font-bold ${filtro === item.key ? "text-white/70" : "text-slate-400"}`}>{item.ayuda}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="gh-turno-list">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-                <div>
-                  <h2 className="font-black !text-slate-950">Base de clientes</h2>
-                  <p className="text-sm font-semibold text-slate-500">{clientesFiltrados.length} resultados</p>
-                </div>
-                {cargando && <Loader2 className="h-5 w-5 animate-spin text-slate-400" />}
-              </div>
-
-              {error && <div role="alert" className="m-5 rounded-2xl bg-red-50 p-4 text-sm font-bold text-red-700 ring-1 ring-red-100">{error}</div>}
-
-              <div className="divide-y divide-slate-100">
-                {!cargando && clientesFiltrados.length === 0 && (
-                  <div className="p-10 text-center text-sm font-bold text-slate-400">No hay clientes en este filtro.</div>
-                )}
-
-                {clientesFiltrados.map((cliente) => {
-                  const nivel = nivelCliente(cliente, nivelesConfig);
-                  const config = nivelesActuales[nivel];
-                  const estados = estadosCliente(cliente);
-                  const accion = accionPrioritaria(cliente, nivelesConfig);
-                  const telefonoWhatsApp = telefonoParaWhatsApp(cliente.telefono);
-                  const progreso = progresoNivel(cliente, nivelesConfig);
-
-                  return (
-                    <article key={cliente.id} className="gh-turno-row p-5">
-                      <div className="grid gap-4 xl:grid-cols-[1fr_auto] xl:items-center">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-3">
-                            <Link href={`/clientes/${cliente.id}`} className="text-lg font-black text-slate-950 hover:text-blue-700">
-                              {cliente.nombre || "Cliente sin nombre"}
-                            </Link>
-                            {fidelizacionActiva ? <span className={`rounded-full border px-3 py-1 text-xs font-black ${badgeNivel(nivel)}`}>{config.label}</span> : null}
-                            {estados.slice(0, 2).map((estado) => (
-                              <span key={estado} className={`rounded-full border px-2.5 py-1 text-xs font-black ${badgeEstado(estado)}`}>
-                                {estado}
-                              </span>
-                            ))}
-                          </div>
-
-                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm font-semibold text-slate-500">
-                            <span className="inline-flex items-center gap-1"><Phone className="h-3.5 w-3.5" /> {cliente.telefono || "Sin teléfono"}</span>
-                            <span className="inline-flex items-center gap-1"><Mail className="h-3.5 w-3.5" /> {cliente.email || "Sin email"}</span>
-                            <span>{visitasCliente(cliente)} visitas</span>
-                            {fidelizacionActiva ? <span>{getCustomerPoints(cliente)} puntos</span> : null}
-                            <span>Última: {formatUltimaVisita(cliente.ultima_visita_real || cliente.ultima_visita)}</span>
-                          </div>
-
-                          {fidelizacionActiva ? (
-                              <div className="mt-4 max-w-3xl border-l-2 border-blue-700 bg-[#f7f6f1] px-4 py-3">
-                              <div className="flex items-center justify-between gap-3 text-xs font-black uppercase tracking-[0.12em] text-slate-400">
-                                <span>{textoSiguienteNivel(cliente, nivelesConfig)}</span>
-                                <span>{config.range}</span>
-                              </div>
-                              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                                <div className="h-full rounded-full bg-blue-600" style={{ width: `${progreso}%` }} />
-                              </div>
-                              <p className="mt-3 text-sm font-bold text-slate-700">
-                                {accion.titulo}: <span className="font-semibold text-slate-500">{accion.texto}</span>
-                              </p>
-                            </div>
-                          ) : (
-                            <div className="mt-4 max-w-3xl border-l-2 border-slate-300 bg-[#f7f6f1] px-4 py-3 text-sm font-semibold text-slate-600">
-                              {numero(cliente.total_reservas)} reservas · {numero(cliente.total_atendidas)} atendidas · {numero(cliente.total_canceladas_reales)} canceladas
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex flex-wrap gap-2 xl:justify-end">
-                          {fidelizacionActiva ? (
-                            <>
-                              <button onClick={() => copiarMensaje(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50">
-                                <Copy className="mr-1 inline h-3.5 w-3.5" /> {copiadoId === `${cliente.id}-${accion.tipo}` ? "Copiado" : "Copiar"}
-                              </button>
-                              <button onClick={() => abrirWhatsApp(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-green-600 px-3 py-2 text-xs font-black text-white hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50">
-                                <MessageCircle className="mr-1 inline h-3.5 w-3.5" /> {telefonoWhatsApp ? "WhatsApp" : "Mensaje"}
-                              </button>
-                            </>
-                          ) : null}
-                          <Link href={`/clientes/${cliente.id}`} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800">
-                            Ficha
-                          </Link>
-                        </div>
-                      </div>
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <aside className="space-y-5">
-            {fidelizacionActiva ? <div className="gh-legacy-surface p-5">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Crown className="h-5 w-5" /></div>
-                <div>
-                  <h2 className="font-black !text-slate-950">Niveles</h2>
-                  <p className="text-sm font-semibold text-slate-500">Base para puntos, cupones y ventajas</p>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {(Object.keys(nivelesActuales) as NivelCliente[]).map((nivel) => {
-                  const config = nivelesActuales[nivel];
-                  return (
-                    <div key={nivel} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className={`rounded-full border px-3 py-1 text-xs font-black ${badgeNivel(nivel)}`}>{config.label}</span>
-                        <span className="text-xs font-black text-slate-400">{config.range}</span>
-                      </div>
-                      <p className="mt-3 text-sm font-semibold text-slate-600">{config.description}</p>
-                      <p className="mt-2 text-xs font-black uppercase tracking-[0.12em] text-blue-700">Bonus de nivel preparado: {config.multiplier}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            </div> : (
-              <div className="gh-legacy-surface p-5">
-                <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Users className="h-5 w-5" /></div>
-                <h2 className="mt-4 font-black !text-slate-950">Clientes básico</h2>
-                <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-                  Guarda contactos, consulta reservas y detecta clientes sin visita reciente. Los puntos, niveles, premios y cupones solo aparecen al contratar Fidelización.
-                </p>
-              </div>
-            )}
-
-            {fidelizacionActiva ? <div className="gh-legacy-surface p-5">
-              <div className="flex items-center gap-3">
-                <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><Sparkles className="h-5 w-5" /></div>
-                <div>
-                  <h2 className="font-black !text-slate-950">Mover ahora</h2>
-                  <p className="text-sm font-semibold text-slate-500">Acciones simples, sin guardar ruido</p>
-                </div>
-              </div>
-
-              <div className="mt-5 space-y-3">
-                {acciones.length === 0 && <p className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-400">No hay acciones urgentes ahora.</p>}
-                {acciones.map(({ cliente, accion }) => (
-                  <div key={`${cliente.id}-${accion.titulo}`} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-black text-slate-950">{cliente.nombre || "Cliente"}</p>
-                        <p className="mt-1 text-sm font-bold text-slate-500">{accion.titulo}</p>
-                      </div>
-                      <span className={`rounded-full border px-2.5 py-1 text-xs font-black ${badgeNivel(nivelCliente(cliente, nivelesConfig))}`}>
-                        {nivelesActuales[nivelCliente(cliente, nivelesConfig)].label}
-                      </span>
-                    </div>
-                    <p className="mt-3 text-sm font-semibold text-slate-600">{accion.texto}</p>
-                    <div className="mt-3 grid grid-cols-2 gap-2">
-                      <button onClick={() => copiarMensaje(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-white px-3 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Copiar</button>
-                      <button onClick={() => abrirWhatsApp(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className="rounded-xl bg-green-600 px-3 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">WhatsApp</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div> : null}
-          </aside>
-        </section>
+      </header>
+      <div className={styles.toolbar}>
+        <label className={styles.search}><Search size={17} aria-hidden="true" /><input aria-label="Buscar cliente, teléfono o email" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar cliente, teléfono o email" /></label>
+        <div className={styles.inlineStats}><span><strong>{resumen.total}</strong> clientes</span><span><strong>{totalVisitas}</strong> visitas</span><span><strong>{resumen.dormidos}</strong> sin visita reciente</span></div>
       </div>
-
-      {modalRanking && fidelizacionActiva && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" aria-labelledby="client-ranking-title" className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-[20px] bg-slate-950 text-white shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 border-b border-white/10 bg-slate-950/95 p-5 backdrop-blur sm:p-6">
-              <div>
-                <div className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em] text-amber-300">
-                  <Trophy className="h-4 w-4" /> Ranking clientes
-                </div>
-                <h2 id="client-ranking-title" className="mt-2 text-2xl font-black tracking-tight !text-white">Los clientes más fieles</h2>
-                <p className="mt-1 text-sm font-semibold text-slate-400">Visitas reales, gasto registrado y puntos disponibles.</p>
-              </div>
-              <button onClick={() => setModalRanking(false)} className="rounded-xl bg-white/10 px-3 py-2 text-xs font-black text-white hover:bg-white/15">Cerrar</button>
-            </div>
-
-            <div className="p-5 sm:p-6">
-              <div className="mb-5 grid grid-cols-2 gap-3">
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Visitas conectadas</p>
-                  <p className="mt-2 text-3xl font-black">{totalVisitas}</p>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-400">Alta fidelidad</p>
-                  <p className="mt-2 text-3xl font-black">{resumen.vip + resumen.maestro}</p>
-                </div>
-              </div>
-
-              {rankingClientes.length === 0 ? (
-                <div className="rounded-3xl border border-dashed border-white/15 p-10 text-center text-sm font-bold text-slate-400">El ranking aparecerá con las primeras visitas.</div>
-              ) : (
-                <div className="space-y-2.5">
-                  {rankingClientes.map((cliente, index) => {
-                    const level = nivelCliente(cliente, nivelesConfig);
-                    const levelDefinition = nivelesActuales[level];
-                    return (
-                      <Link key={cliente.id} href={`/clientes/${cliente.id}`} className="grid grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3 transition hover:bg-white/10 sm:p-4">
-                        <div className={`flex h-11 w-11 items-center justify-center rounded-2xl font-black ${index === 0 ? "bg-amber-300 text-amber-950" : index === 1 ? "bg-slate-200 text-slate-800" : index === 2 ? "bg-orange-300 text-orange-950" : "bg-white/10 text-slate-300"}`}>
-                          {index < 3 ? <Medal className="h-5 w-5" /> : index + 1}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="truncate font-black">{cliente.nombre || "Cliente sin nombre"}</p>
-                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-slate-300">{levelDefinition.label}</span>
-                          </div>
-                          <p className="mt-1 truncate text-xs font-bold text-slate-400">{numero(cliente.gasto_total).toLocaleString("es-ES", { style: "currency", currency: "EUR" })} · {getCustomerPoints(cliente)} puntos</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xl font-black">{visitasCliente(cliente)}</p>
-                          <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">visitas</p>
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
+      <nav className={styles.filters} aria-label="Segmentos de clientes">
+        {filtrosActivos.map((item) => <button key={item.key} onClick={() => setFiltro(item.key)} aria-pressed={filtro === item.key} title={item.ayuda} className={styles.filter}>{item.label}<small>{item.ayuda}</small></button>)}
+      </nav>
+      <div className={styles.listHeading}><span>{clientesFiltrados.length} clientes · {filtrosActivos.find((item) => item.key === filtro)?.label}</span><span aria-live="polite">{cargando ? <><Loader2 size={13} className="inline animate-spin" /> Actualizando</> : "Ordenados por relación y visitas"}</span></div>
+      {error && <div role="alert" className={styles.error}>{error}</div>}
+      <table className={styles.table} aria-label="Base de clientes">
+        <colgroup><col className={styles.customerColumn} /><col className={styles.relationshipColumn} /><col className={styles.visitColumn} /><col className={styles.numberColumn} />{fidelizacionActiva && <col className={styles.numberColumn} />}<col className={styles.permissionColumn} /><col className={styles.reviewColumn} /><col className={styles.detailColumn} /></colgroup>
+        <thead><tr><th scope="col">Cliente</th><th scope="col">Relación</th><th scope="col">Última visita</th><th scope="col">Visitas</th>{fidelizacionActiva && <th scope="col">Puntos</th>}<th scope="col">Permiso</th><th scope="col">Reseña</th><th scope="col"><span className="sr-only">Detalle</span></th></tr></thead>
+        <tbody>
+          {clientesFiltrados.map((cliente) => {
+            const nivel = nivelCliente(cliente, nivelesConfig);
+            const estados = estadosCliente(cliente);
+            return <tr key={cliente.id} data-selected={cliente.id === selectedClienteId}>
+              <td className={styles.customerCell} data-label="Cliente"><Link className={styles.name} href={`/clientes/${cliente.id}`}>{cliente.nombre || "Cliente sin nombre"}</Link><span className={styles.subline}>{cliente.telefono || cliente.email || "Sin datos de contacto"}</span></td>
+              <td className={styles.relationshipCell} data-label="Relación">{fidelizacionActiva ? nivelesActuales[nivel].label : `${numero(cliente.total_reservas)} reservas`}<span className={styles.subline}>{estados.slice(0, 2).join(" · ") || (fidelizacionActiva ? nivelesActuales[nivel].range : `${numero(cliente.total_atendidas)} atendidas`)}</span></td>
+              <td className={styles.lastVisitCell} data-label="Última visita">{formatUltimaVisita(cliente.ultima_visita_real || cliente.ultima_visita)}{cliente.proxima_reserva && <span className={styles.subline}>Próxima: {new Date(cliente.proxima_reserva).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}</span>}</td>
+              <td className={styles.visitsCell} data-label="Visitas">{visitasCliente(cliente)}</td>
+              {fidelizacionActiva && <td data-label="Puntos">{getCustomerPoints(cliente)}</td>}
+              <td className={styles.permissionCell} data-label="Permiso"><span className={`${styles.status} ${cliente.permite_whatsapp === true && (cliente.review_whatsapp || (fidelizacionActiva && cliente.loyalty_whatsapp)) ? styles.positive : ""}`}>{cliente.permite_whatsapp === true && cliente.review_whatsapp ? "Reseñas" : cliente.permite_whatsapp === true && fidelizacionActiva && cliente.loyalty_whatsapp ? "Fidelización" : "Sin permiso WA"}</span>{cliente.permite_whatsapp === true && cliente.review_whatsapp && fidelizacionActiva && cliente.loyalty_whatsapp && <span className={styles.subline}>+ Fidelización</span>}</td>
+              <td className={styles.reviewCell} data-label="Reseña"><span className={cliente.ya_dejo_resena === true ? styles.positive : styles.quiet}>{cliente.ya_dejo_resena === true ? "Registrada" : cliente.ya_dejo_resena === false ? "Sin registrar" : "Sin dato"}</span></td>
+              <td className={styles.detailCell}><button className={styles.detailButton} onClick={() => setSelectedClienteId(cliente.id)} aria-label={`Ver contexto de ${cliente.nombre || "cliente"}`}><ChevronRight size={17} /></button></td>
+            </tr>;
+          })}
+        </tbody>
+      </table>
+      {!cargando && clientesFiltrados.length === 0 && <div className={styles.empty}><strong>No hay clientes en este filtro.</strong>Prueba otro segmento o una búsqueda diferente.</div>}
+      {cargando && clientesFiltrados.length === 0 && <div className={styles.empty} role="status"><Loader2 size={19} className="mx-auto mb-3 animate-spin" /> Cargando clientes…</div>}
+      <div className={styles.disclosures}>
+        {fidelizacionActiva ? <details className={styles.disclosure}><summary>Seguimiento de clientes · {acciones.length} acciones</summary>{acciones.length === 0 && <p className={styles.quiet}>No hay acciones urgentes ahora.</p>}{acciones.map(({ cliente, accion }) => <div key={`${cliente.id}-${accion.titulo}`} className={styles.secondaryRow}><div><Link href={`/clientes/${cliente.id}`} className={styles.name}>{cliente.nombre || "Cliente"}</Link><p>{accion.titulo} · {accion.texto}</p></div><div className={styles.actions}><button onClick={() => copiarMensaje(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className={styles.button}>Copiar</button><button onClick={() => abrirWhatsApp(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className={styles.button}>WhatsApp</button></div></div>)}</details> : null}
+        {fidelizacionActiva ? <details className={styles.disclosure}><summary>Criterios de niveles</summary>{(Object.keys(nivelesActuales) as NivelCliente[]).map((nivel) => <div key={nivel} className={styles.levelDescription}><strong>{nivelesActuales[nivel].label}<span className={styles.subline}>{nivelesActuales[nivel].range}</span></strong><p>{nivelesActuales[nivel].description}<span className={styles.subline}>Bonus de nivel preparado: {nivelesActuales[nivel].multiplier}</span></p></div>)}</details> : <details className={styles.disclosure}><summary>Qué incluye tu base de clientes</summary><p className={styles.quiet}>Contactos, reservas y visitas. Los puntos, niveles, premios y cupones aparecen cuando Fidelización está activa.</p></details>}
+      </div>
+      {selectedCliente && (() => {
+        const cliente = selectedCliente;
+        const nivel = nivelCliente(cliente, nivelesConfig);
+        const accion = accionPrioritaria(cliente, nivelesConfig);
+        return <CrmDialog titleId="client-context-title" onClose={() => setSelectedClienteId(null)} rail>
+          <header className={styles.dialogHeader}><div><p>Contexto del cliente</p><h2 id="client-context-title">{cliente.nombre || "Cliente sin nombre"}</h2></div><button className={styles.textButton} onClick={() => setSelectedClienteId(null)} aria-label="Cerrar contexto"><X size={18} /></button></header>
+          <Link href={`/clientes/${cliente.id}`} className={styles.primary}>Abrir ficha completa <ChevronRight size={14} /></Link>
+          <section className={styles.railSection}><h3>Relación</h3><dl className={styles.dataList}><div><dt>Visitas</dt><dd>{visitasCliente(cliente)}</dd></div><div><dt>Última visita</dt><dd>{formatUltimaVisita(cliente.ultima_visita_real || cliente.ultima_visita)}</dd></div><div><dt>Reservas</dt><dd>{numero(cliente.total_reservas)} · {numero(cliente.total_atendidas)} atendidas</dd></div><div><dt>Canceladas</dt><dd>{numero(cliente.total_canceladas_reales)}</dd></div>{cliente.proxima_reserva && <div><dt>Próxima reserva</dt><dd>{new Date(cliente.proxima_reserva).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</dd></div>}{typeof cliente.gasto_total === "number" && <div><dt>Gasto registrado</dt><dd>{cliente.gasto_total.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</dd></div>}{fidelizacionActiva && <><div><dt>Nivel</dt><dd>{nivelesActuales[nivel].label}</dd></div><div><dt>Puntos</dt><dd>{getCustomerPoints(cliente)}</dd></div></>}</dl>{fidelizacionActiva && <><div className={styles.progress}><span style={{ width: `${progresoNivel(cliente, nivelesConfig)}%` }} /></div><p className={styles.quiet}>{textoSiguienteNivel(cliente, nivelesConfig)}</p></>}</section>
+          <section className={styles.railSection}><h3>Contacto y permisos</h3><p className={styles.contact}><Phone size={14} />{cliente.telefono || "Sin teléfono"}</p><p className={styles.contact}><Mail size={14} />{cliente.email || "Sin email"}</p><dl className={styles.dataList}><div><dt>WhatsApp · reseñas</dt><dd>{puedeEnviarWhatsApp(cliente, "resena") ? "Autorizado" : "Sin permiso"}</dd></div>{fidelizacionActiva && <div><dt>WhatsApp · fidelización</dt><dd>{puedeEnviarWhatsApp(cliente, "cupon") ? "Autorizado" : "Sin permiso"}</dd></div>}<div><dt>Email</dt><dd>{cliente.permite_email === true ? "Autorizado" : "Sin permiso"}</dd></div></dl></section>
+          {cliente.notas_internas && <section className={styles.railSection}><h3>Notas internas</h3><p>{cliente.notas_internas}</p></section>}
+          {cliente.etiquetas?.length ? <section className={styles.railSection}><h3>Etiquetas</h3><p>{cliente.etiquetas.join(" · ")}</p></section> : null}
+          {fidelizacionActiva && <section className={styles.railSection}><h3>{accion.titulo}</h3><p>{accion.texto}</p>{!puedeEnviarWhatsApp(cliente, accion.tipo) && <p className={styles.notice}>No consta permiso para esta finalidad.</p>}<div className={styles.actions}><button onClick={() => copiarMensaje(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className={styles.button}><Copy size={14} />{copiadoId === `${cliente.id}-${accion.tipo}` ? "Copiado" : "Copiar"}</button><button onClick={() => abrirWhatsApp(cliente, accion.tipo)} disabled={!puedeEnviarWhatsApp(cliente, accion.tipo)} className={styles.button}><MessageCircle size={14} />{telefonoParaWhatsApp(cliente.telefono) ? "WhatsApp" : "Mensaje"}</button></div></section>}
+        </CrmDialog>;
+      })()}
+      {modalRanking && fidelizacionActiva && <CrmDialog titleId="client-ranking-title" onClose={() => setModalRanking(false)}>
+        <header className={styles.dialogHeader}><div><h2 id="client-ranking-title">Los clientes más fieles</h2><p>Visitas reales, gasto registrado y puntos disponibles.</p></div><button onClick={() => setModalRanking(false)} className={styles.textButton}>Cerrar</button></header>
+        <div className={styles.inlineStats}><span><strong>{totalVisitas}</strong> visitas conectadas</span><span><strong>{resumen.vip + resumen.maestro}</strong> alta fidelidad</span></div>
+        {rankingClientes.length === 0 ? <div className={styles.empty}>El ranking aparecerá con las primeras visitas.</div> : rankingClientes.map((cliente, index) => <Link key={cliente.id} href={`/clientes/${cliente.id}`} className={styles.rankingRow}><span className={styles.rankingNumber}>{String(index + 1).padStart(2, "0")}</span><span><strong>{cliente.nombre || "Cliente sin nombre"}</strong><span className={styles.subline}>{nivelesActuales[nivelCliente(cliente, nivelesConfig)].label} · {numero(cliente.gasto_total).toLocaleString("es-ES", { style: "currency", currency: "EUR" })} · {getCustomerPoints(cliente)} puntos</span></span><span><strong>{visitasCliente(cliente)}</strong><span className={styles.subline}>visitas</span></span></Link>)}
+      </CrmDialog>}
+      {modalNiveles && fidelizacionActiva && <CrmDialog titleId="customer-levels-title" onClose={() => setModalNiveles(false)}>
+        <header className={styles.dialogHeader}><div><h2 id="customer-levels-title">Niveles de clientes</h2><p>Visitas necesarias para cada nivel.</p></div><button onClick={() => setModalNiveles(false)} className={styles.textButton}>Cerrar</button></header>
+        <p className={styles.notice}>Nuevo será siempre desde 0 visitas. Después avanzará por Frecuente, Habitual, VIP y Maestro.</p>
+        <div className={`${styles.fields} ${styles.fieldsGrid}`}>
+          <label>Frecuente desde<input type="number" min={1} value={nivelesForm.nivel_frecuente_desde} onChange={(e) => setNivelesForm((a) => ({ ...a, nivel_frecuente_desde: Number(e.target.value) }))} className={styles.input} /><span className={styles.quiet}>visitas</span></label>
+          <label>Habitual desde<input type="number" min={2} value={nivelesForm.nivel_habitual_desde} onChange={(e) => setNivelesForm((a) => ({ ...a, nivel_habitual_desde: Number(e.target.value) }))} className={styles.input} /><span className={styles.quiet}>visitas</span></label>
+          <label>VIP desde<input type="number" min={3} value={nivelesForm.nivel_vip_desde} onChange={(e) => setNivelesForm((a) => ({ ...a, nivel_vip_desde: Number(e.target.value) }))} className={styles.input} /><span className={styles.quiet}>visitas</span></label>
+          <label>Maestro desde<input type="number" min={4} value={nivelesForm.nivel_maestro_desde} onChange={(e) => setNivelesForm((a) => ({ ...a, nivel_maestro_desde: Number(e.target.value) }))} className={styles.input} /><span className={styles.quiet}>visitas</span></label>
         </div>
-      )}
-
-      {modalNiveles && fidelizacionActiva && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" aria-labelledby="customer-levels-title" className="gh-turno-modal w-full max-w-xl p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 id="customer-levels-title" className="text-xl font-black !text-slate-950">Configurar niveles de clientes</h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">Cada restaurante decide desde cuántas visitas un cliente sube de nivel.</p>
-              </div>
-              <button onClick={() => setModalNiveles(false)} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-black text-slate-600">Cerrar</button>
-            </div>
-
-            <div className="mt-5 rounded-2xl bg-blue-50 p-4 text-sm font-bold text-blue-800 ring-1 ring-blue-100">
-              Nuevo será siempre desde 0 visitas. Después avanzará por Frecuente, Habitual, VIP y Maestro.
-            </div>
-
-            <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <span className="block text-xs font-black uppercase tracking-[0.12em] text-slate-400">Frecuente desde</span>
-                <input
-                  type="number"
-                  min={1}
-                  value={nivelesForm.nivel_frecuente_desde}
-                  onChange={(e) => setNivelesForm((a) => ({ ...a, nivel_frecuente_desde: Number(e.target.value) }))}
-                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-lg font-black outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
-                />
-                <span className="mt-2 block text-xs font-bold text-slate-500">visitas</span>
-              </label>
-
-              <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <span className="block text-xs font-black uppercase tracking-[0.12em] text-slate-400">Habitual desde</span>
-                <input
-                  type="number"
-                  min={2}
-                  value={nivelesForm.nivel_habitual_desde}
-                  onChange={(e) => setNivelesForm((a) => ({ ...a, nivel_habitual_desde: Number(e.target.value) }))}
-                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-lg font-black outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
-                />
-                <span className="mt-2 block text-xs font-bold text-slate-500">visitas</span>
-              </label>
-
-              <label className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <span className="block text-xs font-black uppercase tracking-[0.12em] text-slate-400">VIP desde</span>
-                <input
-                  type="number"
-                  min={3}
-                  value={nivelesForm.nivel_vip_desde}
-                  onChange={(e) => setNivelesForm((a) => ({ ...a, nivel_vip_desde: Number(e.target.value) }))}
-                  className="mt-3 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-lg font-black outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
-                />
-                <span className="mt-2 block text-xs font-bold text-slate-500">visitas</span>
-              </label>
-
-              <label className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <span className="block text-xs font-black uppercase tracking-[0.12em] text-amber-700">Maestro desde</span>
-                <input
-                  type="number"
-                  min={4}
-                  value={nivelesForm.nivel_maestro_desde}
-                  onChange={(e) => setNivelesForm((a) => ({ ...a, nivel_maestro_desde: Number(e.target.value) }))}
-                  className="mt-3 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-lg font-black outline-none focus:border-amber-400 focus:ring-4 focus:ring-amber-100"
-                />
-                <span className="mt-2 block text-xs font-bold text-amber-700">visitas</span>
-              </label>
-            </div>
-
-            <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
-              <p className="text-xs font-black uppercase tracking-[0.12em] text-slate-400">Vista previa</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {(Object.keys(construirNiveles(nivelesForm)) as NivelCliente[]).map((nivel) => {
-                  const config = construirNiveles(nivelesForm)[nivel];
-                  return (
-                    <span key={nivel} className={`rounded-full border px-3 py-1 text-xs font-black ${badgeNivel(nivel)}`}>
-                      {config.label}: {config.range}
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-
-            <button
-              onClick={guardarNiveles}
-              disabled={guardandoNiveles}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {guardandoNiveles && <Loader2 className="h-4 w-4 animate-spin" />}
-              Guardar niveles
-            </button>
-          </div>
+        <dl className={styles.dataList}>{(Object.keys(construirNiveles(nivelesForm)) as NivelCliente[]).map((nivel) => <div key={nivel}><dt>{construirNiveles(nivelesForm)[nivel].label}</dt><dd>{construirNiveles(nivelesForm)[nivel].range}</dd></div>)}</dl>
+        <footer className={styles.modalFooter}><button onClick={guardarNiveles} disabled={guardandoNiveles} className={styles.primary}>{guardandoNiveles && <Loader2 size={14} className="animate-spin" />}Guardar niveles</button></footer>
+      </CrmDialog>}
+      {modalNuevo && <CrmDialog titleId="new-customer-title" onClose={() => setModalNuevo(false)}>
+        <header className={styles.dialogHeader}><div><h2 id="new-customer-title">Nuevo cliente</h2><p>{fidelizacionActiva ? "Empieza como cliente nuevo y subirá de nivel según sus visitas." : "Guarda sus datos para asociar reservas y visitas."}</p></div><button onClick={() => setModalNuevo(false)} className={styles.textButton}>Cerrar</button></header>
+        <div className={styles.fields}>
+          <label>Nombre<input autoFocus value={nuevoCliente.nombre} onChange={(e) => setNuevoCliente((a) => ({ ...a, nombre: e.target.value }))} placeholder="Nombre del cliente" className={styles.input} /></label>
+          <label>Teléfono<input inputMode="tel" value={nuevoCliente.telefono} onChange={(e) => setNuevoCliente((a) => ({ ...a, telefono: e.target.value }))} placeholder="Teléfono" className={styles.input} /></label>
+          <label>Email<input inputMode="email" value={nuevoCliente.email} onChange={(e) => setNuevoCliente((a) => ({ ...a, email: e.target.value }))} placeholder="Email" className={styles.input} /></label>
         </div>
-      )}
-
-      {modalNuevo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm">
-          <div role="dialog" aria-modal="true" aria-labelledby="new-customer-title" className="gh-turno-modal w-full max-w-lg p-6 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 id="new-customer-title" className="text-xl font-black !text-slate-950">Nuevo cliente</h2>
-                <p className="mt-1 text-sm font-semibold text-slate-500">
-                  {fidelizacionActiva
-                    ? "Empieza como cliente nuevo y subirá de nivel según sus visitas."
-                    : "Guarda sus datos para asociar reservas y visitas."}
-                </p>
-              </div>
-              <button onClick={() => setModalNuevo(false)} className="rounded-xl bg-slate-100 px-3 py-2 text-sm font-black text-slate-600">Cerrar</button>
-            </div>
-
-            <div className="mt-5 space-y-3">
-              <input autoFocus value={nuevoCliente.nombre} onChange={(e) => setNuevoCliente((a) => ({ ...a, nombre: e.target.value }))} placeholder="Nombre" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
-              <input value={nuevoCliente.telefono} onChange={(e) => setNuevoCliente((a) => ({ ...a, telefono: e.target.value }))} placeholder="Teléfono" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
-              <input value={nuevoCliente.email} onChange={(e) => setNuevoCliente((a) => ({ ...a, email: e.target.value }))} placeholder="Email" className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-bold outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
-              <p className="rounded-2xl bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800 ring-1 ring-amber-100">
-                Guardar un teléfono o email no autoriza mensajes comerciales. Las acciones de reseña o fidelización se bloquean hasta que exista un permiso registrado.
-              </p>
-            </div>
-
-            <button onClick={crearCliente} className="mt-5 w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700">
-              Guardar cliente
-            </button>
-          </div>
-        </div>
-      )}
-    </main>
+        <p className={styles.notice}>Guardar un teléfono o email no autoriza mensajes comerciales. Las acciones de reseña o fidelización se bloquean hasta que exista un permiso registrado.</p>
+        <footer className={styles.modalFooter}><button onClick={crearCliente} className={styles.primary}>Guardar cliente</button></footer>
+      </CrmDialog>}
+    </div>
   );
 }

@@ -15,7 +15,7 @@ function compile(file,imports={}) {
 }
 const flow=compile('../lib/reviews/review-flow.ts');
 const customers=compile('../lib/reviews/review-customers.ts',{'./review-flow':flow});
-const {default:Panel}=compile('../app/(app)/resenas/ReviewRequestsPanelView.tsx',{'@/lib/reviews/review-flow':flow,'@/lib/reviews/review-customers':customers});
+const {default:Panel}=compile('../app/(app)/resenas/ReviewRequestsPanelView.tsx',{'@/lib/reviews/review-flow':flow,'@/lib/reviews/review-customers':customers,'../components/product/modules.module.css':{default:new Proxy({},{get:(_target,key)=>String(key)})}});
 const original={window:globalThis.window,act:globalThis.IS_REACT_ACT_ENVIRONMENT};
 globalThis.window={setInterval:()=>1,clearInterval:()=>{}};
 globalThis.IS_REACT_ACT_ENVIRONMENT=true;

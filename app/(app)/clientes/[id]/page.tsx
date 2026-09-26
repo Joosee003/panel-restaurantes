@@ -1,27 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  ArrowLeft,
-  Cake,
-  CheckCircle2,
-  Clock3,
-  Copy,
-  Crown,
-  Edit3,
-  Gift,
-  Loader2,
-  Mail,
-  MessageCircle,
-  Phone,
-  Save,
-  Send,
-  Star,
-  Tag,
-  X,
-} from "lucide-react";
+import { ArrowLeft, ChevronRight, Copy, Loader2, Mail, MessageCircle, Phone, Save, Send, X } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { getRestauranteUsuario } from "../../lib/getRestauranteUsuario";
 import {
@@ -33,7 +15,9 @@ import {
   normalizeCustomerLevels,
   type CustomerLevelsConfig,
 } from "../../lib/customerLevels";
-import { TurnoMetric, TurnoPageHeader } from "../../components/turno-vivo/TurnoPrimitives";
+import { CustomerTimeline } from "../CustomerTimeline";
+import { CrmDialog } from "../CrmDialog";
+import styles from "../crm.module.css";
 
 type Cliente = {
   id: string;
@@ -193,17 +177,6 @@ function mensajeCliente(cliente: Cliente, tipo: TipoMensaje) {
   return mensajes[tipo].replace(/  +/g, " ").trim();
 }
 
-function badgeSegmento(segmento: string) {
-  if (segmento === "Maestro") return "border-amber-300 bg-amber-50 text-amber-800";
-  if (segmento === "VIP") return "border-blue-200 bg-blue-50 text-blue-700";
-  if (segmento === "Dormido") return "border-amber-200 bg-amber-50 text-amber-700";
-  if (segmento === "Cumpleaños próximo") return "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700";
-  if (segmento === "Sin reseña") return "border-violet-200 bg-violet-50 text-violet-700";
-  if (segmento === "Riesgo") return "border-red-200 bg-red-50 text-red-700";
-  if (segmento === "Contactable") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-  return "border-slate-200 bg-slate-50 text-slate-700";
-}
-
 function accionRecomendada(
   cliente: Cliente,
   nivelesConfig: CustomerLevelsConfig = DEFAULT_CUSTOMER_LEVELS,
@@ -231,6 +204,7 @@ export default function ClienteFichaPage() {
   const [nuevaEtiqueta, setNuevaEtiqueta] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [copiado, setCopiado] = useState<string | null>(null);
+  const [contextOpen, setContextOpen] = useState(false);
   const [guardandoAccion, setGuardandoAccion] = useState<string | null>(null);
   const [fidelizacionActiva, setFidelizacionActiva] = useState(false);
   const [nivelesConfig, setNivelesConfig] = useState<CustomerLevelsConfig>(DEFAULT_CUSTOMER_LEVELS);
@@ -460,201 +434,67 @@ export default function ClienteFichaPage() {
   }
 
   if (cargando) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
-        <div className="flex items-center gap-3 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-slate-200">
-          <Loader2 className="h-5 w-5 animate-spin text-slate-500" />
-          <p className="font-bold text-slate-600">Cargando ficha...</p>
-        </div>
-      </main>
-    );
+    return <div className={styles.page}><div className={styles.empty} role="status"><Loader2 className="mx-auto mb-3 animate-spin" size={20} /> Cargando ficha…</div></div>;
   }
-
   if (error || !cliente) {
-    return (
-      <main className="min-h-screen bg-slate-50 p-6 text-slate-900">
-        <div className="rounded-3xl bg-white p-8 shadow-sm ring-1 ring-slate-200">
-          <p role="alert" className="font-black text-red-700">{error || "Cliente no encontrado"}</p>
-          <Link href="/clientes" className="mt-4 inline-flex rounded-2xl bg-slate-950 px-4 py-3 text-sm font-black text-white">Volver a clientes</Link>
-        </div>
-      </main>
-    );
+    return <div className={styles.page}><div className={styles.empty}><strong role="alert">{error || "Cliente no encontrado"}</strong><Link href="/clientes" className={styles.button}>Volver a clientes</Link></div></div>;
   }
 
-  return (
-    <main className="gh-turno-page gh-customer-detail text-slate-900">
-      <div className="space-y-7">
-        <Link href="/clientes" className="inline-flex items-center gap-2 text-sm font-black text-slate-500 hover:text-slate-900"><ArrowLeft className="h-4 w-4" /> Clientes</Link>
-        <TurnoPageHeader
-          eyebrow={fidelizacionActiva && cliente.ranking_posicion ? `Relación · Nº ${cliente.ranking_posicion} del ranking` : "Relación · Ficha de cliente"}
-          title={cliente.nombre || "Cliente sin nombre"}
-          description="Visitas, reservas, permisos y actividad en una lectura cronológica de la relación con el restaurante."
-          meta={<div className="flex flex-wrap gap-2">{segmentos.map((segmento) => <span key={segmento} className={`rounded-full border px-3 py-1.5 text-xs font-black ${badgeSegmento(segmento)}`}>{segmento}</span>)}</div>}
-          actions={fidelizacionActiva && accion ? <>
-            <button onClick={() => abrirWhatsApp(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className="inline-flex items-center justify-center gap-2 rounded-lg bg-green-700 px-5 py-3 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-50"><MessageCircle className="h-4 w-4" /> WhatsApp</button>
-            <button onClick={() => copiarMensaje(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className="gh-turno-secondary inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-black disabled:cursor-not-allowed disabled:opacity-50"><Copy className="h-4 w-4" /> {copiado ? "Copiado" : "Copiar mensaje"}</button>
-          </> : undefined}
-        />
-
-        <section className="gh-turno-metrics" style={{ "--gh-metric-count": fidelizacionActiva ? 5 : 4 } as CSSProperties}>
-          <TurnoMetric icon={<Star size={17} />} label="Visitas" value={getCustomerVisits(cliente)} detail="Reservas e historial" />
-          {fidelizacionActiva ? <TurnoMetric icon={<Crown size={17} />} label="Puntos" value={getCustomerPoints(cliente)} detail="Saldo actual" /> : null}
-          <TurnoMetric icon={<Clock3 size={17} />} label="Última visita" value={diasDesde(cliente.ultima_visita_real || cliente.ultima_visita) === 9999 ? "-" : `${diasDesde(cliente.ultima_visita_real || cliente.ultima_visita)}d`} detail={formatFecha(cliente.ultima_visita_real || cliente.ultima_visita)} />
-          <TurnoMetric icon={<Cake size={17} />} label="Cumpleaños" value={cumple === null ? "-" : `${cumple}d`} detail={formatFecha(cliente.fecha_nacimiento)} />
-          <TurnoMetric icon={<CheckCircle2 size={17} />} label="Reservas" value={numero(cliente.total_reservas)} detail={`${numero(cliente.total_atendidas)} atendidas`} />
-        </section>
-
-        <section className="grid gap-6 xl:grid-cols-[1fr_420px]">
-          <div className="space-y-6">
-            {fidelizacionActiva && accion ? <div className="gh-legacy-surface border-l-[3px] border-l-blue-700 p-6">
-              <div className="flex items-start gap-4">
-                <div className="rounded-2xl bg-blue-50 p-3 text-blue-700 ring-1 ring-blue-100"><SparkIcon /></div>
-                <div className="flex-1">
-                  <p className="text-xs font-black uppercase tracking-[0.14em] text-blue-700">Acción recomendada</p>
-                  <h2 className="mt-1 text-xl font-black text-slate-950">{accion?.titulo}</h2>
-                  <p className="mt-2 text-sm font-semibold text-slate-500">{accion?.ayuda}</p>
-
-                  <div className="mt-4 rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-700 ring-1 ring-slate-100">
-                    {mensajeCliente(cliente, accion?.tipo || "cupon")}
-                  </div>
-
-                  {!tienePermisoWhatsApp(accion?.tipo || "cupon") && (
-                    <p className="mt-3 rounded-xl bg-amber-50 px-4 py-3 text-xs font-bold text-amber-800 ring-1 ring-amber-100">
-                      WhatsApp bloqueado: no consta permiso para esta finalidad.
-                    </p>
-                  )}
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button onClick={() => copiarMensaje(accion?.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion?.tipo || "cupon")} className="rounded-xl bg-white px-4 py-2 text-xs font-black text-slate-700 ring-1 ring-slate-200 disabled:cursor-not-allowed disabled:opacity-50">Copiar</button>
-                    <button onClick={() => abrirWhatsApp(accion?.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion?.tipo || "cupon")} className="rounded-xl bg-green-600 px-4 py-2 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-50">WhatsApp</button>
-                    <button onClick={() => registrarAccion(accion?.tipo || "cupon")} disabled={guardandoAccion === (accion?.tipo || "cupon")} className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-black text-white disabled:opacity-50">
-                      {guardandoAccion === (accion?.tipo || "cupon") ? <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" /> : <Send className="mr-1 inline h-3.5 w-3.5" />} Guardar acción
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div> : null}
-
-            <div className="gh-legacy-surface p-6">
-              <div className="mb-5 flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="font-black text-slate-950">Historial de reservas</h2>
-                  <p className="text-sm font-semibold text-slate-500">Últimos movimientos del cliente</p>
-                </div>
-                <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">{reservas.length}</span>
-              </div>
-
-              <div className="space-y-3">
-                {reservas.length === 0 && <p className="rounded-2xl bg-slate-50 p-5 text-center text-sm font-bold text-slate-400">Sin reservas registradas.</p>}
-                {reservas.map((reserva) => (
-                  <article key={reserva.id} className="relative border-l border-slate-300 py-1 pl-6 before:absolute before:-left-[5px] before:top-2 before:h-2.5 before:w-2.5 before:rounded-full before:bg-blue-700">
-                    <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                      <div>
-                        <p className="font-black text-slate-950">{formatFechaHora(reserva.fecha_hora_reserva)}</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-500">{numero(reserva.personas)} personas {reserva.turno ? `· ${reserva.turno}` : ""}</p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 text-xs font-black">
-                        <span className="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200">{reserva.estado || "Sin estado"}</span>
-                        <span className="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200">{reserva.atendida === true ? "Vino" : reserva.atendida === false ? "No show" : "Sin marcar"}</span>
-                        <span className="rounded-full bg-white px-3 py-1 text-slate-700 ring-1 ring-slate-200">Reseña: {reserva.resena_solicitada ? "pedida" : "no"}</span>
-                      </div>
-                    </div>
-                    {reserva.notas && <p className="mt-3 border-l-2 border-slate-200 pl-3 text-sm font-semibold text-slate-600">{reserva.notas}</p>}
-                  </article>
-                ))}
-              </div>
-            </div>
-
-            <div className={`grid gap-6 ${fidelizacionActiva ? "xl:grid-cols-2" : "grid-cols-1"}`}>
-              {fidelizacionActiva ? <div className="gh-legacy-surface p-6">
-                <h2 className="font-black text-slate-950">Puntos</h2>
-                <div className="mt-4 space-y-3">
-                  {movimientos.length === 0 && <p className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-400">Sin movimientos de puntos.</p>}
-                  {movimientos.map((m) => (
-                    <div key={m.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
-                      <div>
-                        <p className="font-black text-slate-950">{m.tipo || "Movimiento"}</p>
-                        <p className="text-xs font-bold text-slate-500">{formatFechaHora(m.creado_en)} {m.nota ? `· ${m.nota}` : ""}</p>
-                      </div>
-                      <p className={`font-black ${numero(m.puntos) >= 0 ? "text-green-700" : "text-red-700"}`}>{numero(m.puntos)}</p>
-                    </div>
-                  ))}
-                </div>
-              </div> : null}
-
-              <div className="gh-legacy-surface p-6">
-                <h2 className="font-black text-slate-950">Acciones guardadas</h2>
-                <div className="mt-4 space-y-3">
-                  {notificaciones.length === 0 && <p className="rounded-2xl bg-slate-50 p-4 text-sm font-bold text-slate-400">Sin acciones guardadas.</p>}
-                  {notificaciones.map((n) => (
-                    <div key={n.id} className="rounded-2xl bg-slate-50 p-4 ring-1 ring-slate-100">
-                      <p className="font-black text-slate-950">{n.titulo || n.tipo || "Acción"}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-500">{formatFechaHora(n.created_at)}</p>
-                      <p className="mt-2 text-sm font-semibold text-slate-600">{n.mensaje}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <aside className="space-y-6">
-            <div className="gh-legacy-surface p-6">
-              <h2 className="font-black text-slate-950">Contacto</h2>
-              <div className="mt-4 space-y-3 text-sm font-semibold text-slate-600">
-                <p className="flex items-center gap-2"><Phone className="h-4 w-4 text-slate-400" /> {cliente.telefono || "Sin teléfono"}</p>
-                <p className="flex items-center gap-2"><Mail className="h-4 w-4 text-slate-400" /> {cliente.email || "Sin email"}</p>
-                <p className="flex items-center gap-2"><Gift className="h-4 w-4 text-slate-400" /> Cumpleaños: {formatFecha(cliente.fecha_nacimiento)}</p>
-              </div>
-            </div>
-
-            <div className="gh-legacy-surface p-6">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="font-black text-slate-950">Etiquetas</h2>
-                <Tag className="h-5 w-5 text-slate-400" />
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                {etiquetas.map((tag) => (
-                  <button key={tag} onClick={() => quitarEtiqueta(tag)} className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700 ring-1 ring-blue-100">
-                    {tag} <X className="h-3 w-3" />
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-4 grid grid-cols-2 gap-2">
-                {etiquetasBase
-                  .filter((tag) => fidelizacionActiva || !["Maestro", "VIP", "Habitual", "Frecuente", "Promoción", "Preferente"].includes(tag))
-                  .filter((tag) => !etiquetas.includes(tag))
-                  .slice(0, 8)
-                  .map((tag) => (
-                  <button key={tag} onClick={() => añadirEtiqueta(tag)} className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-black text-slate-600 ring-1 ring-slate-100 hover:bg-slate-100">+ {tag}</button>
-                ))}
-              </div>
-
-              <div className="mt-3 flex gap-2">
-                <input value={nuevaEtiqueta} onChange={(e) => setNuevaEtiqueta(e.target.value)} placeholder="Nueva etiqueta" className="min-w-0 flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-bold outline-none" />
-                <button onClick={() => añadirEtiqueta(nuevaEtiqueta)} className="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Añadir</button>
-              </div>
-            </div>
-
-            <div className="gh-legacy-surface p-6">
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="font-black text-slate-950">Notas internas</h2>
-                <Edit3 className="h-5 w-5 text-slate-400" />
-              </div>
-              <textarea value={notas} onChange={(e) => setNotas(e.target.value)} rows={7} placeholder="Gustos, preferencias, incidencias, cosas a recordar..." className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold text-slate-700 outline-none focus:border-blue-300 focus:ring-4 focus:ring-blue-100" />
-              <button onClick={guardarFicha} disabled={guardando} className="mt-4 w-full rounded-2xl bg-blue-600 px-5 py-3 text-sm font-black text-white hover:bg-blue-700 disabled:opacity-50">
-                {guardando ? <Loader2 className="mr-2 inline h-4 w-4 animate-spin" /> : <Save className="mr-2 inline h-4 w-4" />} Guardar ficha
-              </button>
-            </div>
-          </aside>
-        </section>
+  const contextContent = <>
+    <section className={styles.railSection}>
+      <h2>Contacto</h2>
+      <p className={styles.contact}><Phone size={14} />{cliente.telefono || "Sin teléfono"}</p>
+      <p className={styles.contact}><Mail size={14} />{cliente.email || "Sin email"}</p>
+      <dl className={styles.dataList}><div><dt>Cumpleaños</dt><dd>{formatFecha(cliente.fecha_nacimiento)}{cumple !== null && <span className={styles.subline}>En {cumple} días</span>}</dd></div><div><dt>Primera visita</dt><dd>{formatFecha(cliente.primera_visita)}</dd></div>{cliente.origen_principal && <div><dt>Origen</dt><dd>{cliente.origen_principal}</dd></div>}{cliente.canal_contacto && <div><dt>Canal</dt><dd>{cliente.canal_contacto}</dd></div>}</dl>
+    </section>
+    <section className={styles.railSection}>
+      <h2>Permisos y reseña</h2>
+      <dl className={styles.dataList}><div><dt>WhatsApp · reseñas</dt><dd className={tienePermisoWhatsApp("resena") ? styles.positive : styles.quiet}>{tienePermisoWhatsApp("resena") ? "Autorizado" : "Sin permiso"}</dd></div>{fidelizacionActiva && <div><dt>WhatsApp · fidelización</dt><dd className={tienePermisoWhatsApp("cupon") ? styles.positive : styles.quiet}>{tienePermisoWhatsApp("cupon") ? "Autorizado" : "Sin permiso"}</dd></div>}<div><dt>Email</dt><dd>{cliente.permite_email === true ? "Autorizado" : "Sin permiso"}</dd></div><div><dt>Reseña registrada</dt><dd>{cliente.ya_dejo_resena === true ? "Sí" : cliente.ya_dejo_resena === false ? "No" : "Sin dato"}</dd></div></dl>
+    </section>
+    <section className={styles.railSection}>
+      <h2>Etiquetas</h2>
+      <div className={styles.tagList}>{etiquetas.length === 0 && <span className={styles.quiet}>Sin etiquetas</span>}{etiquetas.map((tag) => <button key={tag} onClick={() => quitarEtiqueta(tag)} className={styles.tag} aria-label={`Quitar etiqueta ${tag}`}>{tag}<X size={12} /></button>)}</div>
+      <div>{etiquetasBase.filter((tag) => fidelizacionActiva || !["Maestro", "VIP", "Habitual", "Frecuente", "Promoción", "Preferente"].includes(tag)).filter((tag) => !etiquetas.includes(tag)).slice(0, 8).map((tag) => <button key={tag} onClick={() => añadirEtiqueta(tag)} className={styles.tagAdd}>+ {tag}</button>)}</div>
+      <div className={styles.tagInput}><input aria-label="Nueva etiqueta" value={nuevaEtiqueta} onChange={(e) => setNuevaEtiqueta(e.target.value)} placeholder="Nueva etiqueta" className={styles.input} /><button onClick={() => añadirEtiqueta(nuevaEtiqueta)} className={styles.button}>Añadir</button></div>
+    </section>
+    <section className={styles.railSection}>
+      <h2>Notas internas</h2>
+      <textarea aria-label="Notas internas" value={notas} onChange={(e) => setNotas(e.target.value)} rows={6} placeholder="Gustos, preferencias, incidencias, cosas a recordar..." className={styles.input} />
+      <button onClick={guardarFicha} disabled={guardando} className={`${styles.primary} ${styles.save}`}>{guardando ? <Loader2 size={14} className="animate-spin" /> : <Save size={14} />} Guardar ficha</button>
+    </section>
+    {fidelizacionActiva && accion ? <section className={styles.railSection}>
+      <h2>Seguimiento · {accion.titulo}</h2><p>{accion.ayuda}</p>
+      <p className={styles.actionMessage}>{mensajeCliente(cliente, accion.tipo || "cupon")}</p>
+      {!tienePermisoWhatsApp(accion.tipo || "cupon") && <p className={styles.notice}>WhatsApp bloqueado: no consta permiso para esta finalidad.</p>}
+      <div className={styles.actions}>
+        <button onClick={() => copiarMensaje(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className={styles.button}>{copiado ? "Copiado" : "Copiar"}</button>
+        <button onClick={() => abrirWhatsApp(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className={styles.button}>WhatsApp</button>
+        <button onClick={() => registrarAccion(accion.tipo || "cupon")} disabled={guardandoAccion === (accion.tipo || "cupon")} className={styles.button}>{guardandoAccion === (accion.tipo || "cupon") ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />} Guardar acción</button>
       </div>
-    </main>
-  );
-}
+    </section> : null}
+  </>;
 
-function SparkIcon() {
-  return <Star className="h-5 w-5" />;
+  return <div className={styles.page}>
+    <Link href="/clientes" className={styles.backLink}><ArrowLeft size={14} /> Clientes</Link>
+    <header className={styles.detailHeading}>
+      <div><h1>{cliente.nombre || "Cliente sin nombre"}</h1><div className={styles.segments}>{segmentos.map((segmento) => <span key={segmento}>{segmento}</span>)}{fidelizacionActiva && cliente.ranking_posicion ? <span>Nº {cliente.ranking_posicion} del ranking</span> : null}</div></div>
+      <div className={styles.actions}>
+        <button className={`${styles.button} ${styles.mobileRailToggle}`} onClick={() => setContextOpen(true)}>Contacto y notas <ChevronRight size={14} /></button>
+        {fidelizacionActiva && accion ? <><button onClick={() => abrirWhatsApp(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className={styles.button}><MessageCircle size={14} /> WhatsApp</button><button onClick={() => copiarMensaje(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className={styles.button}><Copy size={14} />{copiado ? "Copiado" : "Copiar mensaje"}</button></> : null}
+      </div>
+    </header>
+    <div className={styles.detailMeta}>
+      <span><strong>{getCustomerVisits(cliente)}</strong> visitas</span>
+      {fidelizacionActiva && <span><strong>{getCustomerPoints(cliente)}</strong> puntos disponibles</span>}
+      <span><strong>{numero(cliente.total_reservas)}</strong> reservas · {numero(cliente.total_atendidas)} atendidas</span>
+      <span>Última visita <strong>{formatFecha(cliente.ultima_visita_real || cliente.ultima_visita)}</strong></span>
+      {cliente.proxima_reserva && <span>Próxima <strong>{formatFechaHora(cliente.proxima_reserva)}</strong></span>}
+      {typeof cliente.gasto_total === "number" && <span>Gasto registrado <strong>{cliente.gasto_total.toLocaleString("es-ES", { style: "currency", currency: "EUR" })}</strong></span>}
+    </div>
+    <div className={styles.detailLayout}>
+      <CustomerTimeline reservas={reservas} movimientos={movimientos} notificaciones={notificaciones} fidelizacionActiva={fidelizacionActiva} />
+      <aside className={styles.detailRail} aria-label="Contexto del cliente">{contextContent}</aside>
+    </div>
+    {contextOpen && <CrmDialog titleId="customer-context-title" onClose={() => setContextOpen(false)} rail><header className={styles.dialogHeader}><h2 id="customer-context-title">Contacto y notas</h2><button className={styles.textButton} onClick={() => setContextOpen(false)} aria-label="Cerrar contacto y notas"><X size={18} /></button></header>{contextContent}</CrmDialog>}
+  </div>;
 }

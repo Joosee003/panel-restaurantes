@@ -23,6 +23,7 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
 import { setActiveRestaurant } from "../lib/activeRestaurant";
+import ServiceClock from "./product/ServiceClock";
 import {
   defaultRestaurantModules,
   parseRestaurantModules,
@@ -170,7 +171,7 @@ export default function Sidebar({
   }, [restauranteId, modulos.reservas]);
 
   const itemsPrincipales = [
-    { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, visible: true },
+    { href: "/dashboard", label: "Hoy", icon: LayoutDashboard, visible: true },
     { href: "/reservas", label: "Reservas", icon: CalendarDays, badge: reservasPendientes, visible: modulos.reservas },
     { href: "/sala", label: "Sala", icon: LayoutGrid, visible: modulos.reservas },
     { href: "/clientes", label: "Clientes", icon: Users, badge: clientesNuevos, visible: modulos.clientes },
@@ -197,7 +198,7 @@ export default function Sidebar({
 
   const badge = (value?: number) =>
     value ? (
-      <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-black text-blue-700">
+      <span className="gh-nav-count">
         {value}
       </span>
     ) : null;
@@ -209,163 +210,75 @@ export default function Sidebar({
     router.refresh();
   };
 
+  const navigate = (event: React.MouseEvent<HTMLElement>) => {
+    if (!mobile) event.currentTarget.closest("details")?.removeAttribute("open");
+    onNavigate?.();
+  };
+
+  const renderItem = (item: typeof itemsPrincipales[number]) => {
+    const Icon = item.icon;
+    return (
+      <Link key={item.href} href={item.href} onClick={navigate}
+        className="gh-nav-link" aria-current={isItemActive(item.href) ? "page" : undefined}>
+        <span>{mobile ? <Icon size={16} aria-hidden="true" /> : null}{item.label}</span>
+        {badge(item.badge)}
+      </Link>
+    );
+  };
+
   return (
-    <aside
-      className={[
-        "gh-panel-sidebar flex h-full w-64 flex-col border-r p-4 text-slate-900",
-        mobile ? "" : "fixed left-0 top-0 h-screen",
-      ].join(" ")}
-    >
-      <div className="gh-sidebar-brand p-4">
-        <p className="text-[10px] font-black uppercase tracking-[0.19em] text-white/45">GastroHelp · Turno vivo</p>
-        <h1 className="mt-2 truncate text-[17px] font-bold !text-white">{restauranteNombre}</h1>
-        <p className="mt-1 text-xs font-semibold text-white/45">Operación del restaurante</p>
-      </div>
-
-      <nav className="mt-5 flex flex-1 flex-col gap-1 overflow-y-auto pr-1 text-sm">
-        {itemsPrincipales.filter((item) => item.visible).map((item) => {
-          const isActive = isItemActive(item.href);
-          const Icon = item.icon;
-
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onNavigate}
-              className={[
-                "flex items-center justify-between rounded-xl px-3 py-2.5 font-bold transition",
-                isActive
-                  ? "gh-sidebar-active"
-                  : "gh-sidebar-idle",
-              ].join(" ")}
-            >
-              <span className="flex items-center gap-3">
-                <Icon size={18} />
-                {item.label}
-              </span>
-              {badge(item.badge)}
-            </Link>
-          );
-        })}
-
-        {modulos.menu_digital && (
-          <div className="my-3 border-t border-slate-200 pt-3">
-            <button
-              type="button"
-              onClick={() => setMenuAbierto((actual) => !actual)}
-              className={[
-                "flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left font-black transition",
-                menuDigitalActivo
-                  ? "gh-sidebar-active"
-                  : "gh-sidebar-idle",
-              ].join(" ")}
-            >
-              <span className="flex items-center gap-3">
-                <Utensils size={18} />
-                Carta QR
-              </span>
-              <ChevronDown size={16} className={mostrarMenu ? "rotate-180 transition" : "transition"} />
-            </button>
-
-            {mostrarMenu && (
-              <div className="mt-2 flex flex-col gap-1 border-l border-slate-200 pl-3">
-                {menuDigitalItems.map((item) => {
-                  const isActive = isItemActive(item.href);
-                  const Icon = item.icon;
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onNavigate}
-                      className={[
-                        "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition",
-                        isActive
-                          ? "gh-sidebar-active"
-                          : "gh-sidebar-idle",
-                      ].join(" ")}
-                    >
-                      <Icon size={16} />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
+    <aside className="gh-service-nav" aria-label="Navegación del restaurante"
+      onKeyDown={(event) => {
+        if (event.key === "Escape" && !mobile) {
+          const details = event.currentTarget.querySelector("details[open]");
+          details?.removeAttribute("open");
+          (details?.querySelector("summary") as HTMLElement | null)?.focus();
+        }
+      }}>
+      <Link href="/dashboard" className="gh-nav-brand" onClick={navigate}>
+        <strong>GastroHelp</strong><span>{restauranteNombre}</span>
+      </Link>
+      <nav className="gh-nav-primary" aria-label="Principal">
+        {itemsPrincipales.slice(0, 4).filter((item) => item.visible).map(renderItem)}
+        <details className="gh-nav-more" open={mobile || undefined}>
+          <summary className="gh-nav-link">Más <ChevronDown size={14} aria-hidden="true" /></summary>
+          <div className="gh-nav-menu">
+            {itemsPrincipales.some((item, i) => [4, 7].includes(i) && item.visible) ? (
+              <section className="gh-nav-group">
+                <h2>Relación con el cliente</h2>
+                {itemsPrincipales.filter((item, i) => [4, 7].includes(i) && item.visible).map(renderItem)}
+              </section>
+            ) : null}
+            {itemsPrincipales.some((item, i) => [5, 6].includes(i) && item.visible) ? (
+              <section className="gh-nav-group">
+                <h2>Negocio</h2>
+                {itemsPrincipales.filter((item, i) => [5, 6].includes(i) && item.visible).map(renderItem)}
+              </section>
+            ) : null}
+            {modulos.menu_digital ? (
+              <section className="gh-nav-group">
+                <button type="button" className="gh-nav-link" onClick={() => setMenuAbierto((actual) => !actual)} aria-expanded={mostrarMenu} aria-controls={`gh-menu-digital-${mobile ? "mobile" : "desktop"}`}>
+                  <span><Utensils size={16} aria-hidden="true" /> Carta QR</span><ChevronDown size={14} />
+                </button>
+                {mostrarMenu ? <div id={`gh-menu-digital-${mobile ? "mobile" : "desktop"}`}>{menuDigitalItems.map((item) => renderItem({ ...item, visible: true }))}</div> : null}
+              </section>
+            ) : null}
+            {modulos.camarero_digital ? (
+              <section className="gh-nav-group">
+                <button type="button" className="gh-nav-link" onClick={() => setCamareroAbierto((actual) => !actual)} aria-expanded={mostrarCamarero} aria-controls={`gh-camarero-digital-${mobile ? "mobile" : "desktop"}`}>
+                  <span><ChefHat size={16} aria-hidden="true" /> Camarero digital</span><ChevronDown size={14} />
+                </button>
+                {mostrarCamarero ? <div id={`gh-camarero-digital-${mobile ? "mobile" : "desktop"}`}>{camareroItems.map((item) => renderItem({ ...item, visible: true }))}</div> : null}
+              </section>
+            ) : null}
+            <div className="gh-nav-account">
+              <Link href="/ajustes" onClick={navigate} aria-current={isItemActive("/ajustes") ? "page" : undefined}><Settings size={16} /> Ajustes</Link>
+              <button type="button" onClick={cerrarSesion}><LogOut size={15} /> Cerrar sesión</button>
+            </div>
           </div>
-        )}
-
-        {modulos.camarero_digital && (
-          <div className="my-3 border-t border-slate-200 pt-3">
-            <button
-              type="button"
-              onClick={() => setCamareroAbierto((actual) => !actual)}
-              className={[
-                "flex w-full items-center justify-between rounded-2xl px-3 py-3 text-left font-black transition",
-                camareroDigitalActivo
-                  ? "gh-sidebar-active"
-                  : "gh-sidebar-idle",
-              ].join(" ")}
-            >
-              <span className="flex items-center gap-3">
-                <Utensils size={18} />
-                Camarero digital
-              </span>
-              <ChevronDown size={16} className={mostrarCamarero ? "rotate-180 transition" : "transition"} />
-            </button>
-
-            {mostrarCamarero && (
-              <div className="mt-2 flex flex-col gap-1 border-l border-slate-200 pl-3">
-                {camareroItems.map((item) => {
-                  const isActive = isItemActive(item.href);
-                  const Icon = item.icon;
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onNavigate}
-                      className={[
-                        "flex items-center gap-3 rounded-2xl px-3 py-2.5 text-sm font-bold transition",
-                        isActive
-                          ? "gh-sidebar-active"
-                          : "gh-sidebar-idle",
-                      ].join(" ")}
-                    >
-                      <Icon size={16} />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="mt-auto border-t border-slate-200 pt-3">
-          <Link
-            href="/ajustes"
-            onClick={onNavigate}
-            className={[
-              "flex items-center gap-3 rounded-2xl px-3 py-3 font-bold transition",
-              isItemActive("/ajustes")
-                ? "gh-sidebar-active"
-                : "gh-sidebar-idle",
-            ].join(" ")}
-          >
-            <Settings size={18} />
-            Ajustes
-          </Link>
-          <button
-            type="button"
-            onClick={cerrarSesion}
-            className="mt-1 flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left font-bold text-red-600 transition hover:bg-red-50 hover:text-red-700"
-          >
-            <LogOut size={18} />
-            Cerrar sesión
-          </button>
-        </div>
+        </details>
       </nav>
+      {!mobile ? <ServiceClock /> : null}
     </aside>
   );
 }

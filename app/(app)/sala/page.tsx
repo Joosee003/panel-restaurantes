@@ -2,9 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
 import { supabase } from "../lib/supabaseClient";
 import { useTheme } from "../components/ThemeProvider";
 import { useRestaurante } from "../../hooks/useRestaurante";
+import { ServiceDetail } from "../reservas/ServiceDetail";
+import styles from "./sala.module.css";
 
 type Zona = {
   id: string;
@@ -426,28 +429,19 @@ export default function SalaPage() {
   const [guardandoAccion, setGuardandoAccion] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
 
-  const panelClass = isDark
-    ? "rounded-3xl border border-slate-800 bg-slate-950 shadow-sm"
-    : "rounded-3xl border border-slate-200 bg-white shadow-sm";
+  const panelClass = styles.section;
 
-  const panelSoftClass = isDark
-    ? "rounded-2xl border border-slate-800 bg-slate-900"
-    : "rounded-2xl border border-slate-200 bg-slate-50";
+  const panelSoftClass = styles.contextRow;
 
   const titleClass = isDark ? "text-white" : "text-slate-950";
   const textClass = isDark ? "text-slate-100" : "text-slate-900";
   const mutedClass = isDark ? "text-slate-400" : "text-slate-500";
 
-  const buttonBase = isDark
-    ? "rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm font-semibold text-slate-100 hover:bg-slate-900"
-    : "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-100";
+  const buttonBase = styles.button;
 
-  const buttonActive = isDark
-    ? "rounded-xl border border-white bg-white px-4 py-2 text-sm font-black text-slate-900"
-    : "rounded-xl border border-slate-950 bg-slate-950 px-4 py-2 text-sm font-black text-white";
+  const buttonActive = `${styles.button} ${styles.buttonActive}`;
 
-  const subButtonActive =
-    "rounded-xl border border-blue-600 bg-blue-600 px-3 py-2 text-sm font-black text-white shadow-sm";
+  const subButtonActive = `${styles.button} ${styles.franjaActive}`;
 
   const cargarSala = async (silent = false) => {
     if (!silent) setLoading(true);
@@ -897,28 +891,25 @@ export default function SalaPage() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <p className="mb-2 inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-blue-700">
-            Sala Pro
-          </p>
-          <h1 className={`text-3xl font-black tracking-tight ${titleClass}`}>Sala</h1>
-          <p className={`mt-1 text-sm ${mutedClass}`}>
-            Controla mesas, reservas sin asignar y llegadas por turno.
-          </p>
+    <div className={`gh-product-scope ${styles.page}`}>
+      <div className={styles.header}>
+        <div className={styles.heading}>
+          <h1>Sala</h1>
+          <p>Mesas y llegadas del servicio</p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
+        <div className={styles.dateControls}>
           <button
             type="button"
             onClick={() => setFechaSeleccionada(addDays(fechaSeleccionada, -1))}
+            aria-label="Día anterior"
             className={buttonBase}
           >
-            Día anterior
+            <ChevronLeft size={14} /><span className={styles.dateLabel}>Día anterior</span>
           </button>
           <input
             type="date"
+            aria-label="Fecha de la sala"
             value={fechaKey}
             onChange={(event) => setFechaSeleccionada(dateFromInput(event.target.value))}
             className={
@@ -937,16 +928,18 @@ export default function SalaPage() {
           <button
             type="button"
             onClick={() => setFechaSeleccionada(addDays(fechaSeleccionada, 1))}
+            aria-label="Día siguiente"
             className={buttonBase}
           >
-            Día siguiente
+            <span className={styles.dateLabel}>Día siguiente</span><ChevronRight size={14} />
           </button>
           <button
             type="button"
             onClick={() => cargarSala()}
-            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-black text-white hover:bg-blue-700"
+            aria-label="Actualizar sala"
+            className={`${styles.button} ${styles.buttonActive}`}
           >
-            Actualizar
+            <RefreshCw size={14} /><span className={styles.dateLabel}>Actualizar</span>
           </button>
         </div>
       </div>
@@ -963,44 +956,15 @@ export default function SalaPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-5">
-        <div className={`${panelClass} p-4 xl:col-span-1`}>
-          <p className={`text-xs font-black uppercase tracking-[0.16em] ${mutedClass}`}>Fecha</p>
-          <p className={`mt-2 font-black ${textClass}`}>{formatearFechaCompleta(fechaSeleccionada)}</p>
-        </div>
-
-        <div className={`${panelClass} p-4 xl:col-span-1`}>
-          <p className={`text-xs font-black uppercase tracking-[0.16em] ${mutedClass}`}>Franja</p>
-          <p className={`mt-2 font-black ${textClass}`}>
-            {turnoVisible && franjaVisible
-              ? `${turnoVisible.label} · ${franjaVisible.label}`
-              : "Sin franjas"}
-          </p>
-          <p className={`mt-1 text-xs ${mutedClass}`}>{turnoVisible ? turnoVisible.rangoTexto : ""}</p>
-        </div>
-
-        <div className={`${panelClass} p-4 xl:col-span-1`}>
-          <p className={`text-xs font-black uppercase tracking-[0.16em] ${mutedClass}`}>Ocupación</p>
-          <p className={`mt-2 text-2xl font-black ${textClass}`}>{ocupacionPorcentaje}%</p>
-          <p className={`text-xs ${mutedClass}`}>{totalReservadas + totalOcupadas + totalAtendidas} de {mesasVisibles.length} mesas</p>
-        </div>
-
-        <div className={`${panelClass} p-4 xl:col-span-2`}>
-          <div className="grid grid-cols-2 gap-2 lg:grid-cols-5">
-            {kpis.map((kpi) => (
-              <div key={kpi.label} className={isDark ? "rounded-2xl bg-slate-900 p-3" : "rounded-2xl bg-slate-50 p-3"}>
-                <p className={`text-xs font-black uppercase ${mutedClass}`}>{kpi.label}</p>
-                <p className={`mt-1 text-2xl font-black ${textClass}`}>{kpi.value}</p>
-                <p className={`text-[11px] ${mutedClass}`}>{kpi.sub}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+      <div className={styles.summary}>
+        <span className={styles.summaryDate}>{formatearFechaCompleta(fechaSeleccionada)}</span>
+        <span><strong>{ocupacionPorcentaje}%</strong> ocupación · {totalReservadas + totalOcupadas + totalAtendidas}/{mesasVisibles.length} mesas</span>
+        {kpis.map((kpi) => <span key={kpi.label} title={kpi.sub}><strong>{kpi.value}</strong> {kpi.label.toLowerCase()}</span>)}
       </div>
 
       {turnos.length > 0 && (
-        <div className={`${panelClass} space-y-4 p-4`}>
-          <div className="flex flex-wrap gap-2">
+        <div className={styles.timeControls}>
+          <div className={styles.turnos}>
             {turnos.map((turno) => (
               <button
                 key={turno.key}
@@ -1021,7 +985,7 @@ export default function SalaPage() {
           </div>
 
           {turnoVisible && turnoVisible.franjas.length > 0 && (
-            <div className="flex flex-wrap gap-2">
+            <div className={styles.franjas}>
               {turnoVisible.franjas.map((franja, index) => (
                 <button
                   key={franja.label}
@@ -1043,8 +1007,9 @@ export default function SalaPage() {
         </div>
       )}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-        <div className={`${panelClass} p-5`}>
+      <div className={styles.workspace}>
+        <div className={styles.floor}>
+          <div className={styles.floorHeading}><h2>Distribución por zonas</h2><span>{turnoVisible && franjaVisible ? `${turnoVisible.label} · ${franjaVisible.label}` : "Sin franjas"}</span></div>
           {loading ? (
             <p className={mutedClass}>Cargando sala...</p>
           ) : !restauranteId ? (
@@ -1081,9 +1046,9 @@ export default function SalaPage() {
 
                 return (
                   <div key={zona.id} className="space-y-3">
-                    <div className="flex items-end justify-between gap-3">
+                    <div className={styles.zoneHeading}>
                       <div>
-                        <h2 className={`text-xl font-black ${titleClass}`}>{zona.nombre}</h2>
+                        <h2>{zona.nombre}</h2>
                         <p className={`text-sm ${mutedClass}`}>
                           {mesasZona.length} mesa{mesasZona.length === 1 ? "" : "s"} en esta zona
                         </p>
@@ -1093,7 +1058,7 @@ export default function SalaPage() {
                     {mesasZona.length === 0 ? (
                       <p className={`text-sm ${mutedClass}`}>No hay mesas activas en esta zona.</p>
                     ) : (
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-3">
+                      <div className={styles.tables}>
                         {mesasZona.map(({ mesa, reserva, estadoMesa }) => {
                           return (
                             <button
@@ -1104,37 +1069,36 @@ export default function SalaPage() {
                                 else abrirMesaLibre(mesa);
                               }}
                               className={[
-                                "min-h-[162px] rounded-3xl border p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+                                styles.table,
                                 estadoMesaClasses(estadoMesa),
                               ].join(" ")}
+                              data-state={estadoMesa}
+                              aria-label={`${mesa.nombre}, ${labelEstadoMesa(estadoMesa)}, ${mesa.capacidad} plazas${reserva ? `, ${reserva.nombre_cliente || "Sin nombre"}, ${reserva.personas ?? 0} personas, ${formatearHora(reserva.fecha_hora_reserva)}` : ""}`}
                             >
                               <div className="flex items-start justify-between gap-3">
                                 <div>
-                                  <h3 className="text-2xl font-black">{mesa.nombre}</h3>
-                                  <p className="mt-1 text-sm opacity-80">{mesa.capacidad} personas</p>
+                                  <h3>{mesa.nombre}</h3>
+                                  <p className={styles.capacity}>{mesa.capacidad} plazas</p>
                                 </div>
-                                <span className={["rounded-full border px-2.5 py-1 text-xs font-black", badgeEstadoMesaClasses(estadoMesa)].join(" ")}>
+                                <span className={[styles.tableStatus, badgeEstadoMesaClasses(estadoMesa)].join(" ")}>
                                   {labelEstadoMesa(estadoMesa)}
                                 </span>
                               </div>
 
                               {reserva ? (
-                                <div className="mt-5 space-y-1">
-                                  <p className="text-base font-black">{reserva.nombre_cliente || "Sin nombre"}</p>
-                                  <p className="text-sm opacity-80">
+                                <div className={styles.tableBooking}>
+                                  <p className="font-semibold">{reserva.nombre_cliente || "Sin nombre"}</p>
+                                  <p>
                                     {formatearHora(reserva.fecha_hora_reserva)} · {reserva.personas ?? 0} personas
                                   </p>
-                                  <p className="text-xs font-semibold opacity-70">
-                                    {estadoReservaLabel(reserva)} · pulsa para gestionar
+                                  <p className={styles.tableHint}>
+                                    {estadoReservaLabel(reserva)}
                                   </p>
                                 </div>
                               ) : (
-                                <div className="mt-5 space-y-1">
-                                  <p className="text-sm font-semibold">
+                                <div className={styles.tableBooking}>
+                                  <p>
                                     {mesa.bloqueada ? "Fuera de uso temporalmente" : "Disponible para asignar"}
-                                  </p>
-                                  <p className="text-xs opacity-70">
-                                    Pulsa para bloquear o asignar una reserva.
                                   </p>
                                 </div>
                               )}
@@ -1150,7 +1114,7 @@ export default function SalaPage() {
           )}
         </div>
 
-        <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">
+        <aside className={styles.contextRail}>
           <div className={`${panelClass} p-5`}>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -1300,8 +1264,8 @@ export default function SalaPage() {
       </div>
 
       {reservaDetalle && mesaDetalle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className={`${panelClass} w-full max-w-2xl p-6 shadow-2xl`}>
+        <ServiceDetail label={`Gestionar ${mesaDetalle.nombre}`} onClose={() => { setReservaDetalle(null); setMesaDetalle(null); }}>
+          <div className={styles.detail}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="mb-2 inline-flex rounded-full bg-blue-100 px-3 py-1 text-xs font-black text-blue-800">
@@ -1424,12 +1388,12 @@ export default function SalaPage() {
               </div>
             </div>
           </div>
-        </div>
+        </ServiceDetail>
       )}
 
       {mesaLibreDetalle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className={`${panelClass} w-full max-w-xl p-6 shadow-2xl`}>
+        <ServiceDetail label={`Gestionar ${mesaLibreDetalle.nombre}`} onClose={() => setMesaLibreDetalle(null)}>
+          <div className={styles.detail}>
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="mb-2 inline-flex rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-800">
@@ -1492,7 +1456,7 @@ export default function SalaPage() {
               )}
             </div>
           </div>
-        </div>
+        </ServiceDetail>
       )}
     </div>
   );

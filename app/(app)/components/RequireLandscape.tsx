@@ -15,7 +15,9 @@ export default function RequireLandscape({
     pathname === "/dashboard" ||
     pathname === "/reservas" ||
     pathname === "/clientes" ||
-    pathname.startsWith("/clientes/");
+    pathname.startsWith("/clientes/") ||
+    ["/sala", "/resenas", "/estadisticas", "/dashboard/rentabilidad", "/dashboard/fidelizacion", "/panel", "/ajustes"]
+      .some((path) => pathname === path || pathname.startsWith(path + "/"));
 
   useEffect(() => {
     const check = () => {

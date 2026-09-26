@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import styles from "../../../components/product/modules.module.css";
 import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
@@ -145,12 +146,12 @@ export default function CuponesPage() {
   const [premioActivo, setPremioActivo] = useState(true);
   const [savingPremio, setSavingPremio] = useState(false);
 
-  const pageWrap = "mx-auto max-w-7xl p-6";
+  const pageWrap = `${styles.workspace} ${styles.formWorkspace}`;
 
   const cardBase = useMemo(
     () =>
       clsx(
-        "rounded-3xl border shadow-sm",
+        styles.compactPanel,
         dark ? "border-gray-800 bg-gray-950 text-gray-100" : "border-gray-200 bg-white text-gray-950"
       ),
     [dark]
@@ -674,14 +675,7 @@ export default function CuponesPage() {
 
   return (
     <div className={pageWrap}>
-      <div
-        className={clsx(
-          "rounded-[2rem] border p-6 shadow-sm",
-          dark
-            ? "border-gray-800 bg-gradient-to-br from-gray-950 to-gray-900"
-            : "border-slate-200 bg-gradient-to-br from-white to-slate-50"
-        )}
-      >
+      <div className={styles.compactHeader}>
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <div className="inline-flex rounded-full bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-[0.18em] text-blue-700">
@@ -709,14 +703,14 @@ export default function CuponesPage() {
           </div>
         </div>
 
-        <div className="mt-6 grid gap-3 md:grid-cols-4">
+        <div className={styles.metricStrip}>
           <StatCard title="Premios activos" value={estadisticas.premiosActivos} subtitle="Canjeables por puntos" />
           <StatCard title="Cupones activos" value={estadisticas.cuponesActivos} subtitle="Ventajas automáticas" />
           <StatCard title="Ventajas VIP" value={estadisticas.ventajasVip} subtitle="Solo mejores clientes" />
           <StatCard title="Puntos por euro" value={config.puntos_por_euro || 1} subtitle="Base del restaurante" />
         </div>
 
-        <div className="mt-5 grid gap-2 rounded-2xl border border-blue-100 bg-blue-50 p-4 text-sm font-semibold text-blue-900 md:grid-cols-5">
+        <div className={styles.levels}>
           <div>Nuevo: 0-{Math.max(0, config.nivel_frecuente_desde - 1)} visitas</div>
           <div>Frecuente: desde {config.nivel_frecuente_desde}</div>
           <div>Habitual: desde {config.nivel_habitual_desde}</div>
@@ -725,24 +719,20 @@ export default function CuponesPage() {
         </div>
       </div>
 
-      <div className="mt-6 flex flex-wrap gap-2">
+      <div className={`${styles.tabs} mt-4`}>
         <button
           type="button"
           onClick={() => setTab("premios")}
-          className={clsx(
-            "rounded-2xl px-5 py-3 text-sm font-black transition",
-            tab === "premios" ? "bg-blue-600 text-white" : dark ? "bg-gray-900 text-gray-200" : "bg-white text-slate-800"
-          )}
+          aria-pressed={tab === "premios"}
+          className={styles.tab}
         >
           Premios por puntos · {premios.length}
         </button>
         <button
           type="button"
           onClick={() => setTab("cupones")}
-          className={clsx(
-            "rounded-2xl px-5 py-3 text-sm font-black transition",
-            tab === "cupones" ? "bg-blue-600 text-white" : dark ? "bg-gray-900 text-gray-200" : "bg-white text-slate-800"
-          )}
+          aria-pressed={tab === "cupones"}
+          className={styles.tab}
         >
           Cupones y ventajas · {cupones.length}
         </button>
@@ -786,7 +776,7 @@ export default function CuponesPage() {
             />
           ) : null}
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className={`${styles.rewardList} mt-4`}>
             <CreateCard title="Añadir premio" subtitle="Premio por puntos y nivel" onClick={abrirNuevoPremio} dark={dark} />
             {premios.length === 0 ? (
               <div className={clsx(cardBase, "flex min-h-44 items-center justify-center p-6 text-center sm:col-span-1 xl:col-span-2")}>
@@ -799,8 +789,8 @@ export default function CuponesPage() {
               </div>
             ) : null}
             {premios.map((p) => (
-              <div key={p.id} className={clsx(cardBase, "overflow-hidden")}>
-                <div className="relative">
+              <div key={p.id} className={styles.rewardRow}>
+                <div className={styles.rewardImage}>
                   {p.imagen_url ? (
                     <Image src={p.imagen_url} alt={p.nombre} fill sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw" unoptimized className="object-cover" />
                   ) : (
@@ -813,7 +803,7 @@ export default function CuponesPage() {
                     <span className={nivelBadge(p.nivel_minimo)}>{nivelLabel(p.nivel_minimo)}</span>
                   </div>
                 </div>
-                <div className="p-4">
+                <div className={styles.rewardBody}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="text-base font-black">{p.nombre}</div>
@@ -874,7 +864,7 @@ export default function CuponesPage() {
             />
           ) : null}
 
-          <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className={`${styles.rewardList} mt-4`}>
             <CreateCard title="Añadir cupón" subtitle="Ventaja por nivel o condición" onClick={abrirNuevoCupon} dark={dark} />
             {cupones.length === 0 ? (
               <div className={clsx(cardBase, "flex min-h-44 items-center justify-center p-6 text-center sm:col-span-1 xl:col-span-2")}>
@@ -887,7 +877,7 @@ export default function CuponesPage() {
               </div>
             ) : null}
             {cupones.map((c) => (
-              <div key={c.id} className={clsx(cardBase, "p-5")}>
+              <div key={c.id} className={styles.couponRow}>
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap gap-2">
@@ -929,10 +919,10 @@ export default function CuponesPage() {
 
   function StatCard({ title, value, subtitle }: { title: string; value: number | string; subtitle: string }) {
     return (
-      <div className={clsx("rounded-2xl border p-4", dark ? "border-gray-800 bg-gray-950/60" : "border-slate-200 bg-white")}>
-        <div className={clsx("text-xs font-black uppercase tracking-[0.14em]", smallText)}>{title}</div>
-        <div className="mt-2 text-2xl font-black">{value}</div>
-        <div className={clsx("mt-1 text-xs font-bold", smallText)}>{subtitle}</div>
+      <div className={styles.metric}>
+        <div className={styles.metricLabel}>{title}</div>
+        <div className={styles.metricValue}><strong>{value}</strong></div>
+        <div className={styles.metricNote}>{subtitle}</div>
       </div>
     );
   }
@@ -944,15 +934,15 @@ function CreateCard({ title, subtitle, onClick, dark }: { title: string; subtitl
       type="button"
       onClick={onClick}
       className={clsx(
-        "group flex min-h-[210px] flex-col items-center justify-center rounded-3xl border border-dashed p-6 text-center transition",
-        dark ? "border-gray-700 bg-gray-950 hover:bg-gray-900" : "border-slate-300 bg-white hover:bg-slate-50"
+        "group flex min-h-12 items-center gap-3 border-b py-3 text-left transition",
+        dark ? "border-gray-700 hover:bg-gray-900" : "border-slate-200 hover:bg-slate-50"
       )}
     >
-      <div className={clsx("flex h-14 w-14 items-center justify-center rounded-2xl text-3xl font-black", dark ? "bg-gray-900" : "bg-slate-100")}>
+      <div className="text-xl text-blue-600">
         +
       </div>
-      <div className="mt-4 text-base font-black">{title}</div>
-      <div className={clsx("mt-1 text-xs font-bold", dark ? "text-gray-400" : "text-slate-500")}>{subtitle}</div>
+      <div className="text-sm font-semibold">{title}</div>
+      <div className={clsx("text-xs", dark ? "text-gray-400" : "text-slate-500")}>{subtitle}</div>
     </button>
   );
 }

@@ -1,4 +1,5 @@
 "use client";
+import styles from "../../components/product/modules.module.css";
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -479,11 +480,11 @@ export default function CartaProductosPage() {
     : {};
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
+    <div className={`${styles.workspace} ${styles.formWorkspace}`}>
       <div className="mx-auto max-w-7xl">
-        <header className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <header className={`${styles.compactHeader} mb-5 flex flex-col justify-between gap-4 lg:flex-row lg:items-center`}>
           <div className="flex items-center gap-4">
-            <div className="rounded-2xl bg-slate-950 p-3 text-white shadow-sm">
+            <div className="text-slate-500">
               <ChefHat className="h-6 w-6" />
             </div>
             <div>
@@ -529,13 +530,13 @@ export default function CartaProductosPage() {
           </div>
         )}
 
-        <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <section className={`${styles.catalog} mb-5`}>
           <div className="grid gap-4 lg:grid-cols-[1fr_420px] lg:items-end">
             <div>
               <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-slate-400">
                 Carta del restaurante activo
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="py-2">
                 {loading || loadingRestaurante ? (
                   <div className="flex items-center gap-2 text-sm font-black text-slate-500">
                     <Loader2 className="h-4 w-4 animate-spin" /> Cargando carta...
@@ -579,7 +580,7 @@ export default function CartaProductosPage() {
             </div>
           </div>
 
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className={styles.metricStrip}>
             <MiniStat label="Productos" value={productos.length} />
             <MiniStat label="Activos" value={stats.activos} />
             <MiniStat label="Recomendados" value={stats.recomendados} />
@@ -608,8 +609,8 @@ export default function CartaProductosPage() {
           </div>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-2 border-b border-slate-200 p-5 sm:flex-row sm:items-end sm:justify-between">
+        <section className={styles.catalog}>
+          <div className={`${styles.catalogHeader} flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between`}>
             <div>
               <h2 className="text-xl font-black">Productos</h2>
               <p className="mt-1 text-sm font-semibold text-slate-500">
@@ -644,9 +645,9 @@ export default function CartaProductosPage() {
                 return (
                   <div
                     key={producto.id}
-                    className="grid gap-4 p-4 transition hover:bg-slate-50 lg:grid-cols-[80px_1fr_auto] lg:items-center"
+                    className="grid gap-3 py-3 transition hover:bg-slate-50 sm:grid-cols-[56px_1fr_auto] sm:items-center"
                   >
-                    <div className="h-20 w-20 overflow-hidden rounded-2xl bg-slate-100">
+                    <div className="h-14 w-14 overflow-hidden rounded bg-slate-100">
                       {producto.imagen_url ? (
                         <Image
                           src={producto.imagen_url}
@@ -1048,15 +1049,15 @@ export default function CartaProductosPage() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }
 
 function MiniStat({ label, value }: { label: string; value: number }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <p className="text-xs font-black uppercase tracking-[0.14em] text-slate-400">{label}</p>
-      <p className="mt-1 text-2xl font-black text-slate-950">{value}</p>
+    <div className={styles.metric}>
+      <p className={styles.metricLabel}>{label}</p>
+      <div className={styles.metricValue}><strong>{value}</strong></div>
     </div>
   );
 }

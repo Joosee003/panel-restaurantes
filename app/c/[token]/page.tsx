@@ -9,7 +9,6 @@ import { redirect } from "next/navigation";
 import {
   ArrowRight,
   Bell,
-  CalendarClock,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -27,10 +26,10 @@ import {
   TicketPercent,
   Trophy,
   User,
-  Users,
   XCircle,
   Zap,
 } from "lucide-react";
+import styles from "./client-experience.module.css";
 import PremioImage from "./PremioImage";
 import ConfirmSubmit from "./ConfirmSubmit";
 import LoadingSubmitButton from "./LoadingSubmitButton";
@@ -483,80 +482,28 @@ function cumpleNivelMinimo(actual: NivelCliente, minimo: NivelCliente | null | u
 }
 
 function AppShell({ children, accent, bg }: { children: React.ReactNode; accent: string; bg: string }) {
-  return (
-    <div
-      className="min-h-screen text-slate-950"
-      style={{
-        background: `radial-gradient(900px 460px at 0% -10%, ${rgba(accent, 0.26)}, transparent 62%), radial-gradient(680px 380px at 105% 0%, ${rgba(accent, 0.14)}, transparent 58%), linear-gradient(180deg, ${bg}, #ffffff 44%, #f8fafc 100%)`,
-      }}
-    >
-      <div className="mx-auto min-h-screen w-full max-w-[500px] px-4 pb-36 pt-4 sm:pt-6">{children}</div>
-    </div>
-  );
+  return <div className={styles.shell} style={{ "--client-accent": accent, "--client-bg": bg } as React.CSSProperties}><main className={styles.canvas}>{children}</main></div>;
 }
 
 function IconBubble({ children, accent, dark = false }: { children: React.ReactNode; accent: string; dark?: boolean }) {
-  return (
-    <div
-      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border shadow-sm"
-      style={{
-        background: dark ? "#0f172a" : `linear-gradient(135deg, ${rgba(accent, 0.16)}, #fff)`,
-        borderColor: dark ? "rgba(255,255,255,0.12)" : rgba(accent, 0.18),
-        color: dark ? "white" : accent,
-      }}
-    >
-      {children}
-    </div>
-  );
+  return <span className={styles.icon} style={{ color: dark ? "#29372f" : accent }}>{children}</span>;
 }
 
-function Badge({
-  children,
-  accent,
-  variant = "soft",
-  className,
-}: {
+function Badge({ children, accent, variant = "soft", className }: {
   children: React.ReactNode;
   accent: string;
   variant?: "soft" | "solid" | "danger" | "success" | "dark";
   className?: string;
 }) {
-  const style =
-    variant === "solid"
-      ? { backgroundColor: accent, color: "white", borderColor: "transparent" }
-      : variant === "danger"
-        ? { backgroundColor: "#fee2e2", color: "#991b1b", borderColor: "#fecaca" }
-        : variant === "success"
-          ? { backgroundColor: "#dcfce7", color: "#166534", borderColor: "#bbf7d0" }
-          : variant === "dark"
-            ? { backgroundColor: "#0f172a", color: "white", borderColor: "transparent" }
-            : { backgroundColor: rgba(accent, 0.1), color: "#0f172a", borderColor: rgba(accent, 0.18) };
-
-  return (
-    <span className={clsx("inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[11px] font-black leading-none tracking-tight", className)} style={style}>
-      {children}
-    </span>
-  );
+  return <span className={clsx(styles.badge, className)} data-variant={variant} style={{ "--client-accent": accent } as React.CSSProperties}>{children}</span>;
 }
 
 function ProgressBar({ pct }: { pct: number }) {
   const v = Math.max(0, Math.min(100, Number.isFinite(pct) ? pct : 0));
-  return (
-    <div className="h-2.5 w-full overflow-hidden rounded-full bg-white/24">
-      <div className="h-full rounded-full bg-white transition-all" style={{ width: `${v}%` }} />
-    </div>
-  );
+  return <div className={styles.progress}><div style={{ width: `${v}%` }} /></div>;
 }
 
-function SectionCard({
-  children,
-  title,
-  subtitle,
-  accent,
-  icon,
-  right,
-  className,
-}: {
+function SectionCard({ children, title, subtitle, accent, icon, right, className }: {
   children: React.ReactNode;
   title: string;
   subtitle?: string;
@@ -565,46 +512,22 @@ function SectionCard({
   right?: React.ReactNode;
   className?: string;
 }) {
-  return (
-    <section className={clsx("overflow-hidden rounded-[30px] border border-white/75 bg-white/90 p-5 shadow-[0_18px_55px_rgba(15,23,42,0.08)] backdrop-blur-xl", className)}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          {icon ? <IconBubble accent={accent}>{icon}</IconBubble> : null}
-          <div className="min-w-0">
-            <h2 className="text-[19px] font-black leading-tight tracking-[-0.04em] !text-slate-950">{title}</h2>
-            {subtitle ? <p className="mt-1 text-sm font-semibold text-slate-500">{subtitle}</p> : null}
-          </div>
-        </div>
-        {right ? <div className="shrink-0">{right}</div> : null}
-      </div>
-      <div className="mt-5">{children}</div>
-    </section>
-  );
+  return <section className={clsx(styles.section, className)} style={{ "--client-accent": accent } as React.CSSProperties}>
+    <header className={styles.sectionHeading}><div><span className={styles.sectionIcon} aria-hidden="true">{icon}</span><h2>{title}</h2>{subtitle ? <p>{subtitle}</p> : null}</div>{right ? <div>{right}</div> : null}</header>
+    <div className={styles.legacyInterior}>{children}</div>
+  </section>;
 }
 
 function EmptyState({ title, text, icon, accent }: { title: string; text: string; icon: React.ReactNode; accent: string }) {
-  return (
-    <div className="rounded-[24px] border border-dashed p-6 text-center" style={{ borderColor: rgba(accent, 0.22), backgroundColor: rgba(accent, 0.06) }}>
-      <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm" style={{ color: accent }}>{icon}</div>
-      <div className="mt-3 text-base font-black tracking-tight text-slate-950">{title}</div>
-      <div className="mt-1 text-sm font-semibold text-slate-500">{text}</div>
-    </div>
-  );
+  return <div className={styles.empty}><div className={styles.emptyIcon} style={{ color: accent }} aria-hidden="true">{icon}</div><strong>{title}</strong><p>{text}</p></div>;
 }
 
 function AppNotice({ type, title, text }: { type: "ok" | "err"; title: string; text: string }) {
   const ok = type === "ok";
-  return (
-    <div className={clsx("rounded-[26px] border p-4 shadow-sm", ok ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-red-200 bg-red-50 text-red-950")}>
-      <div className="flex items-start gap-3">
-        {ok ? <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-700" /> : <XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-700" />}
-        <div>
-          <div className="text-sm font-black">{title}</div>
-          <div className="mt-1 text-sm font-semibold opacity-80">{text}</div>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className={styles.notice} data-error={!ok} role={ok ? "status" : "alert"}>
+    {ok ? <CheckCircle2 size={18} className="shrink-0" /> : <XCircle size={18} className="shrink-0" />}
+    <div><strong>{title}</strong><p>{text}</p></div>
+  </div>;
 }
 
 function Hero({
@@ -640,76 +563,20 @@ function Hero({
   avisosSinLeer: number;
   avisosHref: string;
 }) {
-  return (
-    <header
-      className="relative overflow-hidden rounded-[34px] p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
-      style={{ background: `radial-gradient(520px 260px at 105% -18%, ${rgba(accent, 0.8)}, transparent 60%), radial-gradient(420px 260px at -12% 90%, ${rgba(accent, 0.45)}, transparent 64%), linear-gradient(135deg, #0f172a, #020617 92%)` }}
-    >
-      <div className="absolute -right-14 -top-16 h-48 w-48 rounded-full bg-white/10 blur-sm" />
-      <div className="absolute bottom-0 left-0 h-28 w-full bg-gradient-to-t from-black/20 to-transparent" />
-
-      <div className="relative z-10 flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/20 bg-white/12 shadow-lg backdrop-blur">
-            {logo ? <Image src={logo} alt={restauranteNombre} width={48} height={48} unoptimized className="h-full w-full object-cover" /> : <Crown className="h-6 w-6" />}
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-[11px] font-black uppercase tracking-[0.22em] text-white/60">{restauranteNombre}</div>
-            <h1 className="mt-1 truncate text-[28px] font-black leading-none tracking-[-0.07em] !text-white">Hola, {clienteNombre}</h1>
-          </div>
-        </div>
-
-        <Link href={avisosHref} scroll={false} aria-label="Ver avisos" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-white/12 backdrop-blur active:scale-[0.96]">
-          <Bell className="h-5 w-5" />
-          {avisosSinLeer > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white">{avisosSinLeer}</span> : null}
-        </Link>
-      </div>
-
-      <div className="relative z-10 mt-6 rounded-[28px] border border-white/14 bg-white/10 p-4 backdrop-blur-xl">
-        {fidelizacionActiva ? (
-          <>
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-white/55">Saldo disponible</div>
-                <div className="mt-1 flex items-end gap-2">
-                  <span className="text-5xl font-black leading-none tracking-[-0.09em]">{puntos}</span>
-                  <span className="pb-1 text-sm font-black text-white/62">pts</span>
-                </div>
-                <div className="mt-1 text-xs font-bold text-white/55">{puntosPorEuro} pts por cada € acumulado</div>
-              </div>
-
-              <div className="min-w-[104px] rounded-[24px] border border-white/14 bg-white/10 p-3 text-right">
-                <Trophy className="ml-auto h-6 w-6 text-white" />
-                <div className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-white/45">Próximo</div>
-                <div className="max-w-[120px] truncate text-sm font-black">{nextRewardName}</div>
-              </div>
-            </div>
-
-            <div className="mt-5">
-              <div className="mb-2 flex items-center justify-between text-xs font-black text-white/72">
-                <span>{nextRewardMissing > 0 ? `Faltan ${nextRewardMissing} pts` : "Listo para canjear"}</span>
-                <span>{Math.round(Math.max(0, Math.min(100, progressPct)))}%</span>
-              </div>
-              <ProgressBar pct={progressPct} />
-            </div>
-          </>
-        ) : (
-          <div className="flex items-center gap-3">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/12"><ShieldCheck className="h-6 w-6" /></div>
-            <div>
-              <div className="text-lg font-black tracking-[-0.04em]">Tu zona privada</div>
-              <div className="text-sm font-semibold text-white/58">Reservas, avisos y ventajas del restaurante.</div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      <Link href={mainHref} scroll={false} className="relative z-10 mt-4 inline-flex min-h-[54px] w-full touch-manipulation items-center justify-center gap-2 rounded-[22px] bg-white px-4 py-3 text-sm font-black text-slate-950 shadow-xl transition active:scale-[0.97] active:opacity-90">
-        {mainIcon}
-        {mainLabel}
-      </Link>
-    </header>
-  );
+  return <header className={styles.hero} style={{ "--client-accent": accent } as React.CSSProperties}>
+    <div className={styles.brandLine}>
+      <div className={styles.brand}>{logo ? <Image src={logo} alt={restauranteNombre} width={42} height={42} unoptimized className={styles.logo} /> : <span className={styles.brandMark} aria-hidden="true" />}<span className={styles.brandName}>{restauranteNombre}</span></div>
+      <Link href={avisosHref} scroll={false} aria-label="Ver avisos" className={styles.notification}><Bell size={18} />{avisosSinLeer > 0 ? <span className={styles.notificationCount}>{avisosSinLeer}</span> : null}</Link>
+    </div>
+    <div className={styles.welcome}><h1>Hola, {clienteNombre}.</h1><p>Tu mesa, tus visitas y los detalles de volver.</p></div>
+    {fidelizacionActiva ? <div className={styles.balance}>
+      <div className={styles.balanceLabel}>Tus puntos disponibles</div>
+      <div className={styles.balanceLine}><div className={styles.balanceNumber}><strong>{puntos}</strong><span>puntos</span></div><p className={styles.earningRate}>{puntosPorEuro} pts por cada € acumulado</p></div>
+      <div className={styles.rewardProgress}><strong>{nextRewardName}</strong><span>{nextRewardMissing > 0 ? `A ${nextRewardMissing} pts` : "Listo para canjear"}</span></div>
+      <ProgressBar pct={progressPct} />
+    </div> : <p className={styles.privateIntro}>Tus reservas, avisos y próximas visitas, siempre a mano.</p>}
+    <Link href={mainHref} scroll={false} className={styles.primaryLink}>{mainIcon}<span>{mainLabel}</span><ArrowRight size={17} /></Link>
+  </header>;
 }
 
 function CompactHeader({
@@ -729,29 +596,11 @@ function CompactHeader({
   avisosSinLeer: number;
   avisosHref: string;
 }) {
-  return (
-    <header className="sticky top-0 z-30 -mx-4 border-b border-white/70 bg-white/78 px-4 py-3 shadow-[0_14px_45px_rgba(15,23,42,0.06)] backdrop-blur-xl">
-      <div className="mx-auto flex max-w-[500px] items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
-            {logo ? <Image src={logo} alt={restauranteNombre} width={44} height={44} unoptimized className="h-full w-full object-cover" /> : <Crown className="h-5 w-5" style={{ color: accent }} />}
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">{restauranteNombre}</div>
-            <div className="truncate text-xl font-black tracking-[-0.05em] text-slate-950">{title}</div>
-            <div className="truncate text-xs font-bold text-slate-500">{subtitle}</div>
-          </div>
-        </div>
-
-        <Link href={avisosHref} scroll={false} aria-label="Ver avisos" className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white shadow-sm active:scale-[0.96]" style={{ backgroundColor: accent }}>
-          <Bell className="h-5 w-5" />
-          {avisosSinLeer > 0 ? <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-black text-white ring-2 ring-white">{avisosSinLeer}</span> : null}
-        </Link>
-      </div>
-    </header>
-  );
+  return <header className={styles.compactHeader}>
+    <div className={styles.brandLine}><div className={styles.brand}>{logo ? <Image src={logo} alt={restauranteNombre} width={42} height={42} unoptimized className={styles.logo} /> : <span className={styles.brandMark} style={{ background: accent }} aria-hidden="true" />}<span className={styles.brandName}>{restauranteNombre}</span></div><Link href={avisosHref} scroll={false} aria-label="Ver avisos" className={styles.notification}><Bell size={18} />{avisosSinLeer > 0 ? <span className={styles.notificationCount}>{avisosSinLeer}</span> : null}</Link></div>
+    <div className={styles.compactTitle}><h1>{title}</h1><p>{subtitle}</p></div>
+  </header>;
 }
-
 
 function BottomNav({
   currentTab,
@@ -777,33 +626,12 @@ function BottomNav({
     { key: "perfil", label: "Perfil", icon: <User className="h-5 w-5" />, count: avisosSinLeer },
   ];
 
-  return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-[540px] px-4 pb-4">
-      <div className="rounded-[26px] border border-white/85 bg-white/95 px-2 py-2 shadow-[0_18px_60px_rgba(15,23,42,0.18)] backdrop-blur-xl">
-        <div className={clsx("grid gap-1", fidelizacionActiva ? "grid-cols-4" : "grid-cols-3")}>
-          {items.map((item) => {
-            const active = item.activeTabs?.includes(currentTab) ?? currentTab === item.key;
-            return (
-              <Link
-                key={item.key}
-                href={buildTabHref(item.key)}
-                scroll={false}
-                className={clsx(
-                  "relative flex touch-manipulation flex-col items-center justify-center rounded-2xl px-1 py-2 text-[10px] font-black transition active:scale-[0.94] active:opacity-80",
-                  active ? "text-white" : "text-slate-400 hover:text-slate-700"
-                )}
-                style={active ? { backgroundColor: accent } : undefined}
-              >
-                {item.icon}
-                <span className="mt-1 truncate">{item.label}</span>
-                {item.count && item.count > 0 ? <span className="absolute right-2 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-600 px-1 text-[9px] font-black text-white">{item.count}</span> : null}
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-    </nav>
-  );
+  return <nav className={styles.bottomNav} aria-label="Tu restaurante" style={{ "--client-accent": accent } as React.CSSProperties}>
+    <div className={styles.navItems} style={{ gridTemplateColumns: `repeat(${fidelizacionActiva ? 4 : 3}, minmax(0, 1fr))` }}>{items.map((item) => {
+      const active = item.activeTabs?.includes(currentTab) ?? currentTab === item.key;
+      return <Link key={item.key} href={buildTabHref(item.key)} scroll={false} aria-current={active ? "page" : undefined} className={styles.navItem}>{item.icon}<span>{item.label}</span>{item.count && item.count > 0 ? <span className={styles.navCount}>{item.count}</span> : null}</Link>;
+    })}</div>
+  </nav>;
 }
 
 function ReservaCard({
@@ -828,24 +656,12 @@ function ReservaCard({
   featured?: boolean;
 }) {
   return (
-    <div className={clsx("rounded-[28px] border bg-white p-4 shadow-sm", featured ? "border-transparent" : "border-slate-100")} style={featured ? { boxShadow: `0 18px 58px ${rgba(accent, 0.12)}` } : undefined}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex min-w-0 items-start gap-3">
-          <IconBubble accent={accent}><CalendarClock className="h-5 w-5" /></IconBubble>
-          <div className="min-w-0">
-            <div className="text-lg font-black tracking-[-0.04em] text-slate-950">{formatReservaDate(reserva.fecha_hora_reserva)}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm font-bold text-slate-500">
-              <span className="inline-flex items-center gap-1"><Clock3 className="h-4 w-4" />{formatReservaTime(reserva.fecha_hora_reserva)}</span>
-              <span>·</span>
-              <span className="inline-flex items-center gap-1"><Users className="h-4 w-4" />{reserva.personas ?? 0} personas</span>
-            </div>
-            {reserva.turno ? <div className="mt-1 text-sm font-semibold text-slate-400">{reserva.turno}</div> : null}
-          </div>
-        </div>
+    <article className={styles.reservation} data-featured={featured}>
+      <div className={styles.reservationHeader}>
+        <div><div className={styles.reservationDate}>{formatReservaDate(reserva.fecha_hora_reserva)}</div><div className={styles.reservationTime}>{formatReservaTime(reserva.fecha_hora_reserva)}</div><div className={styles.reservationPeople}>{reserva.personas ?? 0} personas{reserva.turno ? ` · ${reserva.turno}` : ""}</div></div>
         <Badge accent={accent} variant={String(reserva.estado ?? "").toLowerCase() === "cancelada" ? "danger" : "solid"}>{estadoReservaLabel(reserva.estado)}</Badge>
       </div>
-
-      <div className="mt-5 grid grid-cols-2 gap-2">
+      <div className={styles.reservationActions}>
         {managementHref ? (
           <Link href={managementHref} className="col-span-2 inline-flex min-h-[46px] w-full touch-manipulation items-center justify-center rounded-2xl px-4 py-3 text-sm font-black text-white shadow-sm transition active:scale-[0.97]" style={{ backgroundColor: accent }}>
             Gestionar reserva
@@ -868,7 +684,7 @@ function ReservaCard({
               <form action={cancelarReservaAction}>
                 <input type="hidden" name="token" value={token} />
                 <input type="hidden" name="reserva_id" value={reserva.id} />
-                <LoadingSubmitButton loadingText="Cancelando..." className="min-h-[46px] bg-red-600">Cancelar</LoadingSubmitButton>
+                <LoadingSubmitButton loadingText="Cancelando..." className={styles.cancelButton}>Cancelar</LoadingSubmitButton>
               </form>
             </ConfirmSubmit>
           ) : (
@@ -877,42 +693,22 @@ function ReservaCard({
         ) : null}
       </div>
 
-      <div className="mt-3 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold leading-relaxed text-slate-500">
+      <div className={styles.reservationNote}>
         {managementHref ? "Usa Gestionar reserva para cambiarla o cancelarla de forma segura." : "Cambios y cancelaciones disponibles hasta 3 horas antes."}
       </div>
-    </div>
+    </article>
   );
 }
 
 function ValidationCard({ title, subtitle, code, accent, status }: { title: string; subtitle: string; code: string; accent: string; status: string }) {
   const ok = status === "confirmado" || status === "canjeado";
   const bad = status === "cancelado" || status === "caducado";
-  return (
-    <div className="overflow-hidden rounded-[30px] border border-slate-100 bg-white shadow-[0_16px_48px_rgba(15,23,42,0.08)]">
-      <div className="p-5 text-white" style={{ background: `linear-gradient(135deg, ${accent}, #0f172a)` }}>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="text-xs font-black uppercase tracking-[0.18em] text-white/65">Mostrar al personal</div>
-            <div className="mt-2 text-2xl font-black tracking-[-0.06em]">{title}</div>
-            <div className="mt-1 text-sm font-semibold text-white/70">{subtitle}</div>
-          </div>
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-white/14"><IdCard className="h-7 w-7" /></div>
-        </div>
-      </div>
-      <div className="p-5">
-        <div className="rounded-[24px] border border-dashed border-slate-200 bg-slate-50 p-5 text-center">
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Código</div>
-          <div className="mt-2 text-3xl font-black tracking-[-0.06em] text-slate-950">{code}</div>
-        </div>
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <Badge accent={accent} variant={ok ? "success" : bad ? "danger" : "soft"}>{status}</Badge>
-          <div className="text-xs font-bold text-slate-400">Validación en restaurante</div>
-        </div>
-      </div>
-    </div>
-  );
+  return <article className={styles.validation} style={{ "--client-accent": accent } as React.CSSProperties}>
+    <div className={styles.validationLabel}>Mostrar al personal</div><h3>{title}</h3><p>{subtitle}</p>
+    <div className={styles.validationCode}>{code}</div>
+    <div className={styles.validationFooter}><Badge accent={accent} variant={ok ? "success" : bad ? "danger" : "soft"}>{status}</Badge><span>Validación en restaurante</span></div>
+  </article>;
 }
-
 
 function RewardHeroPanel({
   accent,
@@ -937,61 +733,12 @@ function RewardHeroPanel({
   const pct = premioDestacado && premioDestacado.puntos_requeridos > 0 ? Math.min(100, (puntos / premioDestacado.puntos_requeridos) * 100) : 0;
   const hayPremioListo = canjeables.length > 0;
 
-  return (
-    <section
-      className="relative overflow-hidden rounded-[34px] p-5 text-white shadow-[0_24px_80px_rgba(15,23,42,0.24)]"
-      style={{ background: `radial-gradient(520px 260px at 105% -20%, ${rgba(accent, 0.92)}, transparent 58%), radial-gradient(420px 300px at -10% 110%, ${rgba(accent, 0.52)}, transparent 62%), linear-gradient(135deg, #0f172a, #020617 92%)` }}
-    >
-      <div className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/10" />
-      <div className="absolute bottom-0 left-0 h-28 w-full bg-gradient-to-t from-black/20 to-transparent" />
-
-      <div className="relative z-10 flex items-start justify-between gap-4">
-        <div>
-          <div className="inline-flex items-center rounded-full border border-white/12 bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.16em] text-white/70">
-            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Club privado
-          </div>
-          <h2 className="mt-4 text-4xl font-black leading-none tracking-[-0.08em] !text-white">{puntos}</h2>
-          <div className="mt-1 text-sm font-black text-white/68">puntos disponibles</div>
-        </div>
-        <div className="rounded-[24px] border border-white/14 bg-white/10 p-3 text-right backdrop-blur">
-          <Trophy className="ml-auto h-6 w-6" />
-          <div className="mt-2 text-[10px] font-black uppercase tracking-[0.14em] text-white/48">Nivel</div>
-          <div className="text-sm font-black">{levelLabel}</div>
-        </div>
-      </div>
-
-      <div className="relative z-10 mt-5 rounded-[28px] border border-white/12 bg-white/10 p-4 backdrop-blur-xl">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-white/52">Mejor oportunidad</div>
-            <div className="mt-1 truncate text-xl font-black tracking-[-0.05em]">{premioDestacado?.nombre ?? "Premios por activar"}</div>
-            <div className="mt-1 text-sm font-semibold text-white/60">
-              {premioDestacado ? (faltan === 0 ? "Disponible para canjear en el restaurante" : `Te faltan ${faltan} puntos`) : "El restaurante puede añadir recompensas desde el panel"}
-            </div>
-          </div>
-          <Badge accent={accent} variant={hayPremioListo ? "success" : "dark"}>{hayPremioListo ? `${canjeables.length} listo` : `${Math.round(pct)}%`}</Badge>
-        </div>
-        {premioDestacado ? <div className="mt-4"><ProgressBar pct={Math.max(8, pct)} /></div> : null}
-      </div>
-
-      <div className="relative z-10 mt-4 grid grid-cols-3 gap-2">
-        <div className="rounded-2xl bg-white/10 p-3 text-center backdrop-blur">
-          <div className="text-lg font-black">{canjeables.length}</div>
-          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/48">Canjeables</div>
-        </div>
-        <a href="#premios-validacion" className="rounded-2xl bg-white/10 p-3 text-center backdrop-blur active:scale-[0.97]">
-          <div className="text-lg font-black">{canjesPendientes.length}</div>
-          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/48">Pendientes</div>
-        </a>
-        <div className="rounded-2xl bg-white/10 p-3 text-center backdrop-blur">
-          <div className="text-lg font-black">{puntosPorEuro}</div>
-          <div className="mt-1 text-[10px] font-black uppercase tracking-[0.12em] text-white/48">Pts/€</div>
-        </div>
-      </div>
-
-      <p className="relative z-10 mt-4 text-xs font-semibold leading-relaxed text-white/55">{levelText}. Los premios se validan enseñando el código al personal del restaurante.</p>
-    </section>
-  );
+  return <section className={styles.rewardHero} style={{ "--client-accent": accent } as React.CSSProperties}>
+    <div className={styles.rewardHeroTitle}><div><h2>{puntos}</h2><p>puntos disponibles</p></div><span className={styles.levelLabel}>Nivel {levelLabel}</span></div>
+    <div className={styles.rewardTarget}><div className={styles.rewardProgress}><strong>Tu próxima recompensa</strong><Badge accent={accent} variant={hayPremioListo ? "success" : "dark"}>{hayPremioListo ? `${canjeables.length} listo` : `${Math.round(pct)}%`}</Badge></div><h3>{premioDestacado?.nombre ?? "Premios por activar"}</h3><p>{premioDestacado ? (faltan === 0 ? "Disponible para canjear en el restaurante" : `Te faltan ${faltan} puntos`) : "Las recompensas aparecerán aquí cuando estén disponibles."}</p>{premioDestacado ? <ProgressBar pct={Math.max(8, pct)} /> : null}</div>
+    <div className={styles.rewardSummary}><span><strong>{canjeables.length}</strong> canjeables</span><a href="#premios-validacion"><strong>{canjesPendientes.length}</strong> pendientes</a><span><strong>{puntosPorEuro}</strong> pts/€</span></div>
+    <p className={styles.rewardHelp}>{levelText}. Los premios se validan enseñando el código al personal del restaurante.</p>
+  </section>;
 }
 
 function RewardCard({
@@ -1018,13 +765,7 @@ function RewardCard({
   const confirmado = canjeActivo?.estado === "confirmado";
 
   return (
-    <div
-      className={clsx(
-        "overflow-hidden rounded-[30px] border bg-white shadow-[0_16px_48px_rgba(15,23,42,0.08)]",
-        disponible ? "border-transparent" : "border-slate-100"
-      )}
-      style={disponible ? { boxShadow: `0 22px 70px ${rgba(accent, 0.18)}` } : undefined}
-    >
+    <div className={styles.rewardRow} data-available={disponible}>
       <div className="p-4">
         <div className="flex items-start gap-4">
           <PremioImage src={premio.imagen_url} alt={premio.nombre} accent={accent} />
@@ -1078,22 +819,9 @@ function RewardSteps({ accent }: { accent: string }) {
     { title: "Valida en local", text: "Muestra el código al personal. No se usa para pedir desde fuera.", icon: <IdCard className="h-5 w-5" /> },
   ];
 
-  return (
-    <SectionCard accent={accent} title="Cómo funciona" subtitle="Simple para el cliente y seguro para el restaurante" icon={<ShieldCheck className="h-5 w-5" />}>
-      <div className="grid gap-3">
-        {items.map((item, index) => (
-          <div key={item.title} className="flex items-start gap-3 rounded-[24px] border border-slate-100 bg-white p-4 shadow-sm">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-white" style={{ backgroundColor: accent }}>{item.icon}</div>
-            <div className="min-w-0">
-              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">Paso {index + 1}</div>
-              <div className="mt-1 text-base font-black tracking-[-0.03em] text-slate-950">{item.title}</div>
-              <div className="mt-1 text-sm font-semibold leading-relaxed text-slate-500">{item.text}</div>
-            </div>
-          </div>
-        ))}
-      </div>
-    </SectionCard>
-  );
+  return <SectionCard accent={accent} title="Cómo funciona" subtitle="Un detalle en tu próxima visita" icon={<ShieldCheck className="h-5 w-5" />}>
+    <ol className={styles.steps}>{items.map((item, index) => <li key={item.title}><span className={styles.stepNumber}>{String(index + 1).padStart(2, "0")}</span><div><h3>{item.title}</h3><p>{item.text}</p></div></li>)}</ol>
+  </SectionCard>;
 }
 
 function nextBestAction(args: {
@@ -1837,7 +1565,7 @@ export default async function ClientePremiosPage({
 
         {currentTab === "inicio" ? (
           <div className="space-y-5">
-            <SectionCard accent={accent} title="Tu próxima visita" subtitle="Reserva activa y gestión rápida" icon={<CalendarDays className="h-5 w-5" />} right={proximaReserva ? <Badge accent={accent} variant="solid">Activa</Badge> : <Badge accent={accent}>Sin reserva</Badge>}>
+            <SectionCard accent={accent} title="Tu próxima visita" subtitle="Una mesa que te espera" icon={<CalendarDays className="h-5 w-5" />} right={proximaReserva ? <Badge accent={accent} variant="solid">Activa</Badge> : <Badge accent={accent}>Sin reserva</Badge>}>
               {!proximaReserva ? (
                 <EmptyState title="Sin reserva activa" text="Cuando tengas una reserva, podrás gestionarla desde aquí." icon={<CalendarDays className="h-6 w-6" />} accent={accent} />
               ) : (
@@ -1846,21 +1574,18 @@ export default async function ClientePremiosPage({
             </SectionCard>
 
             {fidelizacionActiva ? (
-              <SectionCard accent={accent} title="Próxima recompensa" subtitle="Motivo claro para volver" icon={<Trophy className="h-5 w-5" />} right={recompensaDisponible ? <Badge accent={accent} variant="solid">Canjeable</Badge> : <Badge accent={accent}>{nextRewardMissing} pts</Badge>}>
+              <SectionCard accent={accent} title="Próxima recompensa" subtitle="Un detalle para tu próxima visita" icon={<Trophy className="h-5 w-5" />} right={recompensaDisponible ? <Badge accent={accent} variant="solid">Canjeable</Badge> : <Badge accent={accent}>{nextRewardMissing} pts</Badge>}>
                 {target ? (
-                  <div className="rounded-[28px] border border-slate-100 bg-white p-4 shadow-sm">
-                    <div className="flex items-center gap-4">
+                  <div className={styles.homeReward}>
+                    <div className={styles.homeRewardLead}>
                       <PremioImage src={target.imagen_url} alt={target.nombre} accent={accent} />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-lg font-black tracking-[-0.04em] text-slate-950">{target.nombre}</div>
-                        <div className="mt-1 text-sm font-semibold text-slate-500">{target.descripcion || `${target.puntos_requeridos} puntos para canjear.`}</div>
-                      </div>
+                      <div><h3>{target.nombre}</h3><p>{target.descripcion || `${target.puntos_requeridos} puntos para canjear.`}</p></div>
                     </div>
-                    <div className="mt-4 h-2.5 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, progressPct))}%`, backgroundColor: accent }} /></div>
-                    <Link href={buildTabHref("premios")} scroll={false} className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black text-white" style={{ backgroundColor: accent }}>Ver premios <ArrowRight className="h-4 w-4" /></Link>
+                    <div className={styles.progress}><div style={{ width: `${Math.max(0, Math.min(100, progressPct))}%`, backgroundColor: accent }} /></div>
+                    <Link href={buildTabHref("premios")} scroll={false} className={styles.textLink}>Ver premios <ArrowRight size={15} /></Link>
                   </div>
                 ) : (
-                  <EmptyState title="Sin premios configurados" text="El restaurante podrá añadir recompensas desde su panel." icon={<Gift className="h-6 w-6" />} accent={accent} />
+                  <EmptyState title="Sin premios configurados" text="Las recompensas aparecerán aquí cuando estén disponibles." icon={<Gift className="h-6 w-6" />} accent={accent} />
                 )}
               </SectionCard>
             ) : null}
@@ -1869,11 +1594,10 @@ export default async function ClientePremiosPage({
               {notificaciones.length === 0 ? (
                 <EmptyState title="Sin avisos todavía" text="Aquí aparecerán promociones, cambios y mensajes para ti." icon={<Bell className="h-6 w-6" />} accent={accent} />
               ) : (
-                <div className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-sm">
-                  <div className="text-[11px] font-black uppercase tracking-[0.14em] text-slate-400">{notificaciones[0].tipo}</div>
-                  <div className="mt-2 text-lg font-black tracking-[-0.04em] text-slate-950">{notificaciones[0].titulo}</div>
-                  <div className="mt-1 text-sm font-semibold leading-relaxed text-slate-500">{notificaciones[0].mensaje}</div>
-                  <Link href={buildTabHref("perfil")} scroll={false} className="mt-4 inline-flex items-center gap-2 rounded-2xl bg-slate-950 px-4 py-2 text-xs font-black text-white">Ver avisos <ChevronRight className="h-4 w-4" /></Link>
+                <div className={styles.homeNotice}>
+                  <div className={styles.homeNoticeType}>{notificaciones[0].tipo}</div>
+                  <h3>{notificaciones[0].titulo}</h3><p>{notificaciones[0].mensaje}</p>
+                  <Link href={buildTabHref("perfil")} scroll={false} className={styles.textLink}>Ver avisos <ChevronRight size={15} /></Link>
                 </div>
               )}
             </SectionCard>
@@ -1892,19 +1616,9 @@ export default async function ClientePremiosPage({
             />
 
             <SectionCard accent={accent} title="Tus ventajas" subtitle="El nivel y los puntos trabajan juntos" icon={<Sparkles className="h-5 w-5" />}>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Link href={buildTabHref("premios")} scroll={false} className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-sm transition active:scale-[.98]">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl text-white" style={{ background: `linear-gradient(135deg, ${accent}, #0f172a)` }}><Gift className="h-6 w-6" /></div>
-                  <div className="mt-4 text-lg font-black tracking-[-.04em] text-slate-950">Premios</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-500">Usa tus {puntos} puntos en recompensas.</div>
-                  <div className="mt-4 inline-flex items-center gap-1 text-xs font-black" style={{ color: accent }}>Ver premios <ChevronRight className="h-4 w-4" /></div>
-                </Link>
-                <Link href={buildTabHref("cupones")} scroll={false} className="rounded-[26px] border border-slate-100 bg-white p-4 shadow-sm transition active:scale-[.98]">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-700"><TicketPercent className="h-6 w-6" /></div>
-                  <div className="mt-4 text-lg font-black tracking-[-.04em] text-slate-950">Ventajas privadas</div>
-                  <div className="mt-1 text-sm font-semibold text-slate-500">Cupones y promociones para volver.</div>
-                  <div className="mt-4 inline-flex items-center gap-1 text-xs font-black text-amber-700">Ver ventajas <ChevronRight className="h-4 w-4" /></div>
-                </Link>
+              <div className={styles.benefitLinks}>
+                <Link href={buildTabHref("premios")} scroll={false} className={styles.benefitLink}><div><strong>Premios</strong><p>Usa tus {puntos} puntos en recompensas.</p></div><ArrowRight size={19} /></Link>
+                <Link href={buildTabHref("cupones")} scroll={false} className={styles.benefitLink}><div><strong>Ventajas privadas</strong><p>Cupones y promociones para volver.</p></div><ArrowRight size={19} /></Link>
               </div>
             </SectionCard>
           </div>
@@ -2023,23 +1737,9 @@ export default async function ClientePremiosPage({
 
         {currentTab === "cupones" && fidelizacionActiva ? (
           <div className="space-y-5">
-            <section className="overflow-hidden rounded-[34px] bg-slate-950 p-5 text-white shadow-[0_22px_70px_rgba(15,23,42,0.20)]">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-[11px] font-black uppercase tracking-[0.20em] text-white/45">Club privado</div>
-                  <h2 className="mt-2 text-[30px] font-black leading-none tracking-[-0.07em] !text-white">Ventajas para volver</h2>
-                  <p className="mt-2 max-w-[330px] text-sm font-semibold leading-relaxed text-white/75">Cupones claros para usar en el restaurante. Actívalos solo cuando estés allí y muéstralos al personal.</p>
-                </div>
-                <div className="rounded-[26px] border border-white/10 bg-white/10 px-4 py-3 text-center backdrop-blur">
-                  <div className="text-4xl font-black tracking-[-0.08em]">{cuponesDisponibles.length}</div>
-                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-white/50">listos</div>
-                </div>
-              </div>
-              <div className="mt-5 grid grid-cols-3 gap-2">
-                <div className="rounded-[22px] bg-white/10 p-3 text-center"><div className="text-xl font-black">{cuponesPreparados.length}</div><div className="text-[10px] font-black uppercase tracking-[0.12em] text-white/45">activos</div></div>
-                <div className="rounded-[22px] bg-white/10 p-3 text-center"><div className="text-xl font-black">{cuponesDisponibles.length}</div><div className="text-[10px] font-black uppercase tracking-[0.12em] text-white/45">ahora</div></div>
-                <div className="rounded-[22px] bg-white/10 p-3 text-center"><div className="text-xl font-black">{cuponesProximos.length}</div><div className="text-[10px] font-black uppercase tracking-[0.12em] text-white/45">próximos</div></div>
-              </div>
+            <section className={styles.couponIntro}>
+              <h2>Ventajas para volver.</h2><p>Actívalas cuando estés en el restaurante y muestra el código al personal.</p>
+              <div className={styles.couponCounts}><span><strong>{cuponesPreparados.length}</strong> activos</span><span><strong>{cuponesDisponibles.length}</strong> disponibles ahora</span><span><strong>{cuponesProximos.length}</strong> próximos</span></div>
             </section>
 
             {totalCuponesVisibles === 0 && cuponesUsadosRecientes.length === 0 ? (
@@ -2067,14 +1767,14 @@ export default async function ClientePremiosPage({
             ) : null}
 
             {cuponesDisponibles.length > 0 ? (
-              <SectionCard accent={accent} title="Disponibles ahora" subtitle="Ventajas que el cliente puede activar en el local" icon={<Zap className="h-5 w-5" />} right={<Badge accent={accent} variant="solid">{cuponesDisponibles.length} ahora</Badge>}>
+              <SectionCard accent={accent} title="Disponibles ahora" subtitle="Para disfrutar en el restaurante" icon={<Zap className="h-5 w-5" />} right={<Badge accent={accent} variant="solid">{cuponesDisponibles.length} ahora</Badge>}>
                 <div className="space-y-3">
                   {cuponesDisponibles.map((promo, index) => (
-                    <div key={promo.cupon.id} className="overflow-hidden rounded-[30px] border border-slate-100 bg-white shadow-sm">
-                      <div className="p-4">
+                    <div key={promo.cupon.id} className={styles.couponAvailable}>
+                      <div className={styles.couponBody}>
                         <div className="flex items-start justify-between gap-3">
                           <div className="flex min-w-0 items-start gap-3">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl text-white shadow-lg" style={{ backgroundColor: index === 0 ? accent : "#0f172a" }}>
+                            <div className={styles.couponIcon} style={{ color: index === 0 ? accent : "#0f172a" }}>
                               {promo.tipo === "cumpleanos" ? <Crown className="h-6 w-6" /> : <TicketPercent className="h-6 w-6" />}
                             </div>
                             <div className="min-w-0">
@@ -2087,7 +1787,7 @@ export default async function ClientePremiosPage({
                         </div>
 
                         <div className="mt-4 rounded-2xl bg-slate-50 px-4 py-3 text-xs font-bold text-slate-500">
-                          Pulsa para prepararlo y enseñar el código al personal. No hace pedidos ni afecta al camarero digital.
+                          Prepara tu ventaja y muestra el código al personal.
                         </div>
 
                         <div className="mt-4">
@@ -2107,7 +1807,7 @@ export default async function ClientePremiosPage({
             ) : null}
 
             {cuponesProximos.length > 0 ? (
-              <SectionCard accent={accent} title="Próximas ventajas" subtitle="Aparecen bloqueadas para que el cliente sepa qué puede conseguir" icon={<Clock3 className="h-5 w-5" />} right={<Badge accent={accent}>{cuponesProximos.length}</Badge>}>
+              <SectionCard accent={accent} title="Próximas ventajas" subtitle="Consulta cuándo podrás disfrutarlas" icon={<Clock3 className="h-5 w-5" />} right={<Badge accent={accent}>{cuponesProximos.length}</Badge>}>
                 <div className="space-y-3">
                   {cuponesProximos.map((promo) => (
                     <div key={promo.cupon.id} className="rounded-[26px] border border-slate-100 bg-slate-50 p-4">
@@ -2182,10 +1882,7 @@ export default async function ClientePremiosPage({
           </div>
         ) : null}
 
-        <div className="rounded-[26px] border border-white/80 bg-white/72 p-4 text-center shadow-sm backdrop-blur">
-          <div className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">GastroHelp</div>
-          <div className="mt-1 text-sm font-semibold text-slate-500">Reservas, ventajas y avisos privados del restaurante.</div>
-        </div>
+        <footer className={styles.footer}><span>Tu espacio en {restoNombre}</span><strong>Con GastroHelp</strong></footer>
       </div>
 
       <BottomNav currentTab={currentTab} buildTabHref={buildTabHref} avisosSinLeer={avisosSinLeer} accent={accent} fidelizacionActiva={fidelizacionActiva} />

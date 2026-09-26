@@ -1,8 +1,10 @@
 "use client";
 
 import "../globals.css";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
+import Link from "next/link";
+import { Menu, X } from "lucide-react";
 import Sidebar from "./components/Sidebar";
 import ThemeProvider from "./components/ThemeProvider";
 import RequireLandscape from "./components/RequireLandscape";
@@ -11,13 +13,17 @@ import DemoModeGuard from "./components/DemoModeGuard";
 import ModuleRouteGuard from "./components/ModuleRouteGuard";
 import RestaurantScope from "./components/RestaurantScope";
 import "./components/turno-vivo/turno-vivo.css";
+import "./components/product/product.css";
 
 const pageNames: Record<string, string> = {
-  "/dashboard": "Dashboard",
+  "/dashboard": "Hoy",
   "/reservas": "Reservas",
   "/sala": "Sala",
   "/clientes": "Clientes",
   "/resenas": "Reseñas",
+  "/estadisticas": "Métricas",
+  "/dashboard/rentabilidad": "Rentabilidad",
+  "/dashboard/fidelizacion": "Fidelización",
   "/panel/carta-productos": "Productos carta",
   "/panel/qr-mesas": "QR mesas",
   "/panel/menu-dia": "Menú del día",
@@ -27,6 +33,7 @@ const pageNames: Record<string, string> = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileDialog = useRef<HTMLDialogElement>(null);
   const pathname = usePathname();
 
   const isLogin = pathname === "/login";
@@ -35,71 +42,51 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     pathname === "/reservas" ||
     pathname === "/clientes" ||
     pathname.startsWith("/clientes/");
+  const isProductSurface = isTurnoSurface || [
+    "/sala", "/resenas", "/estadisticas", "/dashboard/rentabilidad",
+    "/dashboard/fidelizacion", "/panel", "/ajustes",
+  ].some((path) => pathname === path || pathname.startsWith(path + "/"));
   const title = useMemo(() => {
     const exact = pageNames[pathname];
     if (exact) return exact;
-    const found = Object.entries(pageNames).find(([path]) => pathname.startsWith(`${path}/`));
+    const found = Object.entries(pageNames).sort(([a], [b]) => b.length - a.length).find(([path]) => pathname.startsWith(`${path}/`));
     return found?.[1] || "Panel";
   }, [pathname]);
 
   useEffect(() => {
-    if (!mobileOpen) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false);
-    };
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
+    const dialog = mobileDialog.current;
+    if (mobileOpen && dialog && !dialog.open) dialog.showModal();
+    if (!mobileOpen && dialog?.open) dialog.close();
   }, [mobileOpen]);
 
   return (
     <RestaurantScope><AuthGuard>
       <ThemeProvider>
-        {isLogin ? (
-          <>{children}</>
-        ) : (
-        <RequireLandscape>
-          <div className="gh-panel-shell min-h-screen overflow-x-hidden bg-slate-50 text-slate-950">
-            <div className="gh-panel-mobilebar sticky top-0 z-40 flex items-center justify-between border-b p-3 backdrop-blur lg:hidden">
-              <button
-                onClick={() => setMobileOpen(true)}
-                className="gh-panel-mobilebar__menu text-sm font-black text-slate-900 transition"
-                aria-label="Abrir navegación"
-              >
-                <span aria-hidden="true">☰</span>
-              </button>
-              <span className="text-sm font-black uppercase tracking-widest text-slate-700">{title}</span>
-              <span className="h-9 w-9" />
-            </div>
-
-            {mobileOpen && (
-              <div className="fixed inset-0 z-50 lg:hidden">
-                <div className="absolute inset-0 bg-slate-950/40" onClick={() => setMobileOpen(false)} />
-                <div className="absolute left-0 top-0 h-full w-64 shadow-2xl" role="dialog" aria-modal="true" aria-label="Navegación principal">
-                  <Sidebar mobile onNavigate={() => setMobileOpen(false)} />
-                </div>
+        {isLogin ? children : (
+          <RequireLandscape>
+            <div className="gh-panel-shell gh-product-shell min-h-screen">
+              <a href="#gh-workspace" className="gh-skip-link">Saltar al contenido</a>
+              <div className="gh-desktop-navigation"><Sidebar /></div>
+              <div className="gh-mobile-top">
+                <Link href="/dashboard" aria-label="GastroHelp, Hoy">GastroHelp</Link>
+                <span>{title}</span>
+                <button type="button" onClick={() => setMobileOpen(true)} aria-label="Abrir navegación" aria-haspopup="dialog"><Menu size={21} /></button>
               </div>
-            )}
-
-            <div className="flex min-h-screen">
-              <div className="hidden lg:block">
-                <Sidebar />
-              </div>
-
-              <main className={`gh-panel-main flex min-h-screen min-w-0 flex-1 flex-col p-4 sm:p-6 lg:ml-64 ${isTurnoSurface ? "gh-turno-scope" : ""}`}>
-                <DemoModeGuard />
-                <div className="w-full min-w-0 flex-1">
+              <dialog ref={mobileDialog} className="gh-mobile-navigation" aria-label="Navegación principal"
+                onCancel={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)}
+                onClick={(event) => { if (event.target === event.currentTarget) setMobileOpen(false); }}>
+                <button type="button" onClick={() => setMobileOpen(false)} className="gh-mobile-close" aria-label="Cerrar navegación"><X size={22} /></button>
+                {mobileOpen ? <Sidebar mobile onNavigate={() => setMobileOpen(false)} /> : null}
+              </dialog>
+              <main id="gh-workspace" tabIndex={-1} className={`gh-panel-main min-w-0 ${isProductSurface ? "gh-turno-scope gh-product-scope" : ""}`}>
+                <div className="gh-product-content">
+                  <DemoModeGuard />
                   <ModuleRouteGuard>{children}</ModuleRouteGuard>
-                </div>
-
-                <div className="mt-10 flex justify-center py-6">
-                  <span className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                    GastroHelp · Panel restaurante
-                  </span>
+                  <footer className="gh-product-footer"><span>GastroHelp</span><span>Tu restaurante, en orden.</span></footer>
                 </div>
               </main>
             </div>
-          </div>
-        </RequireLandscape>
+          </RequireLandscape>
         )}
       </ThemeProvider>
     </AuthGuard></RestaurantScope>

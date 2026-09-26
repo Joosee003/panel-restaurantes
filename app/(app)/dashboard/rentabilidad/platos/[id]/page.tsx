@@ -1,4 +1,5 @@
 "use client";
+import styles from "../../../../components/product/modules.module.css";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -139,8 +140,7 @@ function getMensajeMargen(estado: EstadoMargen): string {
   return "Plato en pérdidas. Revisión urgente.";
 }
 
-const cardClass =
-  "rounded-3xl border border-slate-200 !bg-white !text-slate-900 shadow-sm";
+const cardClass = styles.compactPanel;
 const inputClass =
   "w-full rounded-xl border border-slate-200 !bg-white px-3 py-2.5 text-sm !text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-slate-400";
 const buttonSecondaryClass =
@@ -550,7 +550,7 @@ export default function PlatoDetallePage() {
   };
 
   return (
-    <div className="min-h-screen !bg-slate-50 px-4 py-6 !text-slate-900 sm:px-6 lg:px-8">
+    <div className={`${styles.workspace} ${styles.formWorkspace}`}>
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="flex flex-wrap items-center gap-3">
           <Link

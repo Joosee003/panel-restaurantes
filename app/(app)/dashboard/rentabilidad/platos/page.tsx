@@ -1,4 +1,5 @@
 "use client";
+import styles from "../../../components/product/modules.module.css";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -48,13 +49,10 @@ function formatEuro(value: number): string {
 
 function getThemeClasses(dark: boolean) {
   return {
-    pageClass: clsx(
-      "min-h-screen px-4 py-6 transition-colors sm:px-6 lg:px-8",
-      dark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-900"
-    ),
+    pageClass: clsx(styles.workspace, styles.formWorkspace),
 
     cardClass: clsx(
-      "rounded-3xl border shadow-sm transition-colors",
+      styles.compactPanel,
       dark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"
     ),
 
@@ -116,7 +114,7 @@ function getThemeClasses(dark: boolean) {
     ),
 
     iconBoxClass: clsx(
-      "rounded-2xl p-3",
+      "shrink-0",
       dark ? "bg-slate-800 text-slate-300" : "bg-slate-100 text-slate-700"
     ),
 
@@ -160,7 +158,7 @@ function StatCard({
   className: string;
 }) {
   return (
-    <div className={`${className} p-5`}>
+    <div className={`${styles.metric} ${className}`}>
       <div className="flex items-start justify-between gap-3">
         <div>{icon}</div>
       </div>
@@ -316,7 +314,7 @@ export default function PlatosPage() {
   return (
     <div className={pageClass}>
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className={`${cardClass} overflow-hidden p-6`}>
+        <div className={styles.compactHeader}>
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div className={pillClass}>
@@ -391,7 +389,7 @@ export default function PlatosPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className={`${styles.metricStrip} ${styles.compactTotals}`}>
           <StatCard
             className={cardClass}
             icon={<ChefHat size={22} />}

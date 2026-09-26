@@ -1,0 +1,115 @@
+/* Restaurant panel only. Public websites, customer app and agency do not inherit this scope. */
+.gh-product-shell {
+  --gh-ink: #172d35;
+  --gh-muted: #607279;
+  --gh-canvas: #f6f8f7;
+  --gh-paper: #ffffff;
+  --gh-line: #dce3e3;
+  --gh-line-strong: #aabbbb;
+  --gh-blue: #245be0;
+  --gh-blue-dark: #1548bd;
+  --gh-blue-soft: #edf3ff;
+  --gh-green: #237565;
+  --gh-success: #237565;
+  --gh-danger: #b53632;
+  --gh-radius-sm: 5px;
+  --gh-radius-md: 7px;
+  --gh-radius-lg: 9px;
+  background: var(--gh-canvas);
+  color: var(--gh-ink);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+.gh-product-shell :focus-visible { outline: 2px solid var(--gh-blue); outline-offset: 3px; }
+.gh-product-shell .gh-panel-main { background: var(--gh-canvas); padding: 24px 32px 32px; margin-left: 0; min-height: calc(100dvh - 68px); }
+.gh-product-shell .gh-panel-main h1, .gh-product-shell .gh-panel-main h2, .gh-product-shell .gh-panel-main h3 { color: var(--gh-ink); }
+.gh-product-shell .gh-product-content { width: 100%; min-width: 0; max-width: 1660px; margin-inline: auto; }
+.gh-product-shell .gh-product-footer { display: flex; justify-content: space-between; border-top: 1px solid var(--gh-line); margin-top: 32px; padding-top: 12px; color: var(--gh-muted); font-size: 11px; }
+.gh-product-shell .gh-service-nav { position: sticky; top: 0; z-index: 40; display: flex; align-items: center; gap: 36px; min-height: 68px; padding: 0 32px; border: 0; border-bottom: 1px solid var(--gh-line); background: var(--gh-paper); color: var(--gh-ink); }
+.gh-product-shell .gh-nav-brand { display: grid; gap: 1px; min-width: 150px; max-width: 245px; padding: 10px 0; }
+.gh-product-shell .gh-nav-brand strong { font-size: 21px; font-weight: 760; letter-spacing: -.8px; line-height: 1.2; }
+.gh-product-shell .gh-nav-brand span { color: var(--gh-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+.gh-product-shell .gh-nav-primary { display: flex; align-items: stretch; gap: 5px; align-self: stretch; }
+.gh-product-shell .gh-nav-link { position: relative; display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 12px 15px; color: var(--gh-muted); font-size: 13px; font-weight: 600; border-radius: 0; transition: color 140ms, background 140ms; }
+.gh-product-shell .gh-nav-link:hover { color: var(--gh-ink); background: #f5f8f8; }
+.gh-product-shell .gh-nav-link[aria-current="page"] { color: var(--gh-blue); }
+.gh-product-shell .gh-nav-link[aria-current="page"]::after { content: ""; position: absolute; bottom: 0; left: 15px; right: 15px; height: 3px; background: var(--gh-blue); }
+.gh-product-shell .gh-nav-count { font-size: 10px; min-width: 16px; text-align: center; color: var(--gh-blue); font-variant-numeric: tabular-nums; }
+.gh-product-shell .gh-nav-more { display: flex; position: relative; }
+.gh-product-shell .gh-nav-more > summary { cursor: pointer; list-style: none; }
+.gh-product-shell .gh-nav-more > summary::-webkit-details-marker { display: none; }
+.gh-product-shell .gh-nav-menu { position: absolute; top: calc(100% + 1px); right: 0; width: 560px; max-height: calc(100dvh - 100px); overflow-y: auto; display: grid; grid-template-columns: 1fr 1fr; gap: 20px 26px; padding: 24px; background: #fff; border: 1px solid var(--gh-line); box-shadow: 0 15px 40px #172d3514; }
+.gh-product-shell .gh-nav-group { min-width: 0; }
+.gh-product-shell .gh-nav-group h2 { font-size: 10px; text-transform: uppercase; letter-spacing: .13em; color: var(--gh-muted); margin-bottom: 9px; font-weight: 650; }
+.gh-product-shell .gh-nav-group .gh-nav-link { padding: 10px 0; border-bottom: 1px solid #edf0f0; color: var(--gh-ink); }
+.gh-product-shell .gh-nav-group .gh-nav-link[aria-current="page"]::after { left: 0; right: auto; width: 28px; height: 2px; }
+.gh-product-shell .gh-nav-group .gh-nav-link > span { display: flex; align-items: center; gap: 9px; }
+.gh-product-shell .gh-nav-account { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--gh-line); padding-top: 12px; }
+.gh-product-shell .gh-nav-account button, .gh-product-shell .gh-nav-account a { display: inline-flex; align-items: center; gap: 8px; font-size: 12px; padding: 8px 0; }
+.gh-product-shell .gh-nav-account button { color: var(--gh-danger); }
+.gh-product-shell .gh-service-clock { margin-left: auto; display: grid; text-align: right; gap: 1px; min-width: 158px; font-variant-numeric: tabular-nums; }
+.gh-product-shell .gh-service-clock span { font-size: 10px; color: var(--gh-muted); }
+.gh-product-shell .gh-service-clock time { font-size: 22px; font-weight: 620; letter-spacing: -.7px; }
+.gh-product-shell .gh-service-clock--large { min-width: auto; text-align: left; margin-left: 0; }
+.gh-product-shell .gh-service-clock--large time { font-size: 42px; letter-spacing: -1.7px; line-height: 1.1; }
+.gh-product-shell .gh-skip-link { position: fixed; top: -80px; left: 18px; z-index: 200; background: white; padding: 12px; }
+.gh-product-shell .gh-skip-link:focus { top: 8px; }
+.gh-product-shell .gh-mobile-top { display: none; }
+.gh-product-shell .gh-mobile-navigation { border: 0; padding: 0; max-width: none; max-height: none; width: min(100%,440px); height: 100dvh; margin: 0 0 0 auto; color: var(--gh-ink); background: white; }
+.gh-product-shell .gh-mobile-navigation::backdrop { background: #132f3966; }
+.gh-product-shell .gh-mobile-close { position: absolute; top: 14px; right: 16px; z-index: 3; width: 44px; height: 44px; display: grid; place-items: center; }
+.gh-product-shell .gh-mobile-navigation .gh-service-nav { position: static; flex-direction: column; gap: 16px; padding: 16px 24px 32px; align-items: stretch; border: none; }
+.gh-product-shell .gh-mobile-navigation .gh-nav-primary { display: grid; gap: 0; }
+.gh-product-shell .gh-mobile-navigation .gh-nav-link { min-height: 48px; padding-inline: 0; }
+.gh-product-shell .gh-mobile-navigation .gh-nav-more { display: block; }
+.gh-product-shell .gh-mobile-navigation .gh-nav-more > summary { display: none; }
+.gh-product-shell .gh-mobile-navigation .gh-nav-menu { position: static; width: 100%; max-height: none; padding: 20px 0; box-shadow: none; border: 0; border-top: 1px solid var(--gh-line); grid-template-columns: 1fr; }
+.gh-product-shell .gh-mobile-navigation .gh-service-clock { display: none; }
+.gh-product-scope .gh-turno-page { max-width: none; gap: 18px; }
+.gh-product-scope .gh-turno-header { align-items: center; gap: 18px; padding: 0 0 18px; }
+.gh-product-scope .gh-turno-header::before { display: none; }
+.gh-product-scope .gh-turno-header h1 { font-size: 26px; line-height: 1.2; letter-spacing: -.9px; font-weight: 680; margin-top: 3px; }
+.gh-product-scope .gh-turno-eyebrow { font-size: 10px; letter-spacing: .12em; color: var(--gh-muted); }
+.gh-product-scope .gh-turno-description { font-size: 12px; line-height: 1.55; margin-top: 5px; font-weight: 400; }
+.gh-product-scope .gh-turno-meta { margin-top: 8px; font-size: 11px; font-weight: 500; }
+.gh-product-scope .gh-turno-header__actions { flex-shrink: 0; }
+.gh-product-scope .gh-turno-header__actions > *, .gh-product-scope .gh-turno-secondary, .gh-product-scope .gh-turno-primary { min-height: 36px; font-size: 12px; font-weight: 600; }
+.gh-product-scope .gh-turno-surface, .gh-product-scope .gh-legacy-surface { border-radius: 0; box-shadow: none; background: transparent; border: 0; }
+.gh-product-scope .gh-turno-empty { padding: 32px 16px; border: 0; background: transparent; }
+.gh-product-scope .gh-turno-empty > span { display: none; }
+.gh-product-scope .gh-turno-metrics { display: flex; flex-wrap: wrap; gap: 0 22px; padding: 12px 0; border-block: 1px solid var(--gh-line); background: transparent; }
+.gh-product-scope .gh-turno-metrics > * { flex: 1 1 120px; border: 0; }
+.gh-product-scope .gh-turno-metric { display: flex; flex-wrap: wrap; gap: 5px 10px; padding: 0; border: 0; align-items: baseline; }
+.gh-product-scope .gh-turno-metric__top { order: 1; }
+.gh-product-scope .gh-turno-metric__top > span:first-child { font-size: 11px; }
+.gh-product-scope .gh-turno-metric strong { margin: 0; font-size: 19px; line-height: 1.2; }
+.gh-product-scope .gh-turno-metric small { flex-basis: 100%; order: 2; font-size: 10px; font-weight: 400; }
+.gh-product-scope .gh-turno-metric__icon { display: none; }
+.gh-product-scope .gh-turno-section-title h2 { font-size: 16px; letter-spacing: -.35px; }
+.gh-product-scope .gh-turno-section-title p { font-size: 12px; }
+.gh-product-scope :is(input, select, textarea) { accent-color: var(--gh-blue); }
+.gh-product-scope :is(button, a) { transition-duration: 150ms; }
+@media (min-width: 1800px) { .gh-product-shell .gh-panel-main { padding-inline: 50px; } }
+@media (max-width: 1150px) {
+  .gh-product-shell .gh-service-nav { gap: 20px; padding-inline: 24px; }
+  .gh-product-shell .gh-nav-link { padding-inline: 12px; }
+  .gh-product-shell .gh-panel-main { padding-inline: 24px; }
+}
+@media (max-width: 767px) {
+  .gh-product-shell .gh-desktop-navigation { display: none; }
+  .gh-product-shell .gh-mobile-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 58px; padding: 0 16px; background: white; border-bottom: 1px solid var(--gh-line); position: sticky; top: 0; z-index: 40; }
+  .gh-product-shell .gh-mobile-top > a { font-size: 19px; letter-spacing: -.7px; font-weight: 750; }
+  .gh-product-shell .gh-mobile-top > span { margin-left: auto; font-size: 12px; color: var(--gh-muted); }
+  .gh-product-shell .gh-mobile-top > button { display: grid; place-items: center; width: 44px; height: 44px; }
+  .gh-product-shell .gh-panel-main { padding: 18px 16px 24px; min-height: calc(100dvh - 58px); }
+  .gh-product-shell .gh-product-footer { margin-top: 24px; }
+  .gh-product-scope .gh-turno-header { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .gh-product-scope .gh-turno-header__actions { justify-content: flex-start; width: 100%; }
+  .gh-product-scope .gh-turno-header__actions > *, .gh-product-scope .gh-turno-secondary, .gh-product-scope .gh-turno-primary { min-height: 44px; }
+  .gh-product-scope .gh-turno-header h1 { font-size: 24px; }
+  .gh-product-scope .gh-turno-metrics { gap: 12px 18px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gh-product-shell *, .gh-product-shell *::before, .gh-product-shell *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import styles from "../../components/product/modules.module.css";
 import {
   BarChart3,
   ChefHat,
@@ -103,29 +104,26 @@ function badgeEstadoClass(estado: EstadoMargen): string {
 
 function getTheme(dark: boolean) {
   return {
-    page: clsx("min-h-screen px-4 py-6 sm:px-6 lg:px-8", dark ? "bg-slate-950 text-white" : "bg-slate-50 text-slate-950"),
-    card: clsx("rounded-3xl border p-5 shadow-sm", dark ? "border-slate-800 bg-slate-900" : "border-slate-200 bg-white"),
-    soft: clsx("rounded-2xl border p-4", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50"),
+    page: clsx(styles.workspace, styles.formWorkspace),
+    card: styles.compactPanel,
+    soft: "min-w-0 py-1",
     input: clsx("w-full rounded-2xl border px-4 py-3 text-sm font-medium outline-none transition", dark ? "border-slate-700 bg-slate-950 text-white placeholder:text-slate-500 focus:border-slate-400" : "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 focus:border-slate-400"),
     primary: clsx("inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-3 text-sm font-black transition active:scale-[0.98]", dark ? "bg-white text-slate-950 hover:bg-slate-200" : "bg-slate-950 text-white hover:bg-slate-800"),
     secondary: clsx("inline-flex items-center justify-center gap-2 rounded-2xl border px-4 py-3 text-sm font-bold transition active:scale-[0.98]", dark ? "border-slate-700 bg-slate-900 text-slate-200 hover:bg-slate-800" : "border-slate-200 bg-white text-slate-700 hover:bg-slate-100"),
     muted: dark ? "text-slate-400" : "text-slate-500",
     text: dark ? "text-slate-300" : "text-slate-600",
     title: dark ? "text-white" : "text-slate-950",
-    icon: clsx("rounded-2xl p-3", dark ? "bg-slate-800 text-slate-200" : "bg-slate-100 text-slate-700"),
+    icon: clsx("shrink-0", dark ? "text-slate-200" : "text-slate-500"),
   };
 }
 
 function KpiCard({ icon, label, value, helper, dark }: { icon: React.ReactNode; label: string; value: string; helper: string; dark: boolean }) {
   const t = getTheme(dark);
   return (
-    <div className={t.card}>
-      <div className="flex items-start justify-between gap-3">
-        <div className={t.icon}>{icon}</div>
-      </div>
-      <div className={clsx("mt-4 text-xs font-black uppercase tracking-[0.14em]", t.muted)}>{label}</div>
-      <div className={clsx("mt-1 text-3xl font-black tracking-tight", t.title)}>{value}</div>
-      <div className={clsx("mt-1 text-sm font-semibold", t.muted)}>{helper}</div>
+    <div className={styles.metric}>
+      <div className={`${styles.metricLabel} flex items-center gap-2`}><span className="[&_svg]:h-3 [&_svg]:w-3" aria-hidden="true">{icon}</span>{label}</div>
+      <div className={styles.metricValue}><strong className={t.title}>{value}</strong></div>
+      <div className={styles.metricNote}>{helper}</div>
     </div>
   );
 }
@@ -281,12 +279,12 @@ export default function RentabilidadPage() {
   return (
     <div className={t.page}>
       <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className={`${styles.compactHeader} flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between`}>
           <div>
             <div className={clsx("mb-3 inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black", dark ? "bg-slate-800 text-slate-300" : "bg-white text-slate-600 ring-1 ring-slate-200")}>
               <CircleDollarSign size={14} /> Rentabilidad del restaurante
             </div>
-            <h1 className={clsx("text-3xl font-black tracking-tight sm:text-4xl", t.title)}>Qué platos te hacen ganar dinero</h1>
+            <h1 className={t.title}>Rentabilidad de carta</h1>
             <p className={clsx("mt-2 max-w-2xl text-sm font-medium sm:text-base", t.text)}>
               Vista pensada para decidir rápido: qué potenciar, qué revisar y dónde se está quedando el margen.
             </p>
@@ -305,7 +303,7 @@ export default function RentabilidadPage() {
           </div>
         </div>
 
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className={styles.metricStrip}>
           <KpiCard dark={dark} icon={<Euro size={22} />} label="Beneficio medio" value={formatEuro(resumen.beneficioMedio)} helper="Por plato de carta" />
           <KpiCard dark={dark} icon={<Percent size={22} />} label="Margen medio" value={formatPercent(resumen.margenMedio)} helper={resumen.margenMedio >= 60 ? "Buen nivel" : "Revisar costes/precios"} />
           <KpiCard dark={dark} icon={<TrendingDown size={22} />} label="Platos a revisar" value={String(resumen.platosProblema.length)} helper="Margen bajo o pérdidas" />
@@ -330,15 +328,15 @@ export default function RentabilidadPage() {
               </div>
             </div>
 
-            <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <div className="mt-4 divide-y divide-slate-200">
               {recomendaciones.length > 0 ? recomendaciones.map((item) => (
-                <Link key={item.title} href={item.href} className={clsx("group rounded-3xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md", item.level === "danger" ? "border-rose-200 bg-rose-50 dark:border-rose-500/20 dark:bg-rose-500/10" : item.level === "warning" ? "border-amber-200 bg-amber-50 dark:border-amber-500/20 dark:bg-amber-500/10" : "border-emerald-200 bg-emerald-50 dark:border-emerald-500/20 dark:bg-emerald-500/10")}>
+                <Link key={item.title} href={item.href} className={clsx("group grid grid-cols-[24px_1fr] gap-x-3 py-3", item.level === "danger" ? "text-rose-700" : item.level === "warning" ? "text-amber-700" : "text-emerald-700")}>
                   <div className="flex items-center justify-between gap-3">
                     <Lightbulb size={20} />
                     <ArrowRight size={16} className="transition group-hover:translate-x-0.5" />
                   </div>
-                  <div className={clsx("mt-4 text-base font-black", t.title)}>{item.title}</div>
-                  <div className={clsx("mt-1 text-sm font-semibold", dark ? "text-slate-300" : "text-slate-600")}>{item.text}</div>
+                  <div className={clsx("text-sm font-semibold", t.title)}>{item.title}</div>
+                  <div className={clsx("col-start-2 mt-1 text-xs", dark ? "text-slate-300" : "text-slate-600")}>{item.text}</div>
                 </Link>
               )) : (
                 <div className={clsx("rounded-3xl border p-4", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50")}>Sin recomendaciones por ahora.</div>
@@ -386,20 +384,20 @@ export default function RentabilidadPage() {
           ) : platosFiltrados.length === 0 ? (
             <div className={clsx("mt-6 rounded-2xl border p-8 text-center", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50")}>No hay platos con estos filtros.</div>
           ) : (
-            <div className="mt-6 grid gap-3">
+            <div className="mt-4 divide-y divide-slate-200">
               {platosFiltrados.map((p) => (
-                <div key={p.id} className={clsx("rounded-3xl border p-4 transition hover:-translate-y-0.5 hover:shadow-md", dark ? "border-slate-800 bg-slate-950" : "border-slate-200 bg-slate-50")}>
+                <div key={p.id} className="py-4">
                   <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <span className={clsx("rounded-full px-2.5 py-1 text-xs font-black ring-1", badgeEstadoClass(p.estado))}>{getEstadoLabel(p.estado)}</span>
+                        <span className={clsx(styles.status, "text-xs font-semibold", badgeEstadoClass(p.estado))}>{getEstadoLabel(p.estado)}</span>
                         {p.categoria ? <span className={clsx("text-xs font-bold", t.muted)}>{p.categoria}</span> : null}
                       </div>
-                      <h3 className={clsx("mt-2 truncate text-lg font-black", t.title)}>{p.nombre}</h3>
+                      <h3 className={clsx("mt-1 text-sm font-semibold", t.title)}>{p.nombre}</h3>
                       <p className={clsx("mt-1 text-sm font-semibold", t.muted)}>{p.accionSugerida}</p>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:min-w-[520px]">
+                    <div className="grid grid-cols-4 gap-3 lg:min-w-[440px]">
                       <div className={t.soft}><div className={clsx("text-xs font-bold", t.muted)}>Precio</div><div className={clsx("mt-1 font-black", t.title)}>{formatEuro(p.precio)}</div></div>
                       <div className={t.soft}><div className={clsx("text-xs font-bold", t.muted)}>Coste</div><div className={clsx("mt-1 font-black", t.title)}>{formatEuro(p.coste)}</div></div>
                       <div className={t.soft}><div className={clsx("text-xs font-bold", t.muted)}>Beneficio</div><div className={clsx("mt-1 font-black", p.beneficio < 0 ? "text-rose-600" : t.title)}>{formatEuro(p.beneficio)}</div></div>

@@ -1,22 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   AlertTriangle,
-  BarChart3,
   ArrowRight,
-  Bell,
   CalendarDays,
   CheckCircle2,
   ChefHat,
   Clock3,
-  CreditCard,
   MessageSquareWarning,
   RefreshCw,
-  Sparkles,
-  QrCode,
   Users,
   Utensils,
   Wallet,
@@ -32,7 +27,9 @@ import {
 } from "../lib/restaurantModules";
 import { withTimeout } from "../lib/safeQuery";
 import { isOrderClosed, dashboardOrderFilter } from "@/lib/orders/order-state";
-import { TurnoMetric, TurnoPageHeader } from "../components/turno-vivo/TurnoPrimitives";
+import ServiceClock from "../components/product/ServiceClock";
+import ServiceArrivals from "./ServiceArrivals";
+import styles from "./service-board.module.css";
 
 const DashboardChart = dynamic(() => import("../components/DashboardChart"), {
   ssr: false,
@@ -592,322 +589,65 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="gh-turno-page gh-dashboard text-slate-950">
-      <TurnoPageHeader
-        eyebrow="Turno vivo · Hoy"
-        title={restauranteNombre}
-        description={modules.camarero_digital
-          ? "Lo que está ocurriendo ahora en sala, cocina y reservas, ordenado por prioridad."
-          : "Reservas, clientes y reputación de hoy, ordenados para decidir rápido."}
-        meta={<>
-          <span>{lastUpdated}</span>
-          {refreshing ? <span className="inline-flex items-center gap-1 text-blue-700"><RefreshCw size={13} className="animate-spin" /> Refrescando</span> : null}
-          {modules.camarero_digital && pedidosUrgentes.length > 0 ? <span className="text-rose-700">{pedidosUrgentes.length} urgente{pedidosUrgentes.length === 1 ? "" : "s"}</span> : null}
-        </>}
-        actions={<>
-          <button onClick={() => cargarDashboard("refresh")} disabled={loading || refreshing} className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold disabled:opacity-50">
-            <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} /> Actualizar
-          </button>
-          {modules.reservas ? <Link href="/reservas" className="gh-turno-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><CalendarDays size={16} /> Reservas</Link> : null}
-          {modules.camarero_digital ? <Link href="/panel/pedidos-qr" className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><ChefHat size={16} /> Cocina</Link> : null}
-          {modules.menu_digital ? <Link href="/panel/menu-dia" className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><Utensils size={16} /> Menú</Link> : null}
-        </>}
-      />
-
-      {error && (
-        <div role="alert" className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
-          {error}
+    <div className={styles.page}>
+      <header className={styles.masthead}>
+        <div className={styles.identity}>
+          <ServiceClock large />
+          <div><span className={styles.kicker}>{restauranteNombre}</span><h1>Hoy, en tu restaurante.</h1><p>{refreshing ? "Actualizando el servicio…" : lastUpdated}</p></div>
         </div>
-      )}
+        <div className={styles.actions}>
+          <button onClick={() => cargarDashboard("refresh")} disabled={loading || refreshing} aria-label="Actualizar servicio"><RefreshCw size={15} className={refreshing ? "animate-spin" : ""} /><span>Actualizar</span></button>
+          {modules.reservas ? <Link href="/reservas" className={styles.primary}><CalendarDays size={15} /> Reservas</Link> : null}
+          {modules.camarero_digital ? <Link href="/panel/pedidos-qr"><ChefHat size={15} /> Cocina</Link> : modules.menu_digital ? <Link href="/panel/menu-dia">Menú</Link> : null}
+        </div>
+      </header>
 
-      {panelVacio && (
-        <section className="rounded-[28px] border border-blue-100 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="flex items-start gap-4">
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-                <Sparkles size={22} />
-              </div>
-              <div>
-                <p className="text-xs font-black uppercase tracking-widest text-blue-700">Restaurante recién instalado</p>
-                <h2 className="mt-1 text-2xl font-black text-slate-950">Siguiente paso: hacer una prueba real</h2>
-                <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-slate-500">
-                  {modules.camarero_digital
-                    ? "Este panel todavía no tiene actividad. Prueba una mesa y un pedido para comprobar cocina, cuenta y cierre."
-                    : "Este panel todavía no tiene actividad. Crea una reserva de prueba, asígnale mesa y comprueba la llegada y el consumo."}
-                </p>
-              </div>
-            </div>
+      {error ? <div role="alert" className={styles.alert}>{error}</div> : null}
+      {panelVacio ? <div className={styles.onboarding}><p>Sin actividad registrada hoy. Prepara el servicio desde tus módulos.</p>{modules.menu_digital ? <Link href="/panel/carta-productos">Revisar carta</Link> : null}{modules.reservas ? <Link href="/sala">Preparar sala</Link> : null}{modules.camarero_digital ? <Link href="/panel/qr-mesas">Ver QR de mesas</Link> : null}</div> : null}
 
-            <div className="grid gap-2 sm:grid-cols-3 lg:min-w-[520px]">
-              {modules.menu_digital ? (
-                <Link href="/panel/carta-productos" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm font-black text-slate-900 transition hover:bg-blue-50">
-                  Carta
-                </Link>
-              ) : null}
-              {modules.camarero_digital ? (
-                <>
-                  <Link href="/panel/qr-mesas" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-4 py-3 text-sm font-black text-white transition hover:bg-blue-800">
-                    <QrCode size={16} /> QR mesas
-                  </Link>
-                  <Link href="/panel/pedidos-qr" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm font-black text-slate-900 transition hover:bg-blue-50">
-                    Cocina
-                  </Link>
-                </>
-              ) : modules.reservas ? (
-                <>
-                  <Link href="/reservas" className="rounded-2xl bg-blue-700 px-4 py-3 text-center text-sm font-black text-white transition hover:bg-blue-800">
-                    Reservas
-                  </Link>
-                  <Link href="/sala" className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-center text-sm font-black text-slate-900 transition hover:bg-blue-50">
-                    Sala
-                  </Link>
-                </>
-              ) : null}
-            </div>
+      <div className={styles.attention} aria-label="Asuntos que requieren atención">
+        <span className={styles.attentionLabel}><Clock3 size={14} /> En este momento</span>
+        <div className={styles.attentionItems}>
+          {loading ? <span className={styles.muted}>Cargando el servicio…</span> : acciones.map((action) => <Link href={action.href} key={action.id} data-priority={action.prioridad} title={action.descripcion}>{action.prioridad === "alta" ? <AlertTriangle size={13} /> : null}{action.titulo}<ArrowRight size={13} /></Link>)}
+        </div>
+      </div>
+
+      <div className={`${styles.service} ${!modules.camarero_digital || !modules.reservas ? styles.serviceSolo : ""}`}>
+        {modules.reservas ? <ServiceArrivals reservations={reservasHoy} loading={loading} /> : null}
+        {modules.camarero_digital ? <section className={styles.kitchen} aria-labelledby="service-tables-title">
+          <div className={styles.sectionHeading}>
+            <div><span className={styles.kicker}>Sala y cocina · pedidos QR</span><h2 id="service-tables-title">Servicio por mesa</h2></div>
+            <Link href="/panel/pedidos-qr">Abrir cocina <ArrowRight size={14} /></Link>
           </div>
+          <div className={styles.kitchenCounts}><span><b>{pedidosAbiertos.length}</b> pedidos abiertos</span><span><b>{pedidosLentos.length}</b> a revisar</span><span className={styles.danger}><b className={styles.danger}>{pedidosUrgentes.length}</b> urgentes</span></div>
+          {loading ? <div role="status" className={styles.loadingRows}>{[0, 1, 2, 3].map((index) => <div key={index} />)}<span className="sr-only">Cargando mesas</span></div> : mesasAbiertas.length ? <ol className={styles.tableList}>
+            {mesasAbiertas.map((table) => <li key={table.mesa} className={styles.tableRow} data-urgency={table.maxMinutos >= 20 ? "urgent" : table.maxMinutos >= 12 ? "review" : "normal"}>
+              <div className={styles.tableNumber}><span>Mesa</span>{table.mesa}</div>
+              <div className={styles.tableContext}>
+                <p>{table.pedidos.length} pedido{table.pedidos.length === 1 ? "" : "s"} · {euro(table.total)}</p>
+                <small>{[...new Set(table.pedidos.map((order) => estadoLimpio(order.estado)))].join(" · ")}</small>
+                <Link href="/panel/pedidos-qr">{table.maxMinutos >= 12 ? "Revisar pedido" : "Ver cuenta y pedidos"}<ArrowRight size={12} /></Link>
+              </div>
+              <div className={styles.elapsed}>{table.maxMinutos} min<small>desde el primer pedido</small></div>
+            </li>)}
+          </ol> : <div className={styles.empty}><h3>Cocina al día.</h3><p>No hay comandas abiertas ahora.</p><Link href="/panel/pedidos-qr">Ver pedidos y cierres <ArrowRight size={13} /></Link></div>}
+        </section> : null}
+      </div>
+
+      <div className={styles.summary} aria-label="Resumen de actividad">
+        {kpis.map((kpi) => <Link key={kpi.titulo} href={kpi.href} title={kpi.detalle}><strong>{loading ? "…" : kpi.valor}</strong><span>{kpi.titulo}</span></Link>)}
+      </div>
+      <div className={styles.bottom}>
+        <details className={styles.trend}>
+          <summary>Reservas de la semana <span>Consultar evolución</span></summary>
+          <div className={styles.chart}>{restauranteId ? <DashboardChart restauranteId={restauranteId} /> : null}</div>
+          {modules.metricas ? <Link href="/estadisticas" className={styles.muted}>Ver métricas <ArrowRight size={13} className="inline" /></Link> : null}
+        </details>
+        <section className={styles.activity}>
+          <h2>Actividad del día</h2>
+          {actividad.length ? <ol>{actividad.map((item) => <li key={item.id}><strong>{item.titulo}</strong><span>{item.tipo} · {item.detalle}</span></li>)}</ol> : <p className={styles.muted}>Sin actividad registrada.</p>}
         </section>
-      )}
-
-      {modules.metricas ? <div className="flex justify-end">
-        <Link
-          href="/estadisticas"
-          className="inline-flex items-center gap-2 rounded-full border border-blue-100 bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-widest text-blue-700 shadow-sm transition hover:-translate-y-0.5 hover:bg-blue-100"
-        >
-          <BarChart3 size={14} /> Ver métricas avanzadas
-        </Link>
-      </div> : null}
-
-      <section className="gh-turno-metrics" style={{ "--gh-metric-count": kpis.length } as CSSProperties} aria-label="Indicadores de hoy">
-        {kpis.map((kpi) => {
-          const Icon = kpi.icono;
-          return (
-            <Link
-              href={kpi.href}
-              key={kpi.titulo}
-              className="group min-w-0 text-inherit"
-            >
-              <TurnoMetric label={kpi.titulo} value={loading ? "…" : kpi.valor} detail={kpi.detalle} icon={<Icon size={17} />} />
-            </Link>
-          );
-        })}
-      </section>
-
-      <section className={`grid grid-cols-1 gap-5 ${modules.camarero_digital ? "xl:grid-cols-3" : ""}`}>
-        <div className={`gh-legacy-surface p-5 sm:p-6 ${modules.camarero_digital ? "xl:col-span-2" : ""}`}>
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Qué hacer ahora</p>
-              <h2 className="mt-1 text-2xl font-black text-slate-950">Acciones recomendadas</h2>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-600">
-              {acciones.length} {acciones.length === 1 ? "acción" : "acciones"}
-            </span>
-          </div>
-
-          <div className="space-y-3">
-            {acciones.map((accion) => {
-              const Icon = accion.icono;
-              const prioridadClass =
-                accion.prioridad === "alta"
-                  ? "border-rose-200 bg-rose-50 text-rose-800"
-                  : accion.prioridad === "media"
-                    ? "border-blue-200 bg-blue-50 text-blue-800"
-                    : accion.prioridad === "ok"
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : "border-slate-200 bg-slate-50 text-slate-800";
-
-              return (
-                <Link
-                  href={accion.href}
-                  key={accion.id}
-                  className={`group flex flex-col gap-3 rounded-xl border-l-[3px] border-y-0 border-r-0 p-4 transition hover:bg-white sm:flex-row sm:items-center sm:justify-between ${prioridadClass}`}
-                >
-                  <div className="flex items-start gap-3">
-                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white/80 shadow-sm">
-                      <Icon size={20} />
-                    </span>
-                    <div>
-                      <p className="font-black">{accion.titulo}</p>
-                      <p className="mt-1 text-sm font-semibold opacity-80">{accion.descripcion}</p>
-                    </div>
-                  </div>
-                  <span className="inline-flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm font-black shadow-sm transition group-hover:translate-x-1">
-                    {accion.cta} <ArrowRight size={15} />
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {modules.camarero_digital ? <div className="gh-legacy-surface p-5">
-          <div className="mb-5 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Cocina</p>
-              <h2 className="mt-1 text-2xl font-black text-slate-950">Estado en vivo</h2>
-            </div>
-            <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
-              <ChefHat size={22} />
-            </span>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div className="rounded-2xl bg-slate-50 p-3">
-              <p className="text-2xl font-black text-slate-950">{pedidosAbiertos.length}</p>
-              <p className="text-xs font-bold text-slate-500">Activos</p>
-            </div>
-            <div className="rounded-2xl bg-amber-50 p-3">
-              <p className="text-2xl font-black text-amber-700">{pedidosLentos.length}</p>
-              <p className="text-xs font-bold text-amber-700">Revisar</p>
-            </div>
-            <div className="rounded-2xl bg-rose-50 p-3">
-              <p className="text-2xl font-black text-rose-700">{pedidosUrgentes.length}</p>
-              <p className="text-xs font-bold text-rose-700">Urgentes</p>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-2">
-            {pedidosAbiertos.length === 0 && (
-              <div className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-500">
-                No hay comandas abiertas ahora.
-              </div>
-            )}
-
-            {pedidosAbiertos.slice(0, 4).map((pedido) => {
-              const mins = minutosDesde(pedido.created_at);
-              return (
-                <Link
-                  href="/panel/pedidos-qr"
-                  key={pedido.id}
-                  className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3 transition hover:bg-blue-50"
-                >
-                  <div>
-                    <p className="font-black text-slate-950">Mesa {pedido.mesa || "-"}</p>
-                    <p className="text-xs font-bold text-slate-500">{estadoLimpio(pedido.estado)} · {euro(numero(pedido.total))}</p>
-                  </div>
-                  <span className={mins >= 20 ? "rounded-full bg-rose-100 px-2.5 py-1 text-xs font-black text-rose-700" : mins >= 12 ? "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-black text-amber-700" : "rounded-full bg-slate-200 px-2.5 py-1 text-xs font-black text-slate-700"}>
-                    {mins} min
-                  </span>
-                </Link>
-              );
-            })}
-          </div>
-        </div> : null}
-      </section>
-
-      <section className={`grid grid-cols-1 gap-5 ${modules.camarero_digital ? "xl:grid-cols-3" : "xl:grid-cols-2"}`}>
-        {modules.camarero_digital ? <div className="gh-legacy-surface p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Mesas</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">Abiertas ahora</h2>
-            </div>
-            <CreditCard size={21} className="text-blue-700" />
-          </div>
-
-          <div className="space-y-3">
-            {mesasAbiertas.length === 0 && (
-              <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-500">
-                Sin mesas abiertas.
-              </p>
-            )}
-
-            {mesasAbiertas.slice(0, 5).map((mesa) => (
-              <Link
-                href="/panel/pedidos-qr"
-                key={mesa.mesa}
-                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3 transition hover:bg-blue-50"
-              >
-                <div>
-                  <p className="font-black text-slate-950">Mesa {mesa.mesa}</p>
-                  <p className="text-xs font-bold text-slate-500">{mesa.pedidos.length} pedido{mesa.pedidos.length === 1 ? "" : "s"} · {mesa.maxMinutos} min</p>
-                </div>
-                <p className="font-black text-slate-950">{euro(mesa.total)}</p>
-              </Link>
-            ))}
-          </div>
-        </div> : null}
-
-        {modules.reservas ? <div className="gh-legacy-surface p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Reservas</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">Servicio de hoy</h2>
-            </div>
-            <CalendarDays size={21} className="text-blue-700" />
-          </div>
-
-          <div className="space-y-3">
-            {reservasHoy.length === 0 && (
-              <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-500">
-                No hay reservas hoy.
-              </p>
-            )}
-
-            {reservasHoy.slice(0, 5).map((reserva) => (
-              <Link
-                href="/reservas"
-                key={reserva.id}
-                className="flex items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 p-3 transition hover:bg-blue-50"
-              >
-                <div>
-                  <p className="font-black text-slate-950">{reserva.nombre_cliente || "Cliente"}</p>
-                  <p className="text-xs font-bold text-slate-500">{reserva.personas || 0} pers. · {estadoLimpio(reserva.estado)}</p>
-                </div>
-                <p className="font-black text-slate-950">{formatReserva(reserva.fecha_hora_reserva)}</p>
-              </Link>
-            ))}
-          </div>
-        </div> : null}
-
-        <div className="gh-legacy-surface p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm font-black uppercase tracking-widest text-slate-500">Actividad</p>
-              <h2 className="mt-1 text-xl font-black text-slate-950">Últimos movimientos</h2>
-            </div>
-            <Bell size={21} className="text-blue-700" />
-          </div>
-
-          <div className="space-y-3">
-            {actividad.length === 0 && (
-              <p className="rounded-2xl border border-dashed border-slate-200 p-4 text-center text-sm font-bold text-slate-500">
-                Sin actividad reciente hoy.
-              </p>
-            )}
-
-            {actividad.map((item) => (
-              <div key={item.id} className="rounded-2xl border border-slate-100 bg-slate-50 p-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-black text-slate-950">{item.titulo}</p>
-                  <span className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-slate-500">
-                    {item.tipo}
-                  </span>
-                </div>
-                <p className="mt-1 text-xs font-bold text-slate-500">{item.detalle}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="gh-legacy-surface p-5 sm:p-6">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-black uppercase tracking-widest text-slate-500">Tendencia</p>
-            <h2 className="mt-1 text-2xl font-black text-slate-950">Reservas de la semana</h2>
-          </div>
-          {modules.metricas ? (
-            <Link href="/estadisticas" className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-900 transition hover:bg-slate-50">
-              Ver estadísticas <ArrowRight size={15} />
-            </Link>
-          ) : null}
-        </div>
-
-        <div className="h-[280px] min-h-[280px] rounded-2xl border border-slate-100 bg-slate-50 p-3">
-          {restauranteId && <DashboardChart restauranteId={restauranteId} />}
-        </div>
-      </section>
+      </div>
     </div>
   );
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import styles from "../../../components/product/modules.module.css";
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, Gift, Lock, RefreshCw, TicketPercent } from "lucide-react";
+import { Lock, RefreshCw } from "lucide-react";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { getRestauranteUsuario } from "@/app/(app)/lib/getRestauranteUsuario";
@@ -100,7 +101,7 @@ export default function CanjesPage() {
   const cardBase = useMemo(
     () =>
       clsx(
-        "rounded-2xl border shadow-sm",
+        styles.compactPanel,
         dark ? "border-gray-800 bg-gray-950/40" : "border-gray-200 bg-white"
       ),
     [dark]
@@ -526,8 +527,8 @@ export default function CanjesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
-      <div className={clsx(cardBase, "flex flex-col gap-5 p-6 md:flex-row md:items-center md:justify-between")}>
+    <div className={`${styles.workspace} ${styles.formWorkspace} ${styles.redemptions}`}>
+      <div className={`${styles.compactHeader} flex flex-col gap-4 md:flex-row md:items-center md:justify-between`}>
         <div>
           <div className="text-xs font-black uppercase tracking-[0.16em] text-blue-600">Fidelización</div>
           <h1 className="mt-2 text-3xl font-black tracking-tight">Validar ventajas</h1>
@@ -549,10 +550,10 @@ export default function CanjesPage() {
       </div>
 
       {!loading ? (
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <div className={clsx(cardBase, "p-4")}><Gift className="h-5 w-5 text-blue-600" /><div className="mt-3 text-2xl font-black">{pendientes.length}</div><div className="text-xs font-bold text-gray-500">Premios pendientes</div></div>
-          <div className={clsx(cardBase, "p-4")}><TicketPercent className="h-5 w-5 text-amber-600" /><div className="mt-3 text-2xl font-black">{promosPendientes.length}</div><div className="text-xs font-bold text-gray-500">Cupones por validar</div></div>
-          <div className={clsx(cardBase, "p-4")}><CheckCircle2 className="h-5 w-5 text-emerald-600" /><div className="mt-3 text-2xl font-black">{confirmados.length + promosCanjeadas.length}</div><div className="text-xs font-bold text-gray-500">Usados y confirmados</div></div>
+        <div className={styles.metricStrip}>
+          <div className={styles.metric}><div className={styles.metricLabel}>Premios pendientes</div><div className={styles.metricValue}><strong>{pendientes.length}</strong></div></div>
+          <div className={styles.metric}><div className={styles.metricLabel}>Cupones por validar</div><div className={styles.metricValue}><strong>{promosPendientes.length}</strong></div></div>
+          <div className={styles.metric}><div className={styles.metricLabel}>Usados y confirmados</div><div className={styles.metricValue}><strong>{confirmados.length + promosCanjeadas.length}</strong></div></div>
         </div>
       ) : null}
 

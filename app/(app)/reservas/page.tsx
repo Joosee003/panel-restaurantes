@@ -1,22 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertTriangle,
+  ArrowUpRight,
   Banknote,
-  CalendarDays,
   Check,
-  ClipboardList,
-  Clock3,
   Copy,
   DoorClosed,
   Loader2,
   MessageCircle,
   Plus,
-  ReceiptText,
   RefreshCw,
   Search,
-  Table2,
   UserCheck,
   UserX,
   X,
@@ -24,7 +19,8 @@ import {
 import { supabase } from "../lib/supabaseClient";
 import AddReservaModal from "../components/AddReservaModal";
 import { useRestaurante } from "../../hooks/useRestaurante";
-import { TurnoMetric, TurnoPageHeader } from "../components/turno-vivo/TurnoPrimitives";
+import { ServiceDetail } from "./ServiceDetail";
+import styles from "./service.module.css";
 
 type EstadoReserva = "pendiente" | "confirmada" | "cancelada" | "no-show" | "ha venido";
 type VistaReservas = "calendario" | "hoy" | "semana" | "lista" | "bloqueos";
@@ -259,10 +255,6 @@ function buildWhatsAppText(reserva: Reserva, tipo: "confirmar" | "recordar" | "r
   return `Hola ${nombre}, gracias por venir. Si te ha gustado la experiencia, nos ayudaría mucho una reseña.`;
 }
 
-function Badge({ children, className = "" }: { children: React.ReactNode; className?: string }) {
-  return <span className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-bold ${className}`}>{children}</span>;
-}
-
 function ReservaControls({
   reserva,
   mesas,
@@ -336,6 +328,7 @@ function ReservaCard({
   fidelizacionActiva,
   onMesa,
   onCopiar,
+  showDate = false,
 }: {
   reserva: Reserva;
   mesas: Mesa[];
@@ -347,8 +340,14 @@ function ReservaCard({
   fidelizacionActiva: boolean;
   onMesa: (reserva: Reserva, mesaId: string | null) => void;
   onCopiar: (texto: string) => void;
+  showDate?: boolean;
 }) {
   const riesgo = Number(reserva.cliente?.no_show_total || 0) + Number(reserva.cliente?.cancelaciones_totales || 0);
+  const contexto = [
+    showDate ? fechaBonita(reserva.fecha_hora_reserva) : null,
+    reserva.notas,
+    reserva.consumo_registrado_en ? `Consumo ${money(Number(reserva.consumo_total || 0))}${fidelizacionActiva ? ` · ${Number(reserva.puntos_generados || 0)} pts` : ""}` : null,
+  ].filter(Boolean).join(" · ");
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -361,54 +360,38 @@ function ReservaCard({
   }, [mobileOpen]);
 
   return (
-    <article className="gh-turno-row p-4 sm:p-5">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="truncate text-base font-black text-slate-950">{reserva.nombre_cliente || "Cliente"}</p>
-            <Badge className={estadoClass(reserva)}>{estadoLabel(reserva)}</Badge>
-            {riesgo > 0 ? <Badge className="border-red-200 bg-red-50 text-red-700">Riesgo cliente</Badge> : null}
-            {!reserva.mesa_id ? <Badge className="border-slate-200 bg-slate-50 text-slate-600">Sin mesa</Badge> : null}
-          </div>
-          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-slate-600">
-            <span className="font-semibold text-slate-900">{horaCorta(reserva.fecha_hora_reserva)}</span>
-            <span>{fechaBonita(reserva.fecha_hora_reserva)}</span>
-            <span>{reserva.personas} persona{reserva.personas === 1 ? "" : "s"}</span>
-            <span>{reserva.telefono || "Sin teléfono"}</span>
-            <span>{reserva.origen || "origen no indicado"}</span>
-          </div>
-          {reserva.notas ? <p className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-700">{reserva.notas}</p> : null}
-          {reserva.consumo_registrado_en ? (
-            <div className="mt-3 inline-flex flex-wrap items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-black text-emerald-800">
-              <ReceiptText size={16} />
-              Consumo registrado · {money(Number(reserva.consumo_total || 0))}
-              {fidelizacionActiva ? ` · ${Number(reserva.puntos_generados || 0)} pts` : ""}
-            </div>
-          ) : null}
-        </div>
-
-        <div className="shrink-0 text-left sm:text-right">
-          <p className="text-2xl font-black tabular-nums tracking-[-0.04em] text-slate-950">{horaCorta(reserva.fecha_hora_reserva)}</p>
-          <p className="mt-1 text-xs font-bold text-slate-500">{nombreMesa(reserva, mesas)}</p>
-        </div>
-      </div>
-
-      <div className="mt-4 hidden border-t border-slate-200 pt-4 sm:block">
-        <ReservaControls reserva={reserva} mesas={mesas} saving={saving} fidelizacionActiva={fidelizacionActiva} onEstado={onEstado} onHaVenido={onHaVenido} onNoShow={onNoShow} onRegistrarConsumo={onRegistrarConsumo} onMesa={onMesa} onCopiar={onCopiar} />
-      </div>
-
-      <button type="button" onClick={() => setMobileOpen(true)} className="gh-turno-primary mt-4 inline-flex w-full items-center justify-center gap-2 px-4 py-3 text-sm font-bold sm:hidden"><Table2 size={16} /> Gestionar reserva</button>
+    <article className={styles.row}>
+      <button type="button" onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-label={`Gestionar reserva de ${reserva.nombre_cliente || "cliente"}, ${horaCorta(reserva.fecha_hora_reserva)}, ${reserva.personas} personas, ${nombreMesa(reserva, mesas)}, ${estadoLabel(reserva)}`} className={styles.rowMain}>
+        <time className={styles.time}>{horaCorta(reserva.fecha_hora_reserva)}</time>
+        <span className={styles.customer}>{reserva.nombre_cliente || "Cliente"}{contexto ? <small>{contexto}</small> : null}</span>
+        <span className={styles.party}>{reserva.personas}</span>
+        <span className={styles.rowContext}>
+          <span className={styles.tableName}>{reserva.mesa_id && !/^mesa\b/i.test(nombreMesa(reserva, mesas)) ? <span className={styles.mobileLabel}>Mesa </span> : null}{nombreMesa(reserva, mesas)}</span>
+          <span className={`${styles.rowState} ${estadoClass(reserva)}`}>{estadoLabel(reserva)}</span>
+        </span>
+        <span className={styles.rowAction}><span>Gestionar</span><ArrowUpRight size={15} /></span>
+      </button>
+      {riesgo > 0 ? <div className={styles.rowSupplement}>
+        {riesgo > 0 ? <span>{Number(reserva.cliente?.no_show_total || 0)} no-shows · {Number(reserva.cliente?.cancelaciones_totales || 0)} cancelaciones anteriores</span> : null}
+      </div> : null}
 
       {mobileOpen ? (
-        <div className="fixed inset-0 z-[80] flex items-end bg-slate-950/45 sm:hidden" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setMobileOpen(false); }}>
-          <div role="dialog" aria-modal="true" aria-label={`Gestionar reserva de ${reserva.nombre_cliente || "cliente"}`} className="gh-reservation-sheet w-full max-h-[88vh] overflow-y-auto rounded-t-[24px] bg-[#fffefa] p-5 shadow-2xl">
-            <div className="mb-5 flex items-start justify-between gap-4 border-b border-slate-200 pb-4">
-              <div><p className="gh-turno-eyebrow">Reserva · {horaCorta(reserva.fecha_hora_reserva)}</p><h2 className="mt-1 text-xl font-black text-slate-950">{reserva.nombre_cliente || "Cliente"}</h2></div>
-              <button type="button" onClick={() => setMobileOpen(false)} className="gh-turno-secondary inline-flex h-10 w-10 items-center justify-center" aria-label="Cerrar detalle"><X size={18} /></button>
-            </div>
-            <ReservaControls reserva={reserva} mesas={mesas} saving={saving} fidelizacionActiva={fidelizacionActiva} onEstado={onEstado} onHaVenido={onHaVenido} onNoShow={onNoShow} onRegistrarConsumo={onRegistrarConsumo} onMesa={onMesa} onCopiar={onCopiar} />
+        <ServiceDetail label={`Gestionar reserva de ${reserva.nombre_cliente || "cliente"}`} onClose={() => setMobileOpen(false)}>
+          <div className={styles.detailHeading}>
+            <div><span className={`${styles.rowState} ${estadoClass(reserva)}`}>{estadoLabel(reserva)}</span><h2>{reserva.nombre_cliente || "Cliente"}</h2><p>{fechaCompleta(reserva.fecha_hora_reserva)} · {horaCorta(reserva.fecha_hora_reserva)} · {reserva.personas} personas</p></div>
+            <button type="button" onClick={() => setMobileOpen(false)} className={styles.detailClose} aria-label="Cerrar detalle"><X size={17} /></button>
           </div>
-        </div>
+          <dl className={styles.detailFacts}>
+            <div><dt>Teléfono</dt><dd>{reserva.telefono || "Sin teléfono"}</dd></div>
+            <div><dt>Origen</dt><dd>{reserva.origen === "panel_nativo" ? "Panel" : reserva.origen || "No indicado"}</dd></div>
+            {reserva.email ? <div><dt>Email</dt><dd>{reserva.email}</dd></div> : null}
+            <div><dt>Reseña</dt><dd>{reserva.cliente?.ya_dejo_resena ? "Ya dejó reseña" : reserva.resena_solicitada ? "Solicitud registrada" : "Sin reseña registrada"}</dd></div>
+            {riesgo > 0 ? <div><dt>Historial del cliente</dt><dd>{Number(reserva.cliente?.no_show_total || 0)} no-shows · {Number(reserva.cliente?.cancelaciones_totales || 0)} cancelaciones</dd></div> : null}
+          </dl>
+          {reserva.notas ? <div className={styles.detailNote}><h3>Notas de la reserva</h3><p>{reserva.notas}</p></div> : null}
+          {reserva.consumo_registrado_en ? <div className={styles.detailNote}><h3>Consumo registrado</h3><p>{money(Number(reserva.consumo_total || 0))}{fidelizacionActiva ? ` · ${Number(reserva.puntos_generados || 0)} puntos` : ""}</p></div> : null}
+          <ReservaControls reserva={reserva} mesas={mesas} saving={saving} fidelizacionActiva={fidelizacionActiva} onEstado={onEstado} onHaVenido={onHaVenido} onNoShow={onNoShow} onRegistrarConsumo={(target) => { setMobileOpen(false); onRegistrarConsumo(target); }} onMesa={onMesa} onCopiar={onCopiar} />
+        </ServiceDetail>
       ) : null}
     </article>
   );
@@ -831,18 +814,14 @@ export default function ReservasPage() {
   }
 
   return (
-    <div className="gh-turno-page gh-reservations text-slate-950">
-      <TurnoPageHeader
-        eyebrow="Operación · Reservas"
-        title="Reservas"
-        description="Lee el servicio de hoy, resuelve pendientes y gestiona cada visita sin perder el contexto."
-        meta={<><span>{fechaCompleta(diaActivo)}</span><span>{reservasDia.length} reservas visibles</span></>}
-        actions={<>
-          <button onClick={() => setVista("calendario")} className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><CalendarDays size={16} /> Calendario</button>
-          <button onClick={() => cargarTodo()} className="gh-turno-secondary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><RefreshCw size={16} /> Refrescar</button>
-          <button onClick={() => setOpenModal(true)} className="gh-turno-primary inline-flex items-center gap-2 px-4 py-2 text-sm font-bold"><Plus size={16} /> Nueva reserva</button>
-        </>}
-      />
+    <div className={`gh-product-scope gh-reservations ${styles.page}`}>
+      <header className={styles.header}>
+        <div className={styles.heading}><h1>Reservas</h1><p>La agenda del servicio</p></div>
+        <div className={styles.headerActions}>
+          <button onClick={() => cargarTodo()} aria-label="Refrescar reservas" className="gh-turno-secondary inline-flex items-center gap-2 px-3 py-2 text-sm font-medium"><RefreshCw size={15} /><span className={styles.refreshLabel}>Refrescar</span></button>
+          <button onClick={() => setOpenModal(true)} className="gh-turno-primary inline-flex items-center gap-2 px-3 py-2 text-sm font-medium"><Plus size={16} /> Nueva reserva</button>
+        </div>
+      </header>
 
       {error ? <div role="alert" className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</div> : null}
       {copiado ? <div role="status" aria-live="polite" className="fixed right-5 top-5 z-50 rounded-xl bg-slate-950 px-4 py-2 text-sm font-bold text-white shadow-lg">Mensaje copiado</div> : null}
@@ -853,18 +832,8 @@ export default function ReservasPage() {
         </div>
       ) : null}
 
-      <div className="gh-turno-metrics" style={{ "--gh-metric-count": 5 } as CSSProperties}>
-        <TurnoMetric label="Reservas hoy" value={stats.hoy} detail={`${stats.personasHoy} personas`} icon={<ClipboardList size={17} />} />
-        <TurnoMetric label="Pendientes" value={stats.pendientes} detail="sin confirmar" icon={<Clock3 size={17} />} />
-        <TurnoMetric label="Sin mesa" value={stats.sinMesa} detail="por asignar" icon={<Table2 size={17} />} />
-        <TurnoMetric label="No-shows" value={stats.noShows} detail="marcados" icon={<UserX size={17} />} />
-        <TurnoMetric label="Bloqueos" value={bloqueos.filter((b) => b.activo).length} detail="activos" icon={<DoorClosed size={17} />} />
-      </div>
-
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <div className="gh-turno-controlbar">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="gh-turno-filterrail flex gap-2 overflow-x-auto pb-1">
+      <div className={styles.controlbar}>
+            <nav className={styles.tabs} aria-label="Vistas de reservas">
               {([
                 ["calendario", "Calendario"],
                 ["hoy", "Vista día"],
@@ -875,24 +844,26 @@ export default function ReservasPage() {
                 <button
                   key={id}
                   onClick={() => setVista(id)}
-                  className={`rounded-xl px-4 py-2 text-sm font-bold transition ${vista === id ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+                  aria-current={vista === id ? "page" : undefined}
+                  className={`${styles.tab} ${vista === id ? styles.tabActive : ""}`}
                 >
                   {label}
                 </button>
               ))}
-            </div>
+            </nav>
 
-            <div className="flex flex-col gap-2 sm:flex-row">
+            <div className={styles.filters}>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
                   value={busqueda}
                   onChange={(e) => setBusqueda(e.target.value)}
                   placeholder="Buscar cliente..."
-                  className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-sm font-semibold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100 sm:w-72"
+                  aria-label="Buscar reservas por cliente, teléfono, email o notas"
+                  className="h-9 pl-9 pr-2 text-sm outline-none"
                 />
               </div>
-              <select value={filtro} onChange={(e) => setFiltro(e.target.value as FiltroEstado)} className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm font-bold text-slate-900 outline-none focus:ring-2 focus:ring-blue-100">
+              <select aria-label="Filtrar reservas por estado" value={filtro} onChange={(e) => setFiltro(e.target.value as FiltroEstado)} className="h-9 px-2 text-sm outline-none">
                 <option value="todas">Todas</option>
                 <option value="pendiente">Pendientes</option>
                 <option value="confirmada">Confirmadas</option>
@@ -901,22 +872,16 @@ export default function ReservasPage() {
                 <option value="cancelada">Canceladas</option>
               </select>
             </div>
-          </div>
-        </div>
-
-        <div className="gh-legacy-surface p-4">
-          <div className="flex items-center gap-2 text-sm font-black text-slate-950">
-            <AlertTriangle size={17} className="text-blue-600" /> Acciones recomendadas
-          </div>
-          <div className="mt-3 space-y-2">
-            {acciones.map((a, idx) => (
-              <div key={idx} className={`rounded-2xl border p-3 ${a.type === "danger" ? "border-rose-200 bg-rose-50" : a.type === "warn" ? "border-amber-200 bg-amber-50" : a.type === "ok" ? "border-emerald-200 bg-emerald-50" : "border-blue-200 bg-blue-50"}`}>
-                <p className="text-sm font-black text-slate-950">{a.title}</p>
-                <p className="mt-1 text-xs font-semibold text-slate-600">{a.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
+      </div>
+      <div className={styles.brief} aria-label="Resumen de reservas cargadas">
+        <span><strong>{stats.hoy}</strong> hoy · {stats.personasHoy} personas</span>
+        <button onClick={() => setFiltro("pendiente")}><strong>{stats.pendientes}</strong> pendientes</button>
+        <button onClick={() => setFiltro("sin_mesa")}><strong>{stats.sinMesa}</strong> sin mesa</button>
+        <button onClick={() => setFiltro("no_show")}><strong>{stats.noShows}</strong> no-shows</button>
+        <button onClick={() => setVista("bloqueos")}><strong>{bloqueos.filter((b) => b.activo).length}</strong> bloqueos activos</button>
+        <details><summary>Contexto del periodo cargado</summary><div className={styles.notices}>
+          {acciones.map((a, idx) => <p key={idx}><strong>{a.title === "Clientes con riesgo" ? "Historial de cancelaciones o no-show" : a.title}.</strong> {a.text}</p>)}
+        </div></details>
       </div>
 
       {vista === "calendario" ? (
@@ -1018,45 +983,43 @@ export default function ReservasPage() {
       ) : null}
 
       {vista === "hoy" ? (
-        <div className="grid gap-4 xl:grid-cols-[280px_1fr]">
-          <div className="gh-legacy-surface p-4">
-            <label className="text-xs font-black uppercase tracking-wide text-slate-500">Día</label>
+        <div>
+          <div className={styles.daybar}>
+            <h2>{fechaCompleta(diaActivo)}</h2>
             <input
+              aria-label="Día de la agenda"
               type="date"
               value={diaActivo}
               onInput={(event) => setDiaActivo(event.currentTarget.value)}
               onChange={(event) => setDiaActivo(event.currentTarget.value)}
-              className="mt-2 h-11 w-full rounded-xl border border-slate-200 px-3 text-sm font-bold outline-none focus:ring-2 focus:ring-blue-100"
             />
-            <div className="mt-4 rounded-2xl bg-slate-50 p-3">
-              <p className="text-sm font-black text-slate-950">{fechaCompleta(diaActivo)}</p>
-              <p className="mt-1 text-xs text-slate-500">{reservasDia.length} reserva{reservasDia.length === 1 ? "" : "s"} visibles</p>
-            </div>
-            <div className="mt-4 space-y-2">
+            <span>{reservasDia.length} reserva{reservasDia.length === 1 ? "" : "s"} visibles</span>
+          </div>
+            <div>
               {bloqueos.filter((b) => b.fecha === diaActivo && b.activo).map((b) => (
-                <div key={b.id} className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-xs font-black text-slate-950">Bloqueo {b.hora_inicio.slice(0,5)} - {b.hora_fin.slice(0,5)}</p>
-                  <p className="mt-1 text-xs text-slate-500">{b.motivo || "Horario bloqueado"}</p>
+                <div key={b.id} className={styles.block}>
+                  <strong>Bloqueo {b.hora_inicio.slice(0,5)}–{b.hora_fin.slice(0,5)}</strong>
+                  <span>{b.motivo || "Horario bloqueado"}</span>
                 </div>
               ))}
             </div>
-          </div>
 
-          <div className="space-y-4">
+          <div className={styles.agenda}>
             {Object.keys(reservasAgrupadasDia).length ? Object.entries(reservasAgrupadasDia).map(([turno, items]) => (
-              <section key={turno} className="gh-legacy-surface overflow-hidden p-0">
-                <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-                  <h2 className="text-lg font-black text-slate-950">{turno}</h2>
-                  <Badge className="border-slate-200 bg-slate-50 text-slate-600">{items.length} reserva{items.length === 1 ? "" : "s"}</Badge>
+              <section key={turno}>
+                <div className={styles.serviceHeader}>
+                  <h2>{turno}</h2>
+                  <span>{items.length} reserva{items.length === 1 ? "" : "s"}</span>
                 </div>
-                <div className="divide-y divide-slate-200">
+                <div className={styles.columns} aria-hidden="true"><span>Hora</span><span>Cliente</span><span>Pers.</span><span>Mesa</span><span>Estado</span><span className="text-right">Acción</span></div>
+                <div>
                   {items.map((r) => <ReservaCard key={r.id} reserva={r} mesas={mesas} saving={Boolean(saving)} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onHaVenido={marcarHaVenido} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} />)}
                 </div>
               </section>
             )) : (
-              <div className="gh-legacy-surface p-10 text-center">
-                <p className="text-lg font-black text-slate-950">No hay reservas para este día</p>
-                <p className="mt-1 text-sm text-slate-500">Cambia de fecha o añade una nueva reserva.</p>
+              <div className={styles.empty}>
+                <strong>No hay reservas para este día</strong>
+                <p>Cambia de fecha o añade una nueva reserva.</p>
               </div>
             )}
           </div>
@@ -1110,7 +1073,8 @@ export default function ReservasPage() {
             <p className="text-sm text-slate-500">{reservasFiltradas.length} reservas visibles con los filtros actuales.</p>
           </div>
           <div className="divide-y divide-slate-100">
-            {reservasFiltradas.map((r) => <div key={r.id} className="p-4"><ReservaCard reserva={r} mesas={mesas} saving={Boolean(saving)} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onHaVenido={marcarHaVenido} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} /></div>)}
+            <div className={styles.columns} aria-hidden="true"><span>Hora</span><span>Cliente</span><span>Pers.</span><span>Mesa</span><span>Estado</span><span className="text-right">Acción</span></div>
+            {reservasFiltradas.map((r) => <ReservaCard key={r.id} reserva={r} mesas={mesas} saving={Boolean(saving)} fidelizacionActiva={fidelizacionActiva} onEstado={cambiarEstado} onHaVenido={marcarHaVenido} onNoShow={cambiarNoShow} onRegistrarConsumo={abrirConsumo} onMesa={cambiarMesa} onCopiar={copiar} showDate />)}
             {!reservasFiltradas.length ? <div className="p-10 text-center text-sm font-semibold text-slate-500">No hay reservas con estos filtros.</div> : null}
           </div>
         </div>
@@ -1150,7 +1114,7 @@ export default function ReservasPage() {
             <h2 className="text-lg font-black text-slate-950">Bloqueos creados</h2>
             <div className="mt-4 space-y-3">
               {bloqueos.map((b) => (
-                <div key={b.id} className="flex flex-col gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div key={b.id} className="flex flex-col gap-3 border-b border-slate-200 py-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-black text-slate-950">{fechaBonita(b.fecha)} · {b.hora_inicio.slice(0,5)} - {b.hora_fin.slice(0,5)}</p>
                     <p className="mt-1 text-xs font-semibold text-slate-500">{b.motivo || "Horario bloqueado"}</p>
@@ -1168,9 +1132,9 @@ export default function ReservasPage() {
       ) : null}
 
       {consumoModal ? (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/45 p-4 sm:items-center">
-          <div className="gh-turno-modal w-full max-w-lg p-5 shadow-2xl">
-            <div className="flex items-start justify-between gap-4">
+        <ServiceDetail label="Registrar consumo" onClose={() => setConsumoModal(null)}>
+          <div className={styles.consumption}>
+            <div className={styles.detailHeading}>
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-black uppercase tracking-wide text-emerald-700">
                   <Banknote size={14} /> {fidelizacionActiva ? "Fidelización" : "Visita"}
@@ -1178,7 +1142,7 @@ export default function ReservasPage() {
                 <h2 className="mt-3 text-2xl font-black tracking-tight text-slate-950">Registrar consumo</h2>
                 <p className="mt-1 text-sm font-semibold text-slate-500">{consumoModal.reserva.nombre_cliente} · {consumoModal.reserva.personas} persona{consumoModal.reserva.personas === 1 ? "" : "s"}</p>
               </div>
-              <button onClick={() => setConsumoModal(null)} className="rounded-2xl border border-slate-200 p-2 text-slate-500 hover:bg-slate-50">
+              <button aria-label="Cerrar registro de consumo" onClick={() => setConsumoModal(null)} className={styles.detailClose}>
                 <X size={18} />
               </button>
             </div>
@@ -1194,6 +1158,7 @@ export default function ReservasPage() {
                 <label className="text-xs font-black uppercase tracking-wide text-slate-500">Total gastado</label>
                 <div className="mt-1 flex h-12 items-center rounded-2xl border border-slate-200 bg-white px-3 focus-within:ring-2 focus-within:ring-emerald-100">
                   <input
+                    aria-label="Total gastado"
                     value={consumoModal.gasto}
                     onChange={(e) => setConsumoModal((p) => (p ? { ...p, gasto: e.target.value } : p))}
                     placeholder="38,50"
@@ -1208,6 +1173,7 @@ export default function ReservasPage() {
               <div>
                 <label className="text-xs font-black uppercase tracking-wide text-slate-500">Método de pago</label>
                 <select
+                  aria-label="Método de pago"
                   value={consumoModal.metodo_pago}
                   onChange={(e) => setConsumoModal((p) => (p ? { ...p, metodo_pago: e.target.value } : p))}
                   className="mt-1 h-12 w-full rounded-2xl border border-slate-200 bg-white px-3 text-sm font-black text-slate-900 outline-none focus:ring-2 focus:ring-emerald-100"
@@ -1223,6 +1189,7 @@ export default function ReservasPage() {
             <div className="mt-4">
               <label className="text-xs font-black uppercase tracking-wide text-slate-500">Notas internas opcionales</label>
               <textarea
+                aria-label="Notas internas opcionales"
                 value={consumoModal.notas}
                 onChange={(e) => setConsumoModal((p) => (p ? { ...p, notas: e.target.value } : p))}
                 placeholder="Ej: vino incluido, descuento aplicado..."
@@ -1238,7 +1205,7 @@ export default function ReservasPage() {
               </button>
             </div>
           </div>
-        </div>
+        </ServiceDetail>
       ) : null}
 
       <AddReservaModal

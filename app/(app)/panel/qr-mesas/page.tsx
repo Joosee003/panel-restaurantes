@@ -1,4 +1,5 @@
 "use client";
+import styles from "../../components/product/modules.module.css";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -428,11 +429,11 @@ export default function QRMesasPage() {
   }
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 py-6 text-slate-950 sm:px-6 lg:px-8">
+    <div className={`${styles.workspace} ${styles.formWorkspace}`}>
       <div className="mx-auto max-w-7xl">
-        <header className="mb-6 flex flex-col justify-between gap-4 lg:flex-row lg:items-center">
+        <header className={`${styles.compactHeader} mb-5 flex flex-col justify-between gap-4 lg:flex-row lg:items-center`}>
           <div className="flex items-center gap-4">
-            <div className="rounded-2xl bg-slate-950 p-3 text-white shadow-sm">
+            <div className="text-slate-500">
               <QrCode className="h-6 w-6" />
             </div>
             <div>
@@ -481,8 +482,8 @@ export default function QRMesasPage() {
           </div>
         )}
 
-        <section className="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="grid gap-4 md:grid-cols-4">
+        <section className={`${styles.catalog} mb-5`}>
+          <div className={styles.metricStrip}>
             <InfoCard label="Restaurante" value={restauranteNombre} />
             <InfoCard label="Carta activa" value={cartaActiva?.nombre || "Sin carta"} />
             <InfoCard label="Mesas activas" value={String(mesas.length)} />
@@ -555,7 +556,7 @@ export default function QRMesasPage() {
         ) : grupos.length > 0 ? (
           <div className="space-y-6">
             {grupos.map(([zonaNombre, mesasZona]) => (
-              <section key={zonaNombre} className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+              <section key={zonaNombre} className={styles.compactPanel}>
                 <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-end">
                   <div>
                     <h2 className="text-xl font-black text-slate-950">{zonaNombre}</h2>
@@ -563,7 +564,7 @@ export default function QRMesasPage() {
                   </div>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <div className="grid gap-x-7 gap-y-0 lg:grid-cols-2">
                   {mesasZona.map((mesa) => (
                     <MesaQRCard
                       key={mesa.id}
@@ -589,15 +590,15 @@ export default function QRMesasPage() {
           </div>
         )}
       </div>
-    </main>
+    </div>
   );
 }
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-      <div className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">{label}</div>
-      <div className="mt-2 truncate text-lg font-black text-slate-950">{value}</div>
+    <div className={styles.metric}>
+      <div className={styles.metricLabel}>{label}</div>
+      <div className="mt-2 break-words text-sm font-semibold text-slate-950">{value}</div>
     </div>
   );
 }
@@ -627,7 +628,7 @@ function MesaQRCard({
   renewing: boolean;
 }) {
   return (
-    <article className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
+    <article className="border-t border-slate-200 py-5">
       <div className="flex gap-4">
         <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 p-2">
           {qrPreview ? (
