@@ -1,0 +1,32 @@
+# Separate project/service: never run the existing QA or Production compose file.
+name: gastrohelp-qa-v2
+services:
+  frontend-v2:
+    image: gastrohelp-qa-v2:${SOURCE_COMMIT:?Set the audited delivery commit}
+    build:
+      context: ../..
+      dockerfile: infra/qa-frontend-v2/Dockerfile
+      args:
+        SOURCE_COMMIT: ${SOURCE_COMMIT:?Set the audited delivery commit}
+        QA_PUBLIC_CONFIG_SHA256: ${QA_PUBLIC_CONFIG_SHA256:?Set the SHA256 of the public JSON file}
+      secrets:
+        - qa_public
+    init: true
+    restart: "no"
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    ports:
+      - "127.0.0.1:${QA_FRONTEND_PORT:?Choose an unused loopback port}:3000"
+    networks: [isolated-qa]
+    secrets:
+      - supabase_service_role
+    stop_grace_period: 30s
+networks:
+  isolated-qa:
+    external: true
+    name: ${QA_DOCKER_NETWORK:?Use the existing isolated QA network only}
+secrets:
+  qa_public:
+    file: ${QA_PUBLIC_CONFIG_FILE:?Absolute path outside the checkout}
+  supabase_service_role:
+    file: ${QA_SERVICE_ROLE_FILE:?Absolute path outside the checkout, QA only}

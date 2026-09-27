@@ -1,0 +1,37 @@
+# Allowlist for this Dockerfile only; the historical Dockerfile is unchanged.
+**
+!package.json
+!package-lock.json
+!next.config.ts
+!tsconfig.json
+!postcss.config.mjs
+!tailwind.config.js
+!app/
+!app/**
+!lib/
+!lib/**
+!public/
+!public/**
+!scripts/
+!scripts/build-app.mjs
+!infra/
+!infra/qa-frontend-v2/
+!infra/qa-frontend-v2/*.mjs
+# Final exclusions apply even inside allowed directories.
+**/.env*
+**/.git/**
+**/.vercel/**
+**/local-only/**
+**/node_modules/**
+**/*.pem
+**/*.key
+**/*.pfx
+**/*.dump
+**/*.sql
+**/*.zip
+**/*.tar*
+**/*.log
+**/*credentials*
+**/*secret*.json
+public/pruebas-*/**
+public/qa-*.html
