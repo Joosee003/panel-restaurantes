@@ -31,7 +31,7 @@ export function CustomerTimeline({ reservas, movimientos, notificaciones, fideli
 
   return <section className={styles.timelineArea} aria-label="Cronología del cliente">
     <header className={styles.sectionHeading}><h2>La relación, visita a visita</h2><span>Últimos registros disponibles de cada historial</span></header>
-    <div className={styles.filters} style={{ marginBottom: 26 }} aria-label="Filtrar cronología">
+    <div className={`${styles.filters} ${styles.timelineFilters}`} aria-label="Filtrar cronología">
       <button className={styles.filter} aria-pressed={filter === "todo"} onClick={() => setFilter("todo")}>Todo <small>{events.length}</small></button>
       <button className={styles.filter} aria-pressed={filter === "reserva"} onClick={() => setFilter("reserva")}>Reservas <small>{reservas.length}</small></button>
       {fidelizacionActiva && <button className={styles.filter} aria-pressed={filter === "puntos"} onClick={() => setFilter("puntos")}>Puntos <small>{movimientos.length}</small></button>}
@@ -42,7 +42,7 @@ export function CustomerTimeline({ reservas, movimientos, notificaciones, fideli
         <div className={styles.eventTime}>{timestamp(event.date) ? <time dateTime={event.date!}>{new Date(event.date!).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" })}<span>{new Date(event.date!).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}</span></time> : "Sin fecha"}</div>
         <div className={styles.eventBody}>
           {event.kind === "reserva" && <>
-            <div className={styles.eventTitle}><h3>Reserva · {Number(event.value.personas || 0)} personas</h3><span>{event.value.estado || "Sin estado"}</span></div>
+            <div className={styles.eventTitle}><h3>Reserva · {Number(event.value.personas || 0)} personas</h3><span className={styles.eventState} data-state={event.value.estado}>{event.value.estado || "Sin estado"}</span></div>
             <div className={styles.eventContext}><span className={event.value.atendida === true ? styles.positive : event.value.atendida === false ? styles.negative : ""}>{event.value.atendida === true ? "Vino" : event.value.atendida === false ? "No show" : "Sin marcar"}</span>{event.value.turno && <span>{event.value.turno}</span>}{event.value.origen && <span>{event.value.origen}</span>}<span>Reseña: {event.value.resena_solicitada ? "pedida" : "no"}</span></div>
             {event.value.notas && <p className={styles.eventNote}>{event.value.notas}</p>}
           </>}

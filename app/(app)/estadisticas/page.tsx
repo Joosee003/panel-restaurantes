@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ComponentType, ReactNode } from "react";
 import Link from "next/link";
 import styles from "../components/product/modules.module.css";
+import refinement from "./metrics-refinement.module.css";
 import {
   ArrowLeft,
   ArrowRight,
@@ -221,8 +222,8 @@ function ChartCard({
   className?: string;
 }) {
   return (
-    <div className={clsx(styles.chart, className)}>
-      <div className="mb-4 flex items-start justify-between gap-3">
+    <div className={clsx(styles.chart, refinement.chartSection, className)}>
+      <div className={`${refinement.chartHeading} flex items-start justify-between gap-3`}>
         <div>
           <h2 className={clsx("text-lg font-black", dark ? "text-white" : "text-slate-950")}>{title}</h2>
           {subtitle && <p className={clsx("mt-1 text-sm font-semibold", dark ? "text-slate-400" : "text-slate-500")}>{subtitle}</p>}
@@ -235,7 +236,7 @@ function ChartCard({
 
 function EmptyChart({ dark, text = "Todavía no hay datos suficientes" }: { dark: boolean; text?: string }) {
   return (
-    <div className={clsx("flex h-[320px] items-center justify-center rounded-2xl border border-dashed text-sm font-bold", dark ? "border-slate-800 text-slate-500" : "border-slate-200 text-slate-400")}>
+    <div className={clsx(refinement.empty, dark ? "border-slate-800 text-slate-400" : "border-slate-200 text-slate-500")}>
       {text}
     </div>
   );
@@ -605,7 +606,7 @@ export default function EstadisticasPage() {
   const pieColors = ["#2563eb", "#059669", "#7c3aed", "#f59e0b", "#64748b"];
 
   return (
-    <div className={`${styles.workspace} space-y-5`}>
+    <div className={`${styles.workspace} ${refinement.page} space-y-5`}>
       <section className={styles.compactHeader}>
         <div className="flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -698,62 +699,62 @@ export default function EstadisticasPage() {
 
           <section className={`${styles.chartLayout} grid grid-cols-1 xl:grid-cols-2`}>
             {camareroDigitalActivo ? <ChartCard dark={dark} title="Dinero generado por el sistema" subtitle="Mes actual vs mes anterior">
-              <div className="h-[360px]">
+              <div className={refinement.plot}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={impactMoney}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} />
                     <XAxis dataKey="name" stroke={chartText} tick={{ fontSize: 12 }} />
                     <YAxis stroke={chartText} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value: unknown) => fmtEuro(toNum(value))} contentStyle={{ borderRadius: 14, border: "1px solid #e2e8f0" }} />
+                    <Tooltip formatter={(value: unknown) => fmtEuro(toNum(value))} contentStyle={{ borderRadius: 5, border: "1px solid #dce3e3", fontSize: 12 }} />
                     <Legend />
-                    <Bar dataKey="anterior" name="Mes anterior" radius={[8, 8, 0, 0]} fill="#94a3b8" />
-                    <Bar dataKey="actual" name="Mes actual" radius={[8, 8, 0, 0]} fill="#059669" />
+                    <Bar dataKey="anterior" name="Mes anterior" radius={[2, 2, 0, 0]} fill="#b5c3c7" isAnimationActive={false} />
+                    <Bar dataKey="actual" name="Mes actual" radius={[2, 2, 0, 0]} fill="#237565" isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </ChartCard> : null}
 
             <ChartCard dark={dark} title="Actividad clave" subtitle={camareroDigitalActivo ? "Pedidos, reservas, clientes y reseñas" : "Reservas, clientes y reseñas"}>
-              <div className="h-[360px]">
+              <div className={refinement.plot}>
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={impactActivity}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} />
                     <XAxis dataKey="name" stroke={chartText} tick={{ fontSize: 12 }} />
                     <YAxis stroke={chartText} tick={{ fontSize: 12 }} />
-                    <Tooltip contentStyle={{ borderRadius: 14, border: "1px solid #e2e8f0" }} />
+                    <Tooltip contentStyle={{ borderRadius: 5, border: "1px solid #dce3e3", fontSize: 12 }} />
                     <Legend />
-                    <Bar dataKey="anterior" name="Mes anterior" radius={[8, 8, 0, 0]} fill="#94a3b8" />
-                    <Bar dataKey="actual" name="Mes actual" radius={[8, 8, 0, 0]} fill="#2563eb" />
+                    <Bar dataKey="anterior" name="Mes anterior" radius={[2, 2, 0, 0]} fill="#b5c3c7" isAnimationActive={false} />
+                    <Bar dataKey="actual" name="Mes actual" radius={[2, 2, 0, 0]} fill="#245be0" isAnimationActive={false} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
             </ChartCard>
 
             <ChartCard dark={dark} title="Tendencia últimos 30 días" subtitle={camareroDigitalActivo ? "Reservas y pedidos por QR" : "Reservas registradas"}>
-              <div className="h-[360px]">
+              <div className={refinement.plot}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={tendencia30}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} />
                     <XAxis dataKey="dia" stroke={chartText} tick={{ fontSize: 11 }} />
                     <YAxis stroke={chartText} tick={{ fontSize: 12 }} />
-                    <Tooltip contentStyle={{ borderRadius: 14, border: "1px solid #e2e8f0" }} />
+                    <Tooltip contentStyle={{ borderRadius: 5, border: "1px solid #dce3e3", fontSize: 12 }} />
                     <Legend />
-                    {camareroDigitalActivo ? <Line type="monotone" dataKey="pedidos" name="Pedidos QR" stroke="#2563eb" strokeWidth={3} dot={false} /> : null}
-                    <Line type="monotone" dataKey="reservas" name="Reservas" stroke="#7c3aed" strokeWidth={3} dot={false} />
+                    {camareroDigitalActivo ? <Line type="monotone" dataKey="pedidos" name="Pedidos QR" stroke="#245be0" strokeWidth={2} dot={false} isAnimationActive={false} /> : null}
+                    <Line type="monotone" dataKey="reservas" name="Reservas" stroke="#237565" strokeWidth={2} dot={false} isAnimationActive={false} />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
             </ChartCard>
 
             {camareroDigitalActivo ? <ChartCard dark={dark} title="Facturación QR últimos 30 días" subtitle="Dinero cobrado desde cierres de mesa">
-              <div className="h-[360px]">
+              <div className={refinement.plot}>
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={tendencia30}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartGrid} />
                     <XAxis dataKey="dia" stroke={chartText} tick={{ fontSize: 11 }} />
                     <YAxis stroke={chartText} tick={{ fontSize: 12 }} />
-                    <Tooltip formatter={(value: unknown) => fmtEuro(toNum(value))} contentStyle={{ borderRadius: 14, border: "1px solid #e2e8f0" }} />
-                    <Area type="monotone" dataKey="facturacion" name="Facturación QR" stroke="#059669" fill="#bbf7d0" strokeWidth={3} />
+                    <Tooltip formatter={(value: unknown) => fmtEuro(toNum(value))} contentStyle={{ borderRadius: 5, border: "1px solid #dce3e3", fontSize: 12 }} />
+                    <Area type="monotone" dataKey="facturacion" name="Facturación QR" stroke="#237565" fill="#e1eeea" strokeWidth={2} isAnimationActive={false} />
                   </AreaChart>
                 </ResponsiveContainer>
               </div>
@@ -764,13 +765,18 @@ export default function EstadisticasPage() {
             {camareroDigitalActivo ? <ChartCard dark={dark} title="Métodos de pago" subtitle="Cómo se cobra lo generado por QR" className="xl:col-span-1">
               {metodosPago.length === 0 ? (
                 <EmptyChart dark={dark} text="Todavía no hay cierres con método de pago" />
+              ) : metodosPago.length === 1 ? (
+                <div className={refinement.paymentSingle} aria-label="Método de pago registrado">
+                  <dl><dt>{metodosPago[0].name}</dt><dd>{fmtEuro(metodosPago[0].value)}</dd></dl>
+                  <p>{fmtInt(metodosPago[0].count)} {metodosPago[0].count === 1 ? "cierre registrado" : "cierres registrados"} · único método este mes</p>
+                </div>
               ) : (
-                <div className="h-[320px]">
+                <div className={refinement.plot}>
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Tooltip formatter={(value: unknown) => fmtEuro(toNum(value))} contentStyle={{ borderRadius: 14, border: "1px solid #e2e8f0" }} />
+                      <Tooltip formatter={(value: unknown) => fmtEuro(toNum(value))} contentStyle={{ borderRadius: 5, border: "1px solid #dce3e3", fontSize: 12 }} />
                       <Legend />
-                      <Pie data={metodosPago} dataKey="value" nameKey="name" innerRadius={70} outerRadius={115} paddingAngle={4}>
+                      <Pie data={metodosPago} dataKey="value" nameKey="name" innerRadius={54} outerRadius={90} paddingAngle={3} isAnimationActive={false}>
                         {metodosPago.map((item, index) => (
                           <Cell key={item.name} fill={pieColors[index % pieColors.length]} />
                         ))}
@@ -782,38 +788,36 @@ export default function EstadisticasPage() {
             </ChartCard> : null}
 
             <section className={clsx(styles.report, camareroDigitalActivo && "xl:col-span-2")}>
-              <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className={refinement.reportHeading}>
                 <div>
                   <h2 className={clsx("text-xl font-black", dark ? "text-white" : "text-slate-950")}>Resumen para enseñar al restaurante</h2>
-                  <p className={clsx("mt-1 text-sm font-semibold", dark ? "text-slate-400" : "text-slate-500")}>
-                    Frases claras para demostrar valor sin marear con datos técnicos.
-                  </p>
+                  <p>Lectura del mes · cobros, actividad y relación con el cliente.</p>
                 </div>
-                <Link href="/dashboard" className="inline-flex items-center justify-center gap-2 rounded-2xl bg-blue-700 px-5 py-3 text-sm font-black text-white transition hover:bg-blue-800">
+                <Link href="/dashboard">
                   Volver al panel <ArrowRight size={16} />
                 </Link>
               </div>
 
-              <div className={`grid grid-cols-1 gap-3 ${camareroDigitalActivo ? "md:grid-cols-3" : ""}`}>
-                {camareroDigitalActivo ? <><div className={clsx("rounded-2xl p-4", dark ? "bg-slate-900" : "bg-emerald-50")}>
-                  <p className="text-xs font-black uppercase tracking-widest text-emerald-700">Dinero</p>
-                  <p className={clsx("mt-2 text-sm font-bold leading-6", dark ? "text-slate-300" : "text-slate-700")}>
-                    El camarero digital ha movido {fmtEuro(data.potencialQRActual)} en pedidos y ha dejado {fmtEuro(data.facturacionQRActual)} cobrado este mes.
-                  </p>
+              <dl className={refinement.reportLines}>
+                {camareroDigitalActivo ? <><div>
+                  <dt>Dinero</dt>
+                  <dd>
+                    El camarero digital ha movido <strong>{fmtEuro(data.potencialQRActual)}</strong> en pedidos y ha dejado <strong>{fmtEuro(data.facturacionQRActual)}</strong> cobrado este mes.
+                  </dd>
                 </div>
-                <div className={clsx("rounded-2xl p-4", dark ? "bg-slate-900" : "bg-blue-50")}>
-                  <p className="text-xs font-black uppercase tracking-widest text-blue-700">Operativa</p>
-                  <p className={clsx("mt-2 text-sm font-bold leading-6", dark ? "text-slate-300" : "text-slate-700")}>
-                    Han entrado {fmtInt(data.pedidosActual.length)} pedidos por QR y {fmtInt(data.cierresActual.length)} mesas se han cerrado desde el sistema.
-                  </p>
+                <div>
+                  <dt>Operativa</dt>
+                  <dd>
+                    Han entrado <strong>{fmtInt(data.pedidosActual.length)}</strong> pedidos por QR y <strong>{fmtInt(data.cierresActual.length)}</strong> mesas se han cerrado desde el sistema.
+                  </dd>
                 </div></> : null}
-                <div className={clsx("rounded-2xl p-4", dark ? "bg-slate-900" : "bg-violet-50")}>
-                  <p className="text-xs font-black uppercase tracking-widest text-violet-700">Crecimiento</p>
-                  <p className={clsx("mt-2 text-sm font-bold leading-6", dark ? "text-slate-300" : "text-slate-700")}>
-                    Este mes hay {fmtInt(data.reservasActual.length)} reservas, {fmtInt(data.clientesActual.length)} clientes nuevos y {fmtInt(data.resenasActual.length)} reseñas nuevas.
-                  </p>
+                <div>
+                  <dt>Crecimiento</dt>
+                  <dd>
+                    Este mes hay <strong>{fmtInt(data.reservasActual.length)}</strong> reservas, <strong>{fmtInt(data.clientesActual.length)}</strong> clientes nuevos y <strong>{fmtInt(data.resenasActual.length)}</strong> reseñas nuevas.
+                  </dd>
                 </div>
-              </div>
+              </dl>
             </section>
           </section>
         </>

@@ -345,7 +345,6 @@ function ReservaCard({
   const riesgo = Number(reserva.cliente?.no_show_total || 0) + Number(reserva.cliente?.cancelaciones_totales || 0);
   const contexto = [
     showDate ? fechaBonita(reserva.fecha_hora_reserva) : null,
-    reserva.notas,
     reserva.consumo_registrado_en ? `Consumo ${money(Number(reserva.consumo_total || 0))}${fidelizacionActiva ? ` · ${Number(reserva.puntos_generados || 0)} pts` : ""}` : null,
   ].filter(Boolean).join(" · ");
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -361,15 +360,19 @@ function ReservaCard({
 
   return (
     <article className={styles.row}>
-      <button type="button" onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-label={`Gestionar reserva de ${reserva.nombre_cliente || "cliente"}, ${horaCorta(reserva.fecha_hora_reserva)}, ${reserva.personas} personas, ${nombreMesa(reserva, mesas)}, ${estadoLabel(reserva)}`} className={styles.rowMain}>
+      <button type="button" onClick={() => setMobileOpen(true)} aria-expanded={mobileOpen} aria-describedby={reserva.notas ? `reserva-nota-${reserva.id}` : undefined} aria-label={`Gestionar reserva de ${reserva.nombre_cliente || "cliente"}, ${horaCorta(reserva.fecha_hora_reserva)}, ${reserva.personas} personas, ${nombreMesa(reserva, mesas)}, ${estadoLabel(reserva)}`} className={styles.rowMain}>
         <time className={styles.time}>{horaCorta(reserva.fecha_hora_reserva)}</time>
-        <span className={styles.customer}>{reserva.nombre_cliente || "Cliente"}{contexto ? <small>{contexto}</small> : null}</span>
+        <span className={styles.customer}>
+          <span className={styles.customerName}>{reserva.nombre_cliente || "Cliente"}</span>
+          {reserva.notas ? <small id={`reserva-nota-${reserva.id}`} className={styles.reservationNote} title={reserva.notas}><span>Nota</span> {reserva.notas}</small> : null}
+          {contexto ? <small className={styles.rowHistory}>{contexto}</small> : null}
+        </span>
         <span className={styles.party}>{reserva.personas}</span>
         <span className={styles.rowContext}>
           <span className={styles.tableName}>{reserva.mesa_id && !/^mesa\b/i.test(nombreMesa(reserva, mesas)) ? <span className={styles.mobileLabel}>Mesa </span> : null}{nombreMesa(reserva, mesas)}</span>
           <span className={`${styles.rowState} ${estadoClass(reserva)}`}>{estadoLabel(reserva)}</span>
         </span>
-        <span className={styles.rowAction}><span>Gestionar</span><ArrowUpRight size={15} /></span>
+        <span className={styles.rowAction} aria-hidden="true"><span>Ver detalle</span><ArrowUpRight size={15} /></span>
       </button>
       {riesgo > 0 ? <div className={styles.rowSupplement}>
         {riesgo > 0 ? <span>{Number(reserva.cliente?.no_show_total || 0)} no-shows · {Number(reserva.cliente?.cancelaciones_totales || 0)} cancelaciones anteriores</span> : null}
@@ -378,8 +381,13 @@ function ReservaCard({
       {mobileOpen ? (
         <ServiceDetail label={`Gestionar reserva de ${reserva.nombre_cliente || "cliente"}`} onClose={() => setMobileOpen(false)}>
           <div className={styles.detailHeading}>
-            <div><span className={`${styles.rowState} ${estadoClass(reserva)}`}>{estadoLabel(reserva)}</span><h2>{reserva.nombre_cliente || "Cliente"}</h2><p>{fechaCompleta(reserva.fecha_hora_reserva)} · {horaCorta(reserva.fecha_hora_reserva)} · {reserva.personas} personas</p></div>
+            <div><span className={`${styles.rowState} ${estadoClass(reserva)}`}>{estadoLabel(reserva)}</span><h2>{reserva.nombre_cliente || "Cliente"}</h2><p>{fechaCompleta(reserva.fecha_hora_reserva)}</p></div>
             <button type="button" onClick={() => setMobileOpen(false)} className={styles.detailClose} aria-label="Cerrar detalle"><X size={17} /></button>
+          </div>
+          <div className={styles.selectedContext}>
+            <span><small>Reserva</small><strong>{horaCorta(reserva.fecha_hora_reserva)}</strong></span>
+            <span><small>Personas</small><strong>{reserva.personas}</strong></span>
+            <span><small>Mesa</small><strong>{nombreMesa(reserva, mesas)}</strong></span>
           </div>
           <dl className={styles.detailFacts}>
             <div><dt>Teléfono</dt><dd>{reserva.telefono || "Sin teléfono"}</dd></div>
@@ -885,11 +893,11 @@ export default function ReservasPage() {
       </div>
 
       {vista === "calendario" ? (
-        <div className="gh-legacy-surface p-4">
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className={styles.calendarSurface}>
+          <div className={styles.calendarHeading}>
             <div>
               <h2 className="text-lg font-black capitalize text-slate-950">{monthTitle(mesActivo)}</h2>
-              <p className="text-sm text-slate-500">Pulsa un día para abrir sus reservas.</p>
+              <p className="text-sm text-slate-500">Reservas visibles con los filtros actuales. Selecciona un día para abrir la agenda.</p>
             </div>
             <div className="flex flex-wrap gap-2">
               <button
@@ -913,13 +921,13 @@ export default function ReservasPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-7 gap-2 text-center text-xs font-black uppercase tracking-wide text-slate-400">
+          <div className={styles.calendarWeekdays}>
             {["L", "M", "X", "J", "V", "S", "D"].map((dia) => (
               <div key={dia} className="py-2">{dia}</div>
             ))}
           </div>
 
-          <div className="gh-reservation-calendar grid grid-cols-1 gap-3 sm:grid-cols-7">
+          <div className={styles.calendarGrid}>
             {diasCalendario.map((dia) => {
               const key = fechaISO(dia);
               const reservasDelDia = reservasFiltradas.filter((r) => fechaISO(new Date(r.fecha_hora_reserva)) === key);
@@ -936,45 +944,38 @@ export default function ReservasPage() {
                     setDiaActivo(key);
                     setVista("hoy");
                   }}
-                  className={`min-h-36 rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
-                    esHoy
-                      ? "border-blue-300 bg-blue-50"
-                      : enMesActual
-                      ? "border-slate-200 bg-white"
-                      : "border-slate-100 bg-slate-50 text-slate-400"
-                  }`}
+                  className={styles.calendarDay}
+                  data-today={esHoy}
+                  data-outside={!enMesActual}
+                  data-selected={key === diaActivo}
+                  aria-current={esHoy ? "date" : undefined}
+                  aria-label={`${fechaCompleta(key)}: ${reservasDelDia.length} reservas, ${pendientesDia} pendientes, ${bloqueosDelDia.length} bloqueos. Abrir agenda.`}
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className={`text-sm font-black ${enMesActual ? "text-slate-950" : "text-slate-400"}`}>
-                      {dia.getDate()}
-                    </span>
-                    {reservasDelDia.length ? (
-                      <span className="rounded-full bg-slate-900 px-2 py-0.5 text-[11px] font-black text-white">
-                        {reservasDelDia.length}
-                      </span>
-                    ) : null}
+                  <div className={styles.calendarDate}>
+                    <span>{dia.getDate()}</span>
+                    {esHoy ? <small>Hoy</small> : null}
                   </div>
-
-                  <div className="mt-3 space-y-1.5">
+                  <div className={styles.calendarVolume}>
+                    <strong>{reservasDelDia.length || ""}</strong>
+                    {reservasDelDia.length ? <span><span className={styles.calendarLongLabel}>reserva{reservasDelDia.length === 1 ? "" : "s"}</span><span className={styles.calendarShortLabel}>res.</span></span> : null}
+                  </div>
+                  <div className={styles.calendarEntries}>
                     {bloqueosDelDia.slice(0, 1).map((b) => (
-                      <div key={b.id} className="truncate rounded-lg bg-slate-200 px-2 py-1 text-[11px] font-bold text-slate-700">
+                      <div key={b.id} className={styles.calendarBlock}>
                         Bloqueo {b.hora_inicio.slice(0, 5)}
                       </div>
                     ))}
                     {reservasDelDia.slice(0, 3).map((r) => (
-                      <div key={r.id} className="truncate rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-[11px] font-bold text-slate-700">
-                        {horaCorta(r.fecha_hora_reserva)} · {r.nombre_cliente}
+                      <div key={r.id} className={styles.calendarEntry}>
+                        <time>{horaCorta(r.fecha_hora_reserva)}</time><span>{r.nombre_cliente}</span>
                       </div>
                     ))}
-                    {pendientesDia ? (
-                      <div className="rounded-lg bg-amber-50 px-2 py-1 text-[11px] font-black text-amber-700">
-                        {pendientesDia} pendiente{pendientesDia === 1 ? "" : "s"}
-                      </div>
-                    ) : null}
                     {reservasDelDia.length > 3 ? (
-                      <p className="text-[11px] font-bold text-slate-500">+{reservasDelDia.length - 3} más</p>
+                      <p className={styles.calendarMore}>+{reservasDelDia.length - 3} más en la agenda</p>
                     ) : null}
                   </div>
+                  {pendientesDia ? <p className={styles.calendarPending}>{pendientesDia}<span> pendiente{pendientesDia === 1 ? "" : "s"}</span></p> : null}
+                  {bloqueosDelDia.length ? <span className={styles.calendarBlockMarker} title={`${bloqueosDelDia.length} bloqueos`}>B</span> : null}
                 </button>
               );
             })}

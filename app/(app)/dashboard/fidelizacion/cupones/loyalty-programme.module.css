@@ -1,0 +1,71 @@
+.programme { min-width: 0; }
+.programmeSummary { display: flex; align-items: center; gap: 34px; padding-block: 20px; }
+.conversion { min-width: 165px; border-right: 1px solid var(--gh-line, #dce3e3); padding-right: 32px; }
+.conversion p { font-size: 10px; color: var(--gh-muted, #63767d); text-transform: uppercase; letter-spacing: .08em; }
+.conversion strong { display: block; font-size: 23px; font-weight: 650; letter-spacing: -.045em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.conversion small { display: block; color: var(--gh-muted, #63767d); font-size: 11px; margin-top: 3px; }
+.counts { display: flex; flex-wrap: wrap; gap: 16px 34px; }
+.stat { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; align-items: baseline; }
+.stat strong { grid-row: 1 / 3; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.stat span { font-size: 12px; font-weight: 600; }
+.stat small { color: var(--gh-muted, #63767d); font-size: 10px; }
+.levelsHeading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
+.levelsHeading h2 { font-size: 12px; font-weight: 650; }
+.levelsHeading span { color: var(--gh-muted, #63767d); font-size: 11px; }
+.levels { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); padding-bottom: 16px; }
+.levels li { padding: 12px 12px 0 0; border-top: 2px solid var(--gh-line, #dce3e3); font-size: 12px; }
+.levels li + li { padding-left: 16px; }
+.levels li:nth-child(n+4) { border-color: #95ada5; }
+.levels strong { display: block; font-weight: 650; }
+.levels span { display: block; margin-top: 3px; color: var(--gh-muted, #63767d); font-size: 11px; }
+.rewardRow { display: grid; grid-template-columns: 68px minmax(0,1fr) 92px auto; align-items: center; gap: 20px; padding-block: 18px; border-bottom: 1px solid var(--gh-line, #dce3e3); }
+.rewardImage { position: relative; height: 68px; overflow: hidden; background: #e9eeee; }
+.rewardImage > div { height: 100%; display: flex; align-items: center; justify-content: center; text-align: center; color: var(--gh-muted, #63767d); font-size: 10px; }
+.rewardContent { min-width: 0; }
+.rewardContent h3 { font-size: 14px; font-weight: 650; margin-top: 5px; }
+.rewardContent p { font-size: 12px; line-height: 1.55; margin-top: 3px; color: var(--gh-muted, #63767d); }
+.availability { display: flex; flex-wrap: wrap; gap: 6px 13px; font-size: 10px; color: var(--gh-muted, #63767d); }
+.availability span { padding: 0; background: transparent; border-radius: 0; font-size: 10px; font-weight: 500; }
+.availability span:first-child { font-weight: 650; }
+.availability span[data-active="true"] { color: #237565; }
+.availability span[data-active="false"] { color: #7b603c; }
+.points { display: flex; align-items: baseline; gap: 5px; font-size: 11px; color: var(--gh-muted, #63767d); font-variant-numeric: tabular-nums; }
+.points strong { font-size: 20px; font-weight: 600; letter-spacing: -.04em; color: var(--gh-ink, #172d35); }
+.rowActions { display: flex; flex-wrap: wrap; gap: 6px; }
+.rowActions button { min-height: 36px; padding: 7px 10px; font-size: 11px; font-weight: 550; }
+.rowActions button:last-child { border-color: transparent; background: transparent; }
+.couponRow { display: grid; grid-template-columns: minmax(0,1fr) minmax(170px,.65fr) auto; gap: 24px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--gh-line, #dce3e3); }
+.condition { font-size: 11px; line-height: 1.6; color: var(--gh-muted, #63767d); }
+.condition strong { display: block; font-weight: 600; color: var(--gh-ink, #172d35); margin-bottom: 3px; }
+@media (max-width: 1100px) {
+  .programmeSummary { gap: 22px; }
+  .counts { gap: 14px 20px; }
+  .rewardRow { grid-template-columns: 60px minmax(0,1fr) 80px; gap: 14px; }
+  .rowActions { grid-column: 2 / -1; }
+  .rewardImage { height: 60px; }
+  .couponRow { grid-template-columns: minmax(0,1fr) minmax(170px,.65fr); gap: 12px 24px; }
+  .couponRow .rowActions { grid-column: 1 / -1; }
+}
+@media (max-width: 639px) {
+  .programme :is(button, a) { min-height: 44px; }
+  .programmeSummary { flex-direction: column; align-items: stretch; gap: 18px; padding-block: 18px; }
+  .conversion { border-right: 0; padding-right: 0; display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; }
+  .conversion strong { grid-column: 2; grid-row: 1 / 3; margin: 0; align-self: center; font-size: 22px; }
+  .conversion small { margin: 0; }
+  .counts { justify-content: space-between; gap: 12px; }
+  .stat { grid-template-columns: 1fr; gap: 3px; }
+  .stat strong { grid-row: auto; font-size: 18px; }
+  .stat span { font-size: 11px; }
+  .stat small { font-size: 9px; max-width: 95px; line-height: 1.4; }
+  .levelsHeading { margin-bottom: 6px; }
+  .levels { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 0; padding-bottom: 10px; }
+  .levels li, .levels li + li { padding: 9px 8px 0 0; border-top-width: 1px; border-top-color: var(--gh-line, #dce3e3); }
+  .levels span { margin-top: 3px; }
+  .rewardRow { grid-template-columns: 50px minmax(0,1fr) 60px; gap: 12px; padding-block: 16px; align-items: start; }
+  .rewardImage { height: 58px; }
+  .points { flex-direction: column; gap: 0; align-items: flex-end; padding-top: 13px; }
+  .points strong { font-size: 20px; }
+  .rowActions { grid-column: 1 / -1; }
+  .programme .rowActions button { flex: 1; min-height: 44px; font-size: 12px; }
+  .couponRow { grid-template-columns: 1fr; gap: 10px; }
+}

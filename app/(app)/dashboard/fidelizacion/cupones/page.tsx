@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import styles from "../../../components/product/modules.module.css";
+import refinement from "./loyalty-programme.module.css";
 import { useEffect, useMemo, useState } from "react";
 import { Lock } from "lucide-react";
 import { useTheme } from "@/app/(app)/components/ThemeProvider";
@@ -146,7 +147,7 @@ export default function CuponesPage() {
   const [premioActivo, setPremioActivo] = useState(true);
   const [savingPremio, setSavingPremio] = useState(false);
 
-  const pageWrap = `${styles.workspace} ${styles.formWorkspace}`;
+  const pageWrap = `${styles.workspace} ${styles.formWorkspace} ${refinement.programme}`;
 
   const cardBase = useMemo(
     () =>
@@ -703,20 +704,27 @@ export default function CuponesPage() {
           </div>
         </div>
 
-        <div className={styles.metricStrip}>
-          <StatCard title="Premios activos" value={estadisticas.premiosActivos} subtitle="Canjeables por puntos" />
-          <StatCard title="Cupones activos" value={estadisticas.cuponesActivos} subtitle="Ventajas automáticas" />
-          <StatCard title="Ventajas VIP" value={estadisticas.ventajasVip} subtitle="Solo mejores clientes" />
-          <StatCard title="Puntos por euro" value={config.puntos_por_euro || 1} subtitle="Base del restaurante" />
+        <div className={refinement.programmeSummary}>
+          <div className={refinement.conversion}>
+            <p>Puntos por consumo</p>
+            <strong>{config.puntos_por_euro || 1} pts / €</strong>
+            <small>Base del restaurante</small>
+          </div>
+          <div className={refinement.counts}>
+            <StatCard title="Premios activos" value={estadisticas.premiosActivos} subtitle="Canjeables por puntos" />
+            <StatCard title="Cupones activos" value={estadisticas.cuponesActivos} subtitle="Ventajas automáticas" />
+            <StatCard title="Ventajas VIP" value={estadisticas.ventajasVip} subtitle="Solo mejores clientes" />
+          </div>
         </div>
 
-        <div className={styles.levels}>
-          <div>Nuevo: 0-{Math.max(0, config.nivel_frecuente_desde - 1)} visitas</div>
-          <div>Frecuente: desde {config.nivel_frecuente_desde}</div>
-          <div>Habitual: desde {config.nivel_habitual_desde}</div>
-          <div>VIP: desde {config.nivel_vip_desde}</div>
-          <div>Maestro: desde {config.nivel_maestro_desde}</div>
-        </div>
+        <div className={refinement.levelsHeading}><h2>Niveles del programa</h2><span>Progresión por visitas</span></div>
+        <ol className={refinement.levels}>
+          <li><strong>Nuevo</strong><span>0-{Math.max(0, config.nivel_frecuente_desde - 1)} visitas</span></li>
+          <li><strong>Frecuente</strong><span>Desde {config.nivel_frecuente_desde} visitas</span></li>
+          <li><strong>Habitual</strong><span>Desde {config.nivel_habitual_desde} visitas</span></li>
+          <li><strong>VIP</strong><span>Desde {config.nivel_vip_desde} visitas</span></li>
+          <li><strong>Maestro</strong><span>Desde {config.nivel_maestro_desde} visitas</span></li>
+        </ol>
       </div>
 
       <div className={`${styles.tabs} mt-4`}>
@@ -789,35 +797,29 @@ export default function CuponesPage() {
               </div>
             ) : null}
             {premios.map((p) => (
-              <div key={p.id} className={styles.rewardRow}>
-                <div className={styles.rewardImage}>
+              <div key={p.id} className={refinement.rewardRow}>
+                <div className={refinement.rewardImage}>
                   {p.imagen_url ? (
-                    <Image src={p.imagen_url} alt={p.nombre} fill sizes="(min-width: 1280px) 33vw, (min-width: 640px) 50vw, 100vw" unoptimized className="object-cover" />
+                    <Image src={p.imagen_url} alt={p.nombre} fill sizes="68px" unoptimized className="object-cover" />
                   ) : (
-                    <div className={clsx("flex h-36 w-full items-center justify-center text-xs font-bold", dark ? "bg-gray-900 text-gray-400" : "bg-slate-100 text-slate-500")}>
+                    <div>
                       Sin imagen
                     </div>
                   )}
-                  <div className="absolute left-3 top-3 flex gap-2">
-                    <span className={activeBadge(p.activo)}>{p.activo ? "Activo" : "Pausado"}</span>
+                </div>
+                <div className={refinement.rewardContent}>
+                  <div className={refinement.availability}>
+                    <span className={activeBadge(p.activo)} data-active={p.activo}>{p.activo ? "Activo" : "Pausado"}</span>
                     <span className={nivelBadge(p.nivel_minimo)}>{nivelLabel(p.nivel_minimo)}</span>
                   </div>
+                  <h3>{p.nombre}</h3>
+                  <p>{p.descripcion || "Sin descripción"}</p>
                 </div>
-                <div className={styles.rewardBody}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-base font-black">{p.nombre}</div>
-                      <div className={clsx("mt-1 text-sm font-semibold", smallText)}>{p.descripcion || "Sin descripción"}</div>
-                    </div>
-                    <div className={clsx("shrink-0 rounded-2xl px-3 py-2 text-sm font-black", dark ? "bg-gray-900" : "bg-slate-100")}>
-                      {p.puntos_requeridos} pts
-                    </div>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <button type="button" className={btnGhost} onClick={() => editarPremio(p)}>Editar</button>
-                    <button type="button" className={btnGhost} onClick={() => togglePremioActivo(p)}>{p.activo ? "Pausar" : "Activar"}</button>
-                    <button type="button" className={btnDanger} onClick={() => borrarPremio(p)}>Eliminar</button>
-                  </div>
+                <div className={refinement.points}><strong>{p.puntos_requeridos}</strong><span>pts</span></div>
+                <div className={refinement.rowActions}>
+                  <button type="button" className={btnGhost} onClick={() => editarPremio(p)}>Editar</button>
+                  <button type="button" className={btnGhost} onClick={() => togglePremioActivo(p)}>{p.activo ? "Pausar" : "Activar"}</button>
+                  <button type="button" className={btnDanger} onClick={() => borrarPremio(p)}>Eliminar</button>
                 </div>
               </div>
             ))}
@@ -877,22 +879,18 @@ export default function CuponesPage() {
               </div>
             ) : null}
             {cupones.map((c) => (
-              <div key={c.id} className={styles.couponRow}>
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="flex flex-wrap gap-2">
-                      <span className={activeBadge(c.activo)}>{c.activo ? "Activo" : "Pausado"}</span>
-                      <span className={nivelBadge(c.nivel_minimo)}>{nivelLabel(c.nivel_minimo)}</span>
-                    </div>
-                    <h3 className="mt-4 text-lg font-black">{c.nombre}</h3>
-                    <p className={clsx("mt-1 text-sm font-semibold", smallText)}>{c.beneficio}</p>
+              <div key={c.id} className={refinement.couponRow}>
+                <div className={refinement.rewardContent}>
+                  <div className={refinement.availability}>
+                    <span className={activeBadge(c.activo)} data-active={c.activo}>{c.activo ? "Activo" : "Pausado"}</span>
+                    <span className={nivelBadge(c.nivel_minimo)}>{nivelLabel(c.nivel_minimo)}</span>
                   </div>
-                  <div className={clsx("rounded-2xl px-3 py-2 text-xs font-black", dark ? "bg-gray-900" : "bg-slate-100")}>
-                    {tipoCuponLabel(c.condiciones)}
-                  </div>
+                  <h3>{c.nombre}</h3>
+                  <p>{c.beneficio}</p>
                 </div>
 
-                <div className={clsx("mt-5 rounded-2xl p-4 text-xs font-bold", dark ? "bg-gray-900 text-gray-300" : "bg-slate-50 text-slate-600")}>
+                <div className={refinement.condition}>
+                  <strong>{tipoCuponLabel(c.condiciones)}</strong>
                   {c.condiciones?.tipo === "horas_valle" ? (
                     <span>
                       Válido de {c.condiciones?.hora_inicio ?? "—"} a {c.condiciones?.hora_fin ?? "—"}. Cada {c.condiciones?.cada_x_visitas ?? 1} visitas.
@@ -904,7 +902,7 @@ export default function CuponesPage() {
                   )}
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className={refinement.rowActions}>
                   <button type="button" className={btnGhost} onClick={() => editarCupon(c)}>Editar</button>
                   <button type="button" className={btnGhost} onClick={() => toggleCuponActivo(c)}>{c.activo ? "Pausar" : "Activar"}</button>
                   <button type="button" className={btnDanger} onClick={() => borrarCupon(c)}>Eliminar</button>
@@ -919,10 +917,10 @@ export default function CuponesPage() {
 
   function StatCard({ title, value, subtitle }: { title: string; value: number | string; subtitle: string }) {
     return (
-      <div className={styles.metric}>
-        <div className={styles.metricLabel}>{title}</div>
-        <div className={styles.metricValue}><strong>{value}</strong></div>
-        <div className={styles.metricNote}>{subtitle}</div>
+      <div className={refinement.stat}>
+        <strong>{value}</strong>
+        <span>{title}</span>
+        <small>{subtitle}</small>
       </div>
     );
   }

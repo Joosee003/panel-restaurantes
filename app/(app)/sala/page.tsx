@@ -1008,8 +1008,8 @@ export default function SalaPage() {
       )}
 
       <div className={styles.workspace}>
-        <div className={styles.floor}>
-          <div className={styles.floorHeading}><h2>Distribución por zonas</h2><span>{turnoVisible && franjaVisible ? `${turnoVisible.label} · ${franjaVisible.label}` : "Sin franjas"}</span></div>
+        <div id="sala-mesas" className={styles.floor} tabIndex={-1}>
+          <div className={styles.floorHeading}><h2>Mesas por zona</h2><span>{turnoVisible && franjaVisible ? `${turnoVisible.label} · ${franjaVisible.label}` : "Sin franjas"}</span><a href="#sala-asignacion" className={styles.assignmentJump}>Ir a asignación <ChevronRight size={13} aria-hidden="true" /></a></div>
           {loading ? (
             <p className={mutedClass}>Cargando sala...</p>
           ) : !restauranteId ? (
@@ -1040,17 +1040,17 @@ export default function SalaPage() {
               </Link>
             </div>
           ) : (
-            <div className="space-y-8">
+            <div className={styles.zones}>
               {zonasActivas.map((zona) => {
                 const mesasZona = mesasConEstado.filter((item) => item.mesa.zona_id === zona.id);
 
                 return (
-                  <div key={zona.id} className="space-y-3">
+                  <section key={zona.id} className={styles.zone} aria-label={zona.nombre}>
                     <div className={styles.zoneHeading}>
                       <div>
                         <h2>{zona.nombre}</h2>
                         <p className={`text-sm ${mutedClass}`}>
-                          {mesasZona.length} mesa{mesasZona.length === 1 ? "" : "s"} en esta zona
+                          {mesasZona.length} mesa{mesasZona.length === 1 ? "" : "s"} · {mesasZona.filter((item) => item.estadoMesa === "libre").length} libres en esta franja
                         </p>
                       </div>
                     </div>
@@ -1059,6 +1059,7 @@ export default function SalaPage() {
                       <p className={`text-sm ${mutedClass}`}>No hay mesas activas en esta zona.</p>
                     ) : (
                       <div className={styles.tables}>
+                        <div className={styles.tableColumns} aria-hidden="true"><span>Mesa</span><span>Reserva / contexto</span><span>Hora</span><span>Pers.</span><span>Estado</span><span /></div>
                         {mesasZona.map(({ mesa, reserva, estadoMesa }) => {
                           return (
                             <button
@@ -1073,53 +1074,50 @@ export default function SalaPage() {
                                 estadoMesaClasses(estadoMesa),
                               ].join(" ")}
                               data-state={estadoMesa}
+                              data-has-reserva={Boolean(reserva)}
+                              aria-expanded={mesaDetalle?.id === mesa.id || mesaLibreDetalle?.id === mesa.id}
                               aria-label={`${mesa.nombre}, ${labelEstadoMesa(estadoMesa)}, ${mesa.capacidad} plazas${reserva ? `, ${reserva.nombre_cliente || "Sin nombre"}, ${reserva.personas ?? 0} personas, ${formatearHora(reserva.fecha_hora_reserva)}` : ""}`}
                             >
-                              <div className="flex items-start justify-between gap-3">
-                                <div>
-                                  <h3>{mesa.nombre}</h3>
-                                  <p className={styles.capacity}>{mesa.capacidad} plazas</p>
-                                </div>
-                                <span className={[styles.tableStatus, badgeEstadoMesaClasses(estadoMesa)].join(" ")}>
-                                  {labelEstadoMesa(estadoMesa)}
-                                </span>
-                              </div>
-
-                              {reserva ? (
-                                <div className={styles.tableBooking}>
-                                  <p className="font-semibold">{reserva.nombre_cliente || "Sin nombre"}</p>
-                                  <p>
-                                    {formatearHora(reserva.fecha_hora_reserva)} · {reserva.personas ?? 0} personas
-                                  </p>
-                                  <p className={styles.tableHint}>
-                                    {estadoReservaLabel(reserva)}
-                                  </p>
-                                </div>
-                              ) : (
-                                <div className={styles.tableBooking}>
-                                  <p>
-                                    {mesa.bloqueada ? "Fuera de uso temporalmente" : "Disponible para asignar"}
-                                  </p>
-                                </div>
-                              )}
+                              <span className={styles.tableIdentity}>
+                                <strong>{mesa.nombre}</strong>
+                                <span className={styles.capacity}>{mesa.capacidad} plazas</span>
+                              </span>
+                              <span className={styles.tableBooking}>
+                                {reserva ? <>
+                                  <strong>{reserva.nombre_cliente || "Sin nombre"}</strong>
+                                  <span className={styles.tableHint} title={reserva.notas || undefined}>{reserva.notas || estadoReservaLabel(reserva)}</span>
+                                </> : <>
+                                  <span>{mesa.bloqueada ? "Fuera de uso temporalmente" : "Disponible en esta franja"}</span>
+                                  <span className={styles.tableHint}>{mesa.bloqueada ? "Ver bloqueo de mesa" : "Asignar reserva o gestionar mesa"}</span>
+                                </>}
+                              </span>
+                              <span className={styles.tableMoment}>
+                                <time className={styles.tableTime}>{reserva ? formatearHora(reserva.fecha_hora_reserva) : "—"}</time>
+                                <span className={styles.tableParty}>{reserva ? reserva.personas ?? 0 : "—"}<span className={styles.mobileOnly}> personas</span></span>
+                              </span>
+                              <span className={[styles.tableStatus, badgeEstadoMesaClasses(estadoMesa)].join(" ")}>
+                                {labelEstadoMesa(estadoMesa)}
+                              </span>
+                              <ChevronRight size={15} className={styles.tableArrow} aria-hidden="true" />
                             </button>
                           );
                         })}
                       </div>
                     )}
-                  </div>
+                  </section>
                 );
               })}
             </div>
           )}
         </div>
 
-        <aside className={styles.contextRail}>
+        <aside id="sala-asignacion" className={styles.contextRail} aria-label="Asignación de reservas" tabIndex={-1}>
+          <div className={styles.railHeading}><h2>Asignación</h2><span>{franjaVisible?.label || "Franja seleccionada"}</span><a href="#sala-mesas" className={styles.returnToTables}>Mesas <ChevronLeft size={13} aria-hidden="true" /></a></div>
           <div className={`${panelClass} p-5`}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className={`text-lg font-black ${titleClass}`}>Reservas sin mesa</h2>
-                <p className={`mt-1 text-sm ${mutedClass}`}>Franja actual</p>
+                <p className={`mt-1 text-sm ${mutedClass}`}>En la franja seleccionada</p>
               </div>
               <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-black text-amber-800">
                 {reservasSinAsignarFranja.length}
@@ -1147,6 +1145,7 @@ export default function SalaPage() {
                         <button
                           type="button"
                           onClick={() => setReservaAbierta(reservaAbierta === reserva.id ? null : reserva.id)}
+                          aria-expanded={reservaAbierta === reserva.id}
                           className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-black text-white hover:bg-blue-700"
                         >
                           Asignar

@@ -612,6 +612,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
+      {modules.camarero_digital && modules.reservas ? <nav className={styles.mobileServiceLinks} aria-label="Secciones del servicio"><a href="#service-arrivals-title">Llegadas ↓</a><a href="#service-tables-title">Mesas y pedidos ↓</a></nav> : null}
       <div className={`${styles.service} ${!modules.camarero_digital || !modules.reservas ? styles.serviceSolo : ""}`}>
         {modules.reservas ? <ServiceArrivals reservations={reservasHoy} loading={loading} /> : null}
         {modules.camarero_digital ? <section className={styles.kitchen} aria-labelledby="service-tables-title">
@@ -620,15 +621,21 @@ export default function DashboardPage() {
             <Link href="/panel/pedidos-qr">Abrir cocina <ArrowRight size={14} /></Link>
           </div>
           <div className={styles.kitchenCounts}><span><b>{pedidosAbiertos.length}</b> pedidos abiertos</span><span><b>{pedidosLentos.length}</b> a revisar</span><span className={styles.danger}><b className={styles.danger}>{pedidosUrgentes.length}</b> urgentes</span></div>
+          <p className={styles.kitchenRule}>Más antiguos primero · urgente desde 20 min abierto</p>
+          <div className={styles.orderHeader} aria-hidden="true"><span>Mesa / fase</span><span>Importe</span><span>Tiempo</span><span /></div>
           {loading ? <div role="status" className={styles.loadingRows}>{[0, 1, 2, 3].map((index) => <div key={index} />)}<span className="sr-only">Cargando mesas</span></div> : mesasAbiertas.length ? <ol className={styles.tableList}>
             {mesasAbiertas.map((table) => <li key={table.mesa} className={styles.tableRow} data-urgency={table.maxMinutos >= 20 ? "urgent" : table.maxMinutos >= 12 ? "review" : "normal"}>
-              <div className={styles.tableNumber}><span>Mesa</span>{table.mesa}</div>
               <div className={styles.tableContext}>
-                <p>{table.pedidos.length} pedido{table.pedidos.length === 1 ? "" : "s"} · {euro(table.total)}</p>
+                <strong className={styles.tableNumber}>{table.mesa}</strong>
                 <small>{[...new Set(table.pedidos.map((order) => estadoLimpio(order.estado)))].join(" · ")}</small>
-                <Link href="/panel/pedidos-qr">{table.maxMinutos >= 12 ? "Revisar pedido" : "Ver cuenta y pedidos"}<ArrowRight size={12} /></Link>
               </div>
-              <div className={styles.elapsed}>{table.maxMinutos} min<small>desde el primer pedido</small></div>
+              <span className={styles.orderAmount}>{euro(table.total)}</span>
+              <time className={styles.elapsed} title="Tiempo desde la creación del primer pedido abierto">{table.maxMinutos} <small>min</small></time>
+              <Link className={styles.orderAction} href="/panel/pedidos-qr" aria-label={`${table.maxMinutos >= 12 ? "Revisar pedido" : "Ver cuenta y pedidos"} · ${table.mesa}`}><ArrowRight size={16} /></Link>
+              <details className={styles.orderDetails}>
+                <summary>{table.pedidos.length} pedido{table.pedidos.length === 1 ? "" : "s"}<span>Ver detalle</span></summary>
+                <ul>{table.pedidos.map(order => <li key={order.id}><span title={order.id}>#{order.id.slice(-6)}</span><span>{estadoLimpio(order.estado)}</span><span>{euro(numero(order.total))}</span><time>{minutosDesde(order.created_at)} min</time></li>)}</ul>
+              </details>
             </li>)}
           </ol> : <div className={styles.empty}><h3>Cocina al día.</h3><p>No hay comandas abiertas ahora.</p><Link href="/panel/pedidos-qr">Ver pedidos y cierres <ArrowRight size={13} /></Link></div>}
         </section> : null}

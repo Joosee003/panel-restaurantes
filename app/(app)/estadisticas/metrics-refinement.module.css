@@ -1,0 +1,27 @@
+.page { min-width: 0; }
+.chartSection { padding-block: 16px; }
+.chartHeading { margin-bottom: 16px; }
+.chartHeading h2 { font-size: 16px; font-weight: 650; letter-spacing: -.025em; }
+.chartHeading p { margin-top: 4px; color: var(--gh-muted, #63767d); font-size: 12px; font-weight: 400; }
+.plot { height: 270px; min-width: 0; font-size: 11px; }
+.plot :global(.recharts-legend-wrapper) { font-size: 11px; padding-top: 10px; }
+.paymentSingle { padding: 18px 0; border-block: 1px solid var(--gh-line, #dce3e3); }
+.paymentSingle dl { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
+.paymentSingle dt { font-size: 13px; font-weight: 600; text-transform: capitalize; }
+.paymentSingle dd { font-size: 23px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.paymentSingle p { color: var(--gh-muted, #63767d); font-size: 12px; margin-top: 8px; }
+.reportHeading { display: flex; justify-content: space-between; align-items: baseline; gap: 18px; margin-bottom: 8px; }
+.reportHeading h2 { font-size: 16px; font-weight: 650; }
+.reportHeading p { color: var(--gh-muted, #63767d); font-size: 12px; margin-top: 4px; }
+.reportHeading a { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--gh-blue, #245be0); white-space: nowrap; padding-block: 7px; }
+.reportLines > div { display: grid; grid-template-columns: 105px minmax(0, 1fr); gap: 18px; padding: 15px 0; border-bottom: 1px solid var(--gh-line, #dce3e3); }
+.reportLines dt { font-size: 11px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase; padding-top: 3px; color: var(--gh-muted, #63767d); }
+.reportLines dd { font-size: 13px; line-height: 1.7; color: var(--gh-ink, #172d35); }
+.reportLines strong { font-weight: 650; font-variant-numeric: tabular-nums; }
+.empty { min-height: 90px; display: flex; align-items: center; color: var(--gh-muted, #63767d); font-size: 12px; border-block: 1px solid var(--gh-line, #dce3e3); }
+@media (max-width: 639px) {
+  .plot { height: 240px; }
+  .reportHeading { flex-direction: column; gap: 4px; }
+  .reportHeading a { min-height: 44px; }
+  .reportLines > div { grid-template-columns: 1fr; gap: 4px; padding-block: 12px; }
+}

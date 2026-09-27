@@ -1,0 +1,48 @@
+.queue { min-width: 0; }
+.tools { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px 24px; padding-block: 16px; align-items: end; }
+.tools > :first-child { grid-column: 1 / -1; }
+.tools h2 { font-size: 16px; font-weight: 650; }
+.tools > :first-child p { font-size: 12px; }
+.filters { display: flex; flex-wrap: wrap; gap: 4px 18px; align-items: center; }
+.filters button { font-size: 12px; min-height: 40px; }
+.search { min-width: 0; }
+.head, .row { display: grid; grid-template-columns: minmax(170px, 1fr) 150px minmax(160px, 1fr) 262px; column-gap: 22px; align-items: center; }
+.head { padding: 10px 0; border-block: 1px solid var(--gh-line, #dce3e3); font-size: 10px; color: var(--gh-muted, #63767d); text-transform: uppercase; letter-spacing: .075em; }
+.head > :last-child { min-width: 262px; }
+.item { padding: 10px 0 6px; border-bottom: 1px solid var(--gh-line, #dce3e3); }
+.item:focus-within { background: #f0f4fb; }
+.identity h3 { font-size: 13px; font-weight: 650; }
+.identity p { font-variant-numeric: tabular-nums; }
+.state { line-height: 1.5; }
+.context { font-size: 12px; line-height: 1.55; color: var(--gh-muted, #63767d); }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 7px; }
+.actions > :is(a, button) { min-height: 36px; padding: 7px 10px; font-size: 11px; }
+.actions .reviewAction { color: var(--gh-blue, #245be0); background: transparent; border: 1px solid #bccbf0; }
+.actions .reviewAction:hover { background: #e8eefc; }
+.history { margin-top: 2px; padding-left: 0; }
+.history > summary { min-height: 24px; font-size: 10px; }
+.history > ol { margin-top: 7px; padding-block: 9px; }
+.notice { line-height: 1.65; }
+@media (max-width: 1100px) {
+  .head, .row { grid-template-columns: minmax(130px, 1fr) 128px minmax(150px, 1fr) 210px; gap: 14px; }
+  .head > :last-child { min-width: 0; }
+  .actions { gap: 5px; }
+  .actions > :is(a, button) { padding-inline: 8px; }
+  .actions svg { display: none; }
+}
+@media (max-width: 767px) {
+  .tools { grid-template-columns: 1fr; gap: 10px; }
+  .tools > :first-child { grid-column: auto; }
+  .search { grid-row: 2; }
+  .filters { gap: 0 20px; overflow: visible; }
+  .queue .filters button { min-height: 44px; }
+  .head { display: none; }
+  .item { padding-block: 16px 10px; }
+  .row { grid-template-columns: minmax(0, 1fr) 140px; gap: 8px 10px; align-items: start; }
+  .state { text-align: right; }
+  .context { grid-column: 1 / -1; }
+  .actions { grid-column: 1 / -1; justify-content: flex-start; margin-top: 3px; }
+  .queue .actions > :is(a, button) { flex: 1; min-height: 44px; font-size: 12px; }
+  .history > summary { min-height: 44px; flex-wrap: wrap; }
+  .notice { font-size: 12px; }
+}

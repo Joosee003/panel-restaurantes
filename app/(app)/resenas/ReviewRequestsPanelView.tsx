@@ -5,6 +5,7 @@ import { CheckCircle2, ChevronDown, Clock3, ExternalLink, History, Loader2, Mess
 import { googleReviewUrl, reviewStage, type ReviewRequest, type ReviewSettings } from "@/lib/reviews/review-flow";
 import { customerReviewStage, googleBusinessUrl, groupReviewCustomers, matchesCustomerFilter, whatsappConversationUrl, type CustomerFilter, type ReviewCustomer } from "@/lib/reviews/review-customers";
 import styles from "../components/product/modules.module.css";
+import refinement from "./review-queue.module.css";
 
 export type ReviewData = { restaurantName: string; settings: ReviewSettings; requests: ReviewRequest[] };
 export type ReviewPanelClient = {
@@ -130,7 +131,7 @@ export default function ReviewRequestsPanelView({ restauranteId, dark, client }:
   }
   if (loading) return <div className={`${card} flex min-h-64 items-center justify-center`}><Loader2 className="animate-spin" aria-label="Cargando solicitudes" /></div>;
 
-  return <div className={`space-y-4 ${dark ? "text-slate-100" : "text-slate-900"}`}>
+  return <div className={`${refinement.queue} space-y-4 ${dark ? "text-slate-100" : "text-slate-900"}`}>
     <dialog ref={dialog} onCancel={event => { if (busy) event.preventDefault(); else setSelected(null); }} aria-labelledby="review-confirm-title" aria-describedby="review-confirm-description" className={`m-auto w-[calc(100%_-_2rem)] max-w-md rounded-2xl border p-6 shadow-xl backdrop:bg-slate-950/50 ${dark ? "border-slate-700 bg-slate-900 text-white" : "border-slate-200 bg-white text-slate-900"}`}>
       <h2 id="review-confirm-title" className="text-xl font-bold">{selected?.confirmed ? "Corregir la confirmación" : "¿Ha dejado su reseña?"}</h2>
       <p id="review-confirm-description" className={`mt-3 text-sm leading-6 ${muted}`}>{selected?.confirmed ? `Vas a retirar la confirmación de ${selected.nombre}. Solo recibirá nuevas peticiones si tiene permiso activo.` : `En la ficha de Google, abre «Reseñas» y busca la de ${selected?.nombre || "este cliente"}. Después guarda aquí el resultado.`}</p>
@@ -145,7 +146,7 @@ export default function ReviewRequestsPanelView({ restauranteId, dark, client }:
       </div>
     </dialog>
 
-    <div className={`${styles.notice} flex items-start gap-3 border ${active ? dark ? "border-emerald-900 bg-emerald-950/40 text-emerald-200" : "border-emerald-100 bg-emerald-50 text-emerald-900" : dark ? "border-amber-900 bg-amber-950/30 text-amber-200" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
+    <div className={`${styles.notice} ${refinement.notice} flex items-start gap-3 border ${active ? dark ? "border-emerald-900 bg-emerald-950/40 text-emerald-200" : "border-emerald-100 bg-emerald-50 text-emerald-900" : dark ? "border-amber-900 bg-amber-950/30 text-amber-200" : "border-amber-200 bg-amber-50 text-amber-900"}`}>
       {active ? <CheckCircle2 size={18} className="mt-0.5 shrink-0" /> : <Clock3 size={18} className="mt-0.5 shrink-0" />}
       <p><span className="font-semibold">{active ? "Peticiones automáticas activas." : data?.settings.review_enabled === false ? "Peticiones automáticas desactivadas." : "Envío automático pendiente de activación."}</span>{" "}{active ? `Se programan al marcar «Ha venido», ${data?.settings.review_delay_hours || 3} horas después de la reserva.` : "Puedes seguir revisando las reseñas de tus clientes."}</p>
     </div>
@@ -153,35 +154,36 @@ export default function ReviewRequestsPanelView({ restauranteId, dark, client }:
     {notice && <p role="status" className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">{notice}</p>}
 
     <section className={`${card} overflow-hidden`} aria-labelledby="review-customers-title">
-      <div className={styles.reviewTools}>
+      <div className={refinement.tools}>
         <div className="flex items-start justify-between gap-3">
           <div><h2 id="review-customers-title" className="text-lg font-bold">Seguimiento por cliente</h2><p className={`mt-1 text-sm ${muted}`}>{counts.all} {counts.all === 1 ? "cliente" : "clientes"} · {sentCount} {sentCount === 1 ? "petición enviada" : "peticiones enviadas"}</p></div>
           <button type="button" className={button} aria-label="Actualizar solicitudes" onClick={() => { setError(""); void load(); }}><RefreshCw size={16} /></button>
         </div>
-        <div className={styles.reviewFilters} aria-label="Filtrar clientes">
+        <div className={`${styles.reviewFilters} ${refinement.filters}`} aria-label="Filtrar clientes">
           {filters.map(([key, label]) => <button type="button" key={key} aria-pressed={filter === key} onClick={() => setFilter(key)} className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500 ${filter === key ? dark ? "bg-indigo-950 text-indigo-200" : "bg-indigo-50 text-indigo-800" : dark ? "text-slate-400 hover:bg-slate-800" : "text-slate-500 hover:bg-slate-50"}`}>{label}<span className={`rounded-md px-1.5 py-0.5 text-xs tabular-nums ${filter === key ? dark ? "bg-indigo-900" : "bg-indigo-100" : dark ? "bg-slate-800" : "bg-slate-100"}`}>{counts[key]}</span></button>)}
         </div>
-        <label className="relative block max-w-lg"><span className="sr-only">Buscar cliente o teléfono</span><Search size={17} className={`absolute left-3 top-3 ${muted}`} /><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar cliente o teléfono" className={`${field} pl-10`} /></label>
+        <label className={`${refinement.search} relative block`}><span className="sr-only">Buscar cliente o teléfono</span><Search size={17} className={`absolute left-3 top-3 ${muted}`} /><input type="search" value={query} onChange={event => setQuery(event.target.value)} placeholder="Buscar cliente o teléfono" className={`${field} pl-10`} /></label>
       </div>
-      <div className={styles.reviewTableHead} aria-hidden="true"><span>Cliente</span><span>Situación de la petición</span><span>Acciones</span></div>
+      <div className={refinement.head} aria-hidden="true"><span>Cliente</span><span>Estado</span><span>Contexto de la petición</span><span>Acción</span></div>
       <div className={`divide-y border-t ${dark ? "divide-slate-800 border-slate-800" : "divide-slate-100 border-slate-100"}`}>
         {!visible.length && <div className="p-8 text-center"><Search className={`mx-auto ${muted}`} /><h3 className="mt-3 font-semibold">{customers.length ? "No hay clientes con este filtro" : "Aquí aparecerán tus clientes"}</h3><p className={`mt-2 text-sm ${muted}`}>{customers.length ? "Prueba con otro estado o cambia la búsqueda." : "El seguimiento empieza con las visitas y las peticiones de reseña."}</p>{customers.length > 0 && <button type="button" className={`${button} mt-4`} onClick={() => { setFilter("all"); setQuery(""); }}>Ver todos los clientes</button>}</div>}
         {visible.map(customer => {
           const request = customer.latest;
           const stage = customerReviewStage(customer, now);
           const whatsappUrl = whatsappConversationUrl(request.telefono);
-          return <article key={customer.id} aria-label={request.nombre} className={styles.reviewItem}>
-            <div className={styles.reviewRow}>
-              <div className="flex min-w-0 items-center gap-3">
+          return <article key={customer.id} aria-label={request.nombre} className={refinement.item}>
+            <div className={refinement.row}>
+              <div className={`${refinement.identity} flex min-w-0 items-center gap-3`}>
                 <div className="min-w-0"><h3 className="break-words text-sm font-bold">{request.nombre}</h3><p className={`mt-1 break-words text-xs ${muted}`}>{request.telefono || "Sin teléfono"}</p></div>
               </div>
-              <div><span className={`${styles.status} inline-flex items-center text-xs font-semibold ${badgeTone(stage.tone, dark)}`}>{stage.label}</span><p className={`mt-1 text-xs leading-5 ${muted}`}>{customerDetail(customer, now)}</p></div>
-              <div className="flex flex-wrap items-center gap-2">
+              <div className={refinement.state}><span className={`${styles.status} inline-flex items-center text-xs font-semibold ${badgeTone(stage.tone, dark)}`}>{stage.label}</span></div>
+              <p className={refinement.context}>{customerDetail(customer, now)}</p>
+              <div className={refinement.actions}>
                 {whatsappUrl ? <a href={whatsappUrl} target="_blank" rel="noopener noreferrer" className={button} title={`Abrir el chat de ${request.nombre} en tu WhatsApp`}><MessageCircle size={16} className={dark ? "text-emerald-400" : "text-emerald-600"} /> WhatsApp</a> : <button type="button" className={button} disabled title="Revisa el teléfono en la ficha del cliente"><MessageCircle size={16} /> Sin teléfono válido</button>}
-                {customer.confirmed ? <button type="button" className={button} onClick={() => { setError(""); setSelected(request); }}><Undo2 size={15} /> Corregir</button> : customer.reviewRequest && googleUrl ? <a className={primary} href={googleUrl} target="_blank" rel="noopener noreferrer" onClick={event => { setError(""); setSelected(customer.reviewRequest); if (client.inspectGoogle) { event.preventDefault(); client.inspectGoogle(); } }}><ExternalLink size={15} /> Revisar reseña</a> : customer.reviewRequest ? <button type="button" className={button} disabled title="Añade el enlace de Google en Configuración del servicio">Revisar reseña</button> : null}
+                {customer.confirmed ? <button type="button" className={button} onClick={() => { setError(""); setSelected(request); }}><Undo2 size={15} /> Corregir</button> : customer.reviewRequest && googleUrl ? <a className={`${primary} ${refinement.reviewAction}`} href={googleUrl} target="_blank" rel="noopener noreferrer" onClick={event => { setError(""); setSelected(customer.reviewRequest); if (client.inspectGoogle) { event.preventDefault(); client.inspectGoogle(); } }}><ExternalLink size={15} /> Revisar reseña</a> : customer.reviewRequest ? <button type="button" className={button} disabled title="Añade el enlace de Google en Configuración del servicio">Revisar reseña</button> : null}
               </div>
             </div>
-            <details className={`${styles.reviewHistory} group`}>
+            <details className={`${styles.reviewHistory} ${refinement.history} group`}>
               <summary className={`flex w-fit cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 py-1 text-xs ${muted} [&::-webkit-details-marker]:hidden`}><History size={13} /><span>Historial · {customer.history.length} {customer.history.length === 1 ? "visita" : "visitas"}</span><ChevronDown size={13} className="transition-transform group-open:rotate-180" /><span className="ml-1">Última: {dateText(request.visit_at)}</span></summary>
               <ol className={`mt-3 space-y-3 rounded-xl p-4 ${dark ? "bg-slate-950" : "bg-slate-50"}`}>
                 {customer.history.map(visit => <li key={visit.reserva_id} className="grid gap-1 text-xs sm:grid-cols-[10rem_1fr] sm:gap-4"><p className="font-semibold">Visita: {dateText(visit.visit_at)}</p><div className={`space-y-1 leading-5 ${muted}`}>

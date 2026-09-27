@@ -474,12 +474,11 @@ export default function ClienteFichaPage() {
     </section> : null}
   </>;
 
-  return <div className={styles.page}>
+  return <div className={`${styles.page} ${styles.detailPage}`}>
     <Link href="/clientes" className={styles.backLink}><ArrowLeft size={14} /> Clientes</Link>
     <header className={styles.detailHeading}>
       <div><h1>{cliente.nombre || "Cliente sin nombre"}</h1><div className={styles.segments}>{segmentos.map((segmento) => <span key={segmento}>{segmento}</span>)}{fidelizacionActiva && cliente.ranking_posicion ? <span>Nº {cliente.ranking_posicion} del ranking</span> : null}</div></div>
       <div className={styles.actions}>
-        <button className={`${styles.button} ${styles.mobileRailToggle}`} onClick={() => setContextOpen(true)}>Contacto y notas <ChevronRight size={14} /></button>
         {fidelizacionActiva && accion ? <><button onClick={() => abrirWhatsApp(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className={styles.button}><MessageCircle size={14} /> WhatsApp</button><button onClick={() => copiarMensaje(accion.tipo || "cupon")} disabled={!tienePermisoWhatsApp(accion.tipo || "cupon")} className={styles.button}><Copy size={14} />{copiado ? "Copiado" : "Copiar mensaje"}</button></> : null}
       </div>
     </header>
@@ -493,8 +492,9 @@ export default function ClienteFichaPage() {
     </div>
     <div className={styles.detailLayout}>
       <CustomerTimeline reservas={reservas} movimientos={movimientos} notificaciones={notificaciones} fidelizacionActiva={fidelizacionActiva} />
-      <aside className={styles.detailRail} aria-label="Contexto del cliente">{contextContent}</aside>
+      <aside className={styles.detailRail} aria-label="Contexto del cliente" tabIndex={0}>{contextContent}</aside>
     </div>
+    <div className={styles.mobileContextBar}><button className={styles.mobileRailToggle} onClick={() => setContextOpen(true)} aria-haspopup="dialog" aria-expanded={contextOpen}><span>Contacto y notas</span><ChevronRight size={16} /></button></div>
     {contextOpen && <CrmDialog titleId="customer-context-title" onClose={() => setContextOpen(false)} rail><header className={styles.dialogHeader}><h2 id="customer-context-title">Contacto y notas</h2><button className={styles.textButton} onClick={() => setContextOpen(false)} aria-label="Cerrar contacto y notas"><X size={18} /></button></header>{contextContent}</CrmDialog>}
   </div>;
 }
