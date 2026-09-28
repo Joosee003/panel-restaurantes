@@ -608,7 +608,7 @@ export default function DashboardPage() {
       <div className={styles.attention} aria-label="Asuntos que requieren atención">
         <span className={styles.attentionLabel}><Clock3 size={14} /> En este momento</span>
         <div className={styles.attentionItems}>
-          {loading ? <span className={styles.muted}>Cargando el servicio…</span> : acciones.map((action) => <Link href={action.href} key={action.id} data-priority={action.prioridad} title={action.descripcion}>{action.prioridad === "alta" ? <AlertTriangle size={13} /> : null}{action.titulo}<ArrowRight size={13} /></Link>)}
+          {loading ? <span className={styles.muted}>Cargando el servicio…</span> : acciones.map((action) => <Link href={action.href} key={action.id} data-priority={action.prioridad} title={action.id === "pedidos-urgentes" ? "Atención a pedidos abiertos 20 min o más." : action.descripcion}>{action.prioridad === "alta" ? <AlertTriangle size={13} /> : null}{action.id === "pedidos-urgentes" ? `${pedidosUrgentes.length} pedido${pedidosUrgentes.length === 1 ? "" : "s"} abierto${pedidosUrgentes.length === 1 ? "" : "s"} ≥20 min` : action.titulo}<ArrowRight size={13} /></Link>)}
         </div>
       </div>
 
@@ -620,8 +620,8 @@ export default function DashboardPage() {
             <div><span className={styles.kicker}>Sala y cocina · pedidos QR</span><h2 id="service-tables-title">Servicio por mesa</h2></div>
             <Link href="/panel/pedidos-qr">Abrir cocina <ArrowRight size={14} /></Link>
           </div>
-          <div className={styles.kitchenCounts}><span><b>{pedidosAbiertos.length}</b> pedidos abiertos</span><span><b>{pedidosLentos.length}</b> a revisar</span><span className={styles.danger}><b className={styles.danger}>{pedidosUrgentes.length}</b> urgentes</span></div>
-          <p className={styles.kitchenRule}>Más antiguos primero · urgente desde 20 min abierto</p>
+          <div className={styles.kitchenCounts}><span><b>{pedidosAbiertos.length}</b> pedidos abiertos</span><span><b>{pedidosLentos.length}</b> a revisar</span><span className={styles.danger}><b className={styles.danger}>{pedidosUrgentes.length}</b> pedidos ≥20 min</span></div>
+          <p className={styles.kitchenRule}>Más antiguos primero · Atención a pedidos abiertos 20 min o más</p>
           <div className={styles.orderHeader} aria-hidden="true"><span>Mesa / fase</span><span>Importe</span><span>Tiempo</span><span /></div>
           {loading ? <div role="status" className={styles.loadingRows}>{[0, 1, 2, 3].map((index) => <div key={index} />)}<span className="sr-only">Cargando mesas</span></div> : mesasAbiertas.length ? <ol className={styles.tableList}>
             {mesasAbiertas.map((table) => <li key={table.mesa} className={styles.tableRow} data-urgency={table.maxMinutos >= 20 ? "urgent" : table.maxMinutos >= 12 ? "review" : "normal"}>

@@ -32,32 +32,39 @@
 .floorHeading span { font-size: 12px; color: var(--gh-muted, #63767d); }
 .zones { display: grid; gap: 25px; }
 .zone { min-width: 0; }
-.zoneHeading { padding: 12px 10px; border-block: 1px solid var(--gh-line, #dce3e3); background: #edf2f1; }
+.zoneHeading { padding: 10px 0; border-top: 2px solid #b6c6c8; }
 .zoneHeading > div { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: 6px 12px; }
 .zoneHeading h2 { font-size: 14px; font-weight: 650; }
 .zoneHeading p { font-size: 11px; color: var(--gh-muted, #63767d); }
-.tables { display: block; }
-.table, .tableColumns { display: grid; grid-template-columns: 90px minmax(145px, 1fr) 54px 40px 91px 15px; align-items: center; column-gap: 14px; width: 100%; }
-.tableColumns { min-height: 29px; padding: 6px 10px; font-size: 9px; text-transform: uppercase; letter-spacing: .06em; color: var(--gh-muted, #63767d); border-bottom: 1px solid var(--gh-line, #dce3e3); }
-.table { position: relative; border: 0; border-bottom: 1px solid var(--gh-line, #dce3e3); border-radius: 0; padding: 8px 10px; min-height: 52px; text-align: left; transition: background .15s; background: transparent !important; color: var(--gh-ink, #172d35); }
-.table:is(:hover, :focus-visible) { background: #edf3f2 !important; }
-.table:focus-visible { outline-offset: -2px !important; }
-.table[aria-expanded="true"] { background: #eef3ff !important; box-shadow: inset 3px 0 var(--gh-blue, #245be0); }
-.table[data-state="bloqueada"] .tableIdentity { color: #a43b3b; }
-.tableIdentity { display: block; min-width: 0; }
-.tableIdentity > strong { display: block; font-size: 14px; line-height: 1.25; font-weight: 640; overflow-wrap: anywhere; }
-.capacity { display: block; font-size: 10px; line-height: 1.25; color: var(--gh-muted, #63767d); margin-top: 3px; }
-.tableStatus { padding: 0; border: 0; background: transparent !important; font-size: 11px; display: flex; align-items: center; gap: 5px; }
+.tables { display: grid; grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); gap: 20px 22px; padding: 8px 3px 0; }
+.table { --table-edge: #9aafa5; --table-fill: #f1f6f2; --table-accent: #36624a; position: relative; min-width: 0; border: 0; border-radius: 0; padding: 6px 0 0; text-align: left; background: transparent !important; color: var(--gh-ink, #172d35); }
+.table[data-state="reservada"] { --table-edge: #c8b487; --table-fill: #fbf6e9; --table-accent: #86601d; }
+.table[data-state="ocupada"] { --table-edge: #97b4d7; --table-fill: #eef4fb; --table-accent: #315f96; }
+.table[data-state="atendida"] { --table-edge: #b9a7ca; --table-fill: #f5f0f8; --table-accent: #755287; }
+.table[data-state="bloqueada"] { --table-edge: #cfa5a5; --table-fill: #f8efed; --table-accent: #9b4343; }
+.tableSurface { position: relative; display: flex; flex-direction: column; gap: 10px; min-height: 122px; padding: 13px 13px 10px; border: 1px solid var(--table-edge); border-radius: 17px; background: var(--table-fill); transition: border-color .15s, background .15s; }
+/* Symbolic seating marks, not coordinates or a physical floorplan. */
+.tableSurface::before, .tableSurface::after { content: ""; position: absolute; left: 50%; width: 35%; height: 4px; transform: translateX(-50%); border: 1px solid var(--table-edge); border-radius: 2px; background: var(--gh-paper, #f6f8f7); }
+.tableSurface::before { top: -7px; }
+.tableSurface::after { bottom: -7px; }
+.table:is(:hover, :focus-visible) .tableSurface { border-color: var(--table-accent); background: color-mix(in srgb, var(--table-fill) 85%, var(--table-edge)); }
+.table[data-compatible="true"] .tableSurface, .table[aria-expanded="true"] .tableSurface { outline: 2px solid var(--gh-blue, #245be0); outline-offset: 2px; }
+.tableIdentity { display: flex; align-items: baseline; justify-content: space-between; gap: 5px; min-width: 0; }
+.tableIdentity > strong { font-size: 16px; line-height: 1.25; font-weight: 650; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.capacity { font-size: 10px; line-height: 1.25; color: var(--gh-muted, #63767d); white-space: nowrap; }
+.tableFooter { display: flex; align-items: center; justify-content: space-between; gap: 5px; padding: 11px 2px 0; }
+.tableStatus { padding: 0; border: 0; background: transparent !important; color: var(--table-accent) !important; font-size: 10px; display: flex; align-items: center; gap: 5px; }
 .tableStatus::before { content: ""; width: 5px; height: 5px; flex-shrink: 0; background: currentColor; border-radius: 50%; }
 .tableBooking { display: block; min-width: 0; font-size: 12px; line-height: 1.4; }
-.tableBooking > strong { display: block; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tableBooking > strong { display: block; font-size: 12px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tableBooking > span:first-child { font-size: 12px; color: var(--gh-muted, #63767d); }
-.tableHint { display: block; font-size: 10px; color: var(--gh-muted, #63767d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 4px; }
-.tableMoment { display: contents; }
+.tableHint { display: block; font-size: 10px; color: var(--gh-muted, #63767d); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 1px; }
+.tableMoment { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-top: auto; }
+.table[data-has-reserva="false"] .tableMoment { visibility: hidden; }
 .tableTime { font-size: 13px; font-weight: 550; font-variant-numeric: tabular-nums; }
-.tableParty { font-size: 12px; font-variant-numeric: tabular-nums; }
+.tableParty { font-size: 10px; color: var(--gh-muted, #63767d); font-variant-numeric: tabular-nums; }
+.tableAction { display: flex; align-items: center; gap: 1px; font-size: 10px; color: var(--gh-muted, #63767d); }
 .tableArrow { color: #809297; }
-.mobileOnly { display: none; }
 .contextRail { position: sticky; top: 185px; max-height: calc(100dvh - 205px); overflow-y: auto; overscroll-behavior: contain; border-left: 1px solid var(--gh-line, #dce3e3); padding-left: 22px; padding-right: 3px; min-width: 0; scrollbar-width: thin; }
 .railHeading { position: sticky; top: 0; z-index: 1; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding-bottom: 14px; margin-bottom: 15px; border-bottom: 1px solid var(--gh-line, #dce3e3); background: var(--gh-paper, #f6f8f7); }
 .railHeading h2 { font-size: 14px; font-weight: 650; }
@@ -86,7 +93,6 @@
   .dateControls { flex-wrap: wrap; }
   .header { gap: 13px; }
   .contextRail { padding-left: 18px; }
-  .table, .tableColumns { grid-template-columns: 74px minmax(125px, 1fr) 46px 34px 83px 13px; column-gap: 9px; }
 }
 @media (max-width: 950px) {
   .workspace { grid-template-columns: minmax(0, 1fr); gap: 28px; }
@@ -121,23 +127,14 @@
   .zoneHeading { padding: 10px 0; background: transparent; border-top: 2px solid #b6c6c8; }
   .zoneHeading h2 { font-size: 13px; }
   .zoneHeading p { font-size: 10px; }
-  .tableColumns { display: none; }
-  .table { grid-template-columns: 69px minmax(0, 1fr) 87px; padding: 13px 0; min-height: 80px; gap: 6px 11px; }
-  .tableIdentity { grid-column: 1; grid-row: 1 / 3; align-self: start; }
+  .tables { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 19px 17px; }
+  .tableSurface { padding: 12px 10px 9px; gap: 9px; }
   .tableIdentity > strong { font-size: 14px; }
-  .capacity { font-size: 10px; }
-  .tableBooking { grid-column: 2 / 4; grid-row: 1; padding-right: 17px; }
-  .tableBooking > strong { font-size: 13px; }
+  .capacity { font-size: 9px; }
+  .tableBooking > strong { font-size: 12px; }
   .tableBooking > span:first-child { font-size: 11px; }
   .tableHint { font-size: 10px; }
-  .tableMoment { display: flex; gap: 9px; align-items: baseline; grid-column: 2; grid-row: 2; }
-  .tableTime { font-size: 11px; }
-  .tableParty { font-size: 10px; color: var(--gh-muted, #63767d); }
-  .tableParty::after { content: "p"; }
-  .tableStatus { grid-column: 3; grid-row: 2; font-size: 10px; }
-  .tableArrow { position: absolute; right: 0; top: 16px; }
-  .table[data-has-reserva="false"] .tableMoment { display: none; }
-  .table[data-has-reserva="false"] .tableStatus { grid-column: 2 / 4; }
+  .tableTime { font-size: 12px; }
   .contextRail .contextRow button { min-height: 40px; }
   .detail button, .detail a { min-height: 42px; }
 }

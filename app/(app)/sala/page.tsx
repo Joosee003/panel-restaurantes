@@ -1059,7 +1059,6 @@ export default function SalaPage() {
                       <p className={`text-sm ${mutedClass}`}>No hay mesas activas en esta zona.</p>
                     ) : (
                       <div className={styles.tables}>
-                        <div className={styles.tableColumns} aria-hidden="true"><span>Mesa</span><span>Reserva / contexto</span><span>Hora</span><span>Pers.</span><span>Estado</span><span /></div>
                         {mesasZona.map(({ mesa, reserva, estadoMesa }) => {
                           return (
                             <button
@@ -1075,30 +1074,35 @@ export default function SalaPage() {
                               ].join(" ")}
                               data-state={estadoMesa}
                               data-has-reserva={Boolean(reserva)}
+                              data-compatible={reservaAbierta ? reservasSinAsignarFranja.some((pendiente) => pendiente.id === reservaAbierta && mesasDisponiblesParaReserva(pendiente).some((disponible) => disponible.id === mesa.id)) : undefined}
                               aria-expanded={mesaDetalle?.id === mesa.id || mesaLibreDetalle?.id === mesa.id}
                               aria-label={`${mesa.nombre}, ${labelEstadoMesa(estadoMesa)}, ${mesa.capacidad} plazas${reserva ? `, ${reserva.nombre_cliente || "Sin nombre"}, ${reserva.personas ?? 0} personas, ${formatearHora(reserva.fecha_hora_reserva)}` : ""}`}
                             >
-                              <span className={styles.tableIdentity}>
-                                <strong>{mesa.nombre}</strong>
-                                <span className={styles.capacity}>{mesa.capacidad} plazas</span>
+                              <span className={styles.tableSurface}>
+                                <span className={styles.tableIdentity}>
+                                  <strong>{mesa.nombre}</strong>
+                                  <span className={styles.capacity}>{mesa.capacidad} plazas</span>
+                                </span>
+                                <span className={styles.tableBooking}>
+                                  {reserva ? <>
+                                    <strong>{reserva.nombre_cliente || "Sin nombre"}</strong>
+                                    <span className={styles.tableHint} title={reserva.notas || undefined}>{reserva.notas || estadoReservaLabel(reserva)}</span>
+                                  </> : <>
+                                    <span>{mesa.bloqueada ? "Fuera de uso" : "Sin reserva"}</span>
+                                    <span className={styles.tableHint}>{mesa.bloqueada ? "Bloqueo temporal" : "En esta franja"}</span>
+                                  </>}
+                                </span>
+                                <span className={styles.tableMoment}>
+                                  <time className={styles.tableTime}>{reserva ? formatearHora(reserva.fecha_hora_reserva) : "—"}</time>
+                                  <span className={styles.tableParty}>{reserva ? reserva.personas ?? 0 : "—"} personas</span>
+                                </span>
                               </span>
-                              <span className={styles.tableBooking}>
-                                {reserva ? <>
-                                  <strong>{reserva.nombre_cliente || "Sin nombre"}</strong>
-                                  <span className={styles.tableHint} title={reserva.notas || undefined}>{reserva.notas || estadoReservaLabel(reserva)}</span>
-                                </> : <>
-                                  <span>{mesa.bloqueada ? "Fuera de uso temporalmente" : "Disponible en esta franja"}</span>
-                                  <span className={styles.tableHint}>{mesa.bloqueada ? "Ver bloqueo de mesa" : "Asignar reserva o gestionar mesa"}</span>
-                                </>}
+                              <span className={styles.tableFooter}>
+                                <span className={[styles.tableStatus, badgeEstadoMesaClasses(estadoMesa)].join(" ")}>
+                                  {labelEstadoMesa(estadoMesa)}
+                                </span>
+                                <span className={styles.tableAction}>{mesa.bloqueada ? "Ver bloqueo" : reserva ? "Gestionar" : "Asignar"}<ChevronRight size={13} className={styles.tableArrow} aria-hidden="true" /></span>
                               </span>
-                              <span className={styles.tableMoment}>
-                                <time className={styles.tableTime}>{reserva ? formatearHora(reserva.fecha_hora_reserva) : "—"}</time>
-                                <span className={styles.tableParty}>{reserva ? reserva.personas ?? 0 : "—"}<span className={styles.mobileOnly}> personas</span></span>
-                              </span>
-                              <span className={[styles.tableStatus, badgeEstadoMesaClasses(estadoMesa)].join(" ")}>
-                                {labelEstadoMesa(estadoMesa)}
-                              </span>
-                              <ChevronRight size={15} className={styles.tableArrow} aria-hidden="true" />
                             </button>
                           );
                         })}
