@@ -3,7 +3,9 @@
   "regions": ["dub1"],
   "git": {
     "deploymentEnabled": {
-      "codex/qa-frontend-v2": false
+      "codex/qa-frontend-v2": false,
+      "codex/product-refinement-v3": false,
+      "codex/product-refinement-v3-final": false
     }
   }
 }
