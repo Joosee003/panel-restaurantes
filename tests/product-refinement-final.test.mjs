@@ -13,7 +13,10 @@ const sala = 'app/(app)/sala/page.tsx';
 const salaCss = 'app/(app)/sala/sala.module.css';
 const dashboard = 'app/(app)/dashboard/page.tsx';
 const thisTest = 'tests/product-refinement-final.test.mjs';
-const allowedFiles = new Set([sala, salaCss, dashboard, thisTest]);
+const vercel = 'vercel.json';
+const definitiveContracts = 'tests/product-definitive-contracts.test.mjs';
+const isolationHarness = 'tests/restaurant-isolation.test.mjs';
+const allowedFiles = new Set([sala, salaCss, dashboard, thisTest, vercel, definitiveContracts, isolationHarness]);
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 16_000_000 });
 const read = file => readFileSync(new URL(file, root), 'utf8');
 const original = file => git('show', `${baseline}:${file}`);
@@ -134,10 +137,20 @@ function dashboardWithApprovedCopy(source) {
   finally { transformed.dispose(); }
 }
 
-test('final V3 changes only the three approved frontend files and this additional contract test', () => {
+test('final V3 keeps its frontend scope plus the exact approved deploy guard and contract maintenance', () => {
   const changed = git('diff', '--name-only', baseline, '--').trim().split(/\r?\n/).filter(Boolean);
   const untracked = git('ls-files', '--others', '--exclude-standard').trim().split(/\r?\n/).filter(Boolean);
   assert.deepEqual([...new Set([...changed, ...untracked])].filter(file => !allowedFiles.has(file)), [], 'No backend, global CSS, configuration, old test, fixture or unrelated file may change');
+  assert.deepEqual(JSON.parse(read(vercel)), {
+    $schema: 'https://openapi.vercel.sh/vercel.json',
+    regions: ['dub1'],
+    git: { deploymentEnabled: {
+      'codex/qa-frontend-v2': false,
+      'codex/product-refinement-v3': false,
+      'codex/product-refinement-v3-final': false,
+    } },
+  }, 'Only the three known non-production branches may opt out of automatic Vercel deployment');
+  assert.match(read(isolationHarness), /const portablePath = path\.replaceAll\('\\\\', '\/'\)/, 'The isolation harness must keep portable Windows module stubs');
 });
 
 test('final Sala preserves every functional contract and the full assignment rail from 3f61a56', () => {

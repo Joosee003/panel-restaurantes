@@ -47,8 +47,9 @@ const modules = new Map();
 function load(file) {
   let path = resolve(root, file);
   if (!existsSync(path)) path = ['.ts','.tsx'].map(ext => path + ext).find(existsSync);
-  if (path.endsWith('/lib/supabaseClient.ts')) return { supabase: db };
-  if (path.endsWith('/query/queryClientConfig.ts')) return { queryClientConfig: { queries: { gcTime: 0, retry: false } } };
+  const portablePath = path.replaceAll('\\', '/');
+  if (portablePath.endsWith('/lib/supabaseClient.ts')) return { supabase: db };
+  if (portablePath.endsWith('/query/queryClientConfig.ts')) return { queryClientConfig: { queries: { gcTime: 0, retry: false } } };
   if (modules.has(path)) return modules.get(path).exports;
   const compiled = { exports: {} }; modules.set(path, compiled);
   const source = ts.transpileModule(readFileSync(path,'utf8'), { compilerOptions: {
@@ -133,10 +134,12 @@ test('selection uses tab storage; shared legacy value cannot replace this panel'
   assert.equal(window.localStorage.getItem(selection.ACTIVE_RESTAURANT_KEY),null);
 });
 
-test('unauthorized selection is not returned; default is an assigned restaurant', async () => {
+test('unauthorized selection is replaced only by the authenticated user assignment', async () => {
   selection.setActiveRestaurant('foreign'); checkAccess=async () => ({ data:false,error:null });
-  assert.equal(await getRestauranteUsuario(),null); assert.equal(selection.getActiveRestaurant(),null);
-  membership='restaurant-a'; assert.equal(await getRestauranteUsuario(),'restaurant-a');
+  membership='restaurant-a';
+  assert.equal(await getRestauranteUsuario(),'restaurant-a');
+  assert.equal(selection.getActiveRestaurant(),'restaurant-a');
+  assert.notEqual(selection.getActiveRestaurant(),'foreign');
 });
 
 test('permission lookup error fails closed and does not silently select another restaurant', async () => {
@@ -146,8 +149,8 @@ test('permission lookup error fails closed and does not silently select another 
 });
 
 test('delayed access check cannot undo a new selection or account change', async () => {
-  const check=deferred(); checkAccess=() => check.promise; selection.setActiveRestaurant('restaurant-a');
-  const resolving=getRestauranteUsuario(); await tick(); selection.setActiveRestaurant('restaurant-b');
+  const check=deferred(); checkAccess=() => check.promise; selection.setActiveRestaurant('restaurant-delayed-a');
+  const resolving=getRestauranteUsuario(); await tick(); selection.setActiveRestaurant('restaurant-delayed-b');
   check.resolve({data:true,error:null}); assert.equal(await resolving,null);
   const check2=deferred(); checkAccess=() => check2.promise;
   const resolving2=getRestauranteUsuario(); await tick(); actor='owner-b';

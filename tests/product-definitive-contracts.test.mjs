@@ -104,7 +104,11 @@ test('definitive product leaves backend, authentication, data contracts and glob
       // Vercel deployment when publishing this isolated Hetzner handoff branch.
       assert.deepEqual(JSON.parse(current(file)), {
         ...JSON.parse(before(file)),
-        git: { deploymentEnabled: { 'codex/qa-frontend-v2': false } },
+        git: { deploymentEnabled: {
+          'codex/qa-frontend-v2': false,
+          'codex/product-refinement-v3': false,
+          'codex/product-refinement-v3-final': false,
+        } },
       }, file);
     } else assert.equal(current(file).replace(/\r\n/g, '\n'), before(file).replace(/\r\n/g, '\n'), file);
   }
