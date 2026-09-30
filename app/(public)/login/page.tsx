@@ -29,12 +29,6 @@ type PublicMetrics = {
 
 type WelcomePhase = "hidden" | "visible" | "leaving";
 
-const FALLBACK_METRICS: PublicMetrics = {
-  restaurant_count: 4,
-  active_modules: 36,
-  operational_records: 60,
-};
-
 function safeNextPath(value: string | null) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) return null;
   if (value.startsWith("/login") || value.startsWith("/auth/")) return null;
@@ -53,8 +47,7 @@ export default function LoginPage() {
   const [nextPath, setNextPath] = useState<string | null>(null);
   const [fromWebsite, setFromWebsite] = useState(false);
   const [welcomePhase, setWelcomePhase] = useState<WelcomePhase>("hidden");
-  const [metricsTarget, setMetricsTarget] =
-    useState<PublicMetrics>(FALLBACK_METRICS);
+  const [metricsTarget, setMetricsTarget] = useState<PublicMetrics | null>(null);
   const [metrics, setMetrics] = useState<PublicMetrics>({
     restaurant_count: 0,
     active_modules: 0,
@@ -182,17 +175,14 @@ export default function LoginPage() {
 
       if (!mounted || metricsError || !data) return;
       const row = data as Partial<PublicMetrics>;
-      setMetricsTarget({
-        restaurant_count: Number(
-          row.restaurant_count ?? FALLBACK_METRICS.restaurant_count,
-        ),
-        active_modules: Number(
-          row.active_modules ?? FALLBACK_METRICS.active_modules,
-        ),
-        operational_records: Number(
-          row.operational_records ?? FALLBACK_METRICS.operational_records,
-        ),
-      });
+      const next = {
+        restaurant_count: Number(row.restaurant_count),
+        active_modules: Number(row.active_modules),
+        operational_records: Number(row.operational_records),
+      };
+      if (Object.values(next).every((value) => Number.isFinite(value) && value >= 0)) {
+        setMetricsTarget(next);
+      }
     };
 
     loadMetrics();
@@ -202,7 +192,7 @@ export default function LoginPage() {
   }, [checkingSession]);
 
   useEffect(() => {
-    if (checkingSession) return;
+    if (checkingSession || !metricsTarget) return;
     const startedAt = performance.now();
     const duration = 1050;
     let animationFrame = 0;
@@ -357,16 +347,16 @@ export default function LoginPage() {
               </p>
               <div className="mt-7 grid grid-cols-3 gap-2 sm:gap-3">
                 <WelcomeMetric
-                  value={metrics.restaurant_count}
+                  value={metricsTarget ? metrics.restaurant_count : null}
                   label="restaurantes reales"
                 />
                 <WelcomeMetric
-                  value={metrics.active_modules}
+                  value={metricsTarget ? metrics.active_modules : null}
                   label="módulos activos"
                   prefix="+"
                 />
                 <WelcomeMetric
-                  value={metrics.operational_records}
+                  value={metricsTarget ? metrics.operational_records : null}
                   label="registros conectados"
                   prefix="+"
                 />
@@ -419,18 +409,18 @@ export default function LoginPage() {
           <div className="mt-9 grid max-w-[680px] grid-cols-3 gap-3">
             <LiveMetric
               icon={<Building2 className="h-5 w-5" />}
-              value={metrics.restaurant_count}
+              value={metricsTarget ? metrics.restaurant_count : null}
               label="Restaurantes reales"
             />
             <LiveMetric
               icon={<Layers3 className="h-5 w-5" />}
-              value={metrics.active_modules}
+              value={metricsTarget ? metrics.active_modules : null}
               label="Módulos activos"
               prefix="+"
             />
             <LiveMetric
               icon={<Activity className="h-5 w-5" />}
-              value={metrics.operational_records}
+              value={metricsTarget ? metrics.operational_records : null}
               label="Registros operativos"
               prefix="+"
             />
@@ -577,10 +567,10 @@ export default function LoginPage() {
                   GastroHelp.
                 </p>
                 <a
-                  href="/demo"
+                  href="https://gastrohelp.es/#contacto"
                   className="mt-3 inline-flex items-center gap-1.5 text-xs font-black text-blue-700 transition hover:text-blue-950"
                 >
-                  ¿Todavía no eres cliente? Explora la demo{" "}
+                  ¿Todavía no eres cliente? Solicita una demo guiada{" "}
                   <ArrowUpRight className="h-3.5 w-3.5" />
                 </a>
               </div>
@@ -589,16 +579,16 @@ export default function LoginPage() {
 
           <div className="mt-5 grid grid-cols-3 gap-2 lg:hidden">
             <MobileMetric
-              value={metrics.restaurant_count}
+              value={metricsTarget ? metrics.restaurant_count : null}
               label="Restaurantes"
             />
             <MobileMetric
-              value={metrics.active_modules}
+              value={metricsTarget ? metrics.active_modules : null}
               label="Módulos"
               prefix="+"
             />
             <MobileMetric
-              value={metrics.operational_records}
+              value={metricsTarget ? metrics.operational_records : null}
               label="Registros"
               prefix="+"
             />
@@ -607,6 +597,9 @@ export default function LoginPage() {
       </div>
 
       <style jsx global>{`
+        .gh-public-layout:has(.loginRoot) .gh-public-contact {
+          display: none;
+        }
         .loginRoot {
           isolation: isolate;
         }
@@ -799,7 +792,7 @@ function LiveMetric({
   prefix = "",
 }: {
   icon: ReactNode;
-  value: number;
+  value: number | null;
   label: string;
   prefix?: string;
 }) {
@@ -812,8 +805,7 @@ function LiveMetric({
         </div>
         <div>
           <strong className="block text-xl font-black tracking-[-0.04em] text-white">
-            {prefix}
-            {value.toLocaleString("es-ES")}
+            {value === null ? "—" : `${prefix}${value.toLocaleString("es-ES")}`}
           </strong>
           <span className="mt-0.5 block text-[9px] font-black uppercase tracking-[0.12em] text-slate-300">
             {label}
@@ -829,15 +821,14 @@ function WelcomeMetric({
   label,
   prefix = "",
 }: {
-  value: number;
+  value: number | null;
   label: string;
   prefix?: string;
 }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.055] px-2 py-4 backdrop-blur-xl sm:px-4">
       <strong className="block text-2xl font-black tracking-[-0.05em] text-white sm:text-3xl">
-        {prefix}
-        {value.toLocaleString("es-ES")}
+        {value === null ? "—" : `${prefix}${value.toLocaleString("es-ES")}`}
       </strong>
       <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.12em] text-slate-300 sm:text-[10px]">
         {label}
@@ -860,15 +851,14 @@ function MobileMetric({
   label,
   prefix = "",
 }: {
-  value: number;
+  value: number | null;
   label: string;
   prefix?: string;
 }) {
   return (
     <div className="rounded-xl border border-white/15 bg-white/[0.07] px-2 py-3 text-center backdrop-blur-xl">
       <strong className="block text-sm font-black text-white">
-        {prefix}
-        {value.toLocaleString("es-ES")}
+        {value === null ? "—" : `${prefix}${value.toLocaleString("es-ES")}`}
       </strong>
       <span className="mt-1 block text-[8px] font-black uppercase tracking-[0.1em] text-slate-300">
         {label}

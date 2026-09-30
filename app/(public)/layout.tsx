@@ -1,13 +1,20 @@
+import type { Metadata } from "next";
+
+export const metadata: Metadata = {
+  title: "Acceso privado | GastroHelp",
+  robots: { index: false, follow: false },
+};
+
 export default function PublicLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div style={{ minHeight: "100vh" }}>
+    <div className="gh-public-layout min-h-screen">
       {children}
 
-      <div className="pointer-events-none fixed inset-x-2 bottom-2 z-[120] flex items-center justify-center sm:inset-x-auto sm:bottom-5 sm:right-5">
+      <div className="gh-public-contact pointer-events-none fixed inset-x-2 bottom-2 z-[120] flex items-center justify-center sm:inset-x-auto sm:bottom-5 sm:right-5">
         <div className="pointer-events-auto flex w-full max-w-xl items-center gap-2 rounded-2xl border border-white/15 bg-[#030814]/95 p-2 text-white shadow-[0_24px_80px_rgba(0,0,0,.45)] backdrop-blur-2xl sm:w-auto">
           <div className="hidden px-3 sm:block">
             <p className="text-[9px] font-black uppercase tracking-[.16em] text-blue-300">

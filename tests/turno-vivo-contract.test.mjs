@@ -67,10 +67,9 @@ test("the new visual system stays scoped to the panel and approved surfaces", ()
   assert.match(layout, /pathname\.startsWith\("\/clientes\/"\)/);
 });
 
-test("demo access preserves the current host", () => {
+test("private access does not offer the disabled public demo session", () => {
   const login = source("app/(public)/login/page.tsx");
-  const demo = source("app/demo/page.tsx");
-  assert.match(login, /href="\/demo"/);
-  assert.doesNotMatch(login, /href="https:\/\/panel\.gastrohelp\.es\/demo"/);
-  assert.match(demo, /window\.location\.replace\("\/dashboard"\)/);
+  assert.doesNotMatch(login, /href="\/demo"/);
+  assert.match(login, /href="https:\/\/gastrohelp\.es\/#contacto"/);
+  assert.match(login, /Solicita una demo guiada/);
 });
