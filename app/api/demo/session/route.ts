@@ -7,6 +7,12 @@ import { getSupabaseAdmin } from "@/app/lib/supabaseAdmin";
 
 const DEMO_EMAIL = process.env.DEMO_USER_EMAIL || "demo@gastrohelp.es";
 
+export function publicDemoSessionEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+) {
+  return env.DEMO_PUBLIC_SESSION_ENABLED === "enabled-after-data-audit";
+}
+
 function sessionPayload(session: Session) {
   return {
     accessToken: session.access_token,
@@ -15,6 +21,12 @@ function sessionPayload(session: Session) {
 }
 
 export async function POST(request: NextRequest) {
+  if (!publicDemoSessionEnabled()) {
+    return NextResponse.json(
+      { ok: false, error: "DEMO_DISABLED" },
+      { status: 503, headers: { "Cache-Control": "no-store, private" } },
+    );
+  }
   try {
     const allowed = await consumePublicRateLimit(
       request,

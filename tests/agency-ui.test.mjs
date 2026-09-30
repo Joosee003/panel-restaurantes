@@ -155,6 +155,15 @@ test("onboarding validates each step, sends only at the last step and preserves 
   await change(r, "Teléfono de contacto", "600000202");
   await change(r, "Dirección", "Dirección de prueba");
   await submit(r);
+  assert.equal(
+    r.root
+      .findAllByType("button")
+      .filter((node) => ["Reputación", "Reservas y chatbot", "Servicios completos"].some((label) => text(node).includes(label)))
+      .some((node) => node.props["aria-pressed"]),
+    false,
+  );
+  await submit(r);
+  assert.match(text(r.toJSON()), /Selecciona al menos un servicio/);
   await act(async () => button(r, "Reputación").props.onClick());
   await submit(r);
   assert.doesNotMatch(text(r.toJSON()), /Mesas iniciales/);

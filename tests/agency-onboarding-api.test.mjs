@@ -202,13 +202,16 @@ function fixture(options = {}) {
       return {status:result.status,body:await result.json()};
     },
     send: async (
-      form = {
-        ...onboarding.emptyForm,
-        nombre: "Prueba",
-        email: "owner@example.invalid",
-        telefono: "+34600000201",
-        direccion: "Dirección",
-      },
+      form = onboarding.applyServicePreset(
+        {
+          ...onboarding.emptyForm,
+          nombre: "Prueba",
+          email: "owner@example.invalid",
+          telefono: "+34600000201",
+          direccion: "Dirección",
+        },
+        "bookings",
+      ),
       token = "token",
       method = "POST",
     ) => {
@@ -350,6 +353,11 @@ test("reputation onboarding explicitly assigns the new owner to that restaurant 
   assert.equal(assignment[2].user_id, "invited-user");
 });
 test("preset changes retain contact details and require dependent modules when customized", () => {
+  assert.equal(
+    onboarding.serviceFields.some(([key]) => onboarding.emptyForm[key]),
+    false,
+  );
+  assert.match(onboarding.serviceDependencies(onboarding.emptyForm), /al menos un servicio/);
   const form = onboarding.applyServicePreset(
     { ...onboarding.emptyForm, nombre: "Restaurante" },
     "reputation",

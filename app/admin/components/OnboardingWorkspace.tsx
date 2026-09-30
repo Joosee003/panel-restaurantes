@@ -210,7 +210,7 @@ function OnboardingProgress({ restaurantId }: { restaurantId?: string }) {
 export function OnboardingWizard({ create, draftOwner }: { create: CreateInstallation; draftOwner?: string }) {
   const [form, setForm] = useState<OnboardingForm>({ ...emptyForm });
   const [step, setStep] = useState(0),
-    [preset, setPreset] = useState("bookings"),
+    [preset, setPreset] = useState("none"),
     [custom, setCustom] = useState(false),
     [error, setError] = useState("");
   const [saving, setSaving] = useState(false),
