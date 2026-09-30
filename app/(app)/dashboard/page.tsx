@@ -26,6 +26,7 @@ import {
   type RestaurantModules,
 } from "../lib/restaurantModules";
 import { withTimeout } from "../lib/safeQuery";
+import { settledQuery } from "../lib/settledQuery";
 import { isOrderClosed, dashboardOrderFilter } from "@/lib/orders/order-state";
 import ServiceClock from "../components/product/ServiceClock";
 import ServiceArrivals from "./ServiceArrivals";
@@ -297,37 +298,29 @@ export default function DashboardPage() {
             ) : Promise.resolve({ data: [], error: null }),
           ]);
 
-        if (reservasResult.status === "fulfilled") {
-          const { data, error } = reservasResult.value || {};
-          if (error) console.error("RESERVAS DASHBOARD ERROR", error);
-          setReservasHoy((data ?? []) as Reserva[]);
-        }
+        const reservas = settledQuery("Reservas", reservasResult);
+        const clientes = settledQuery("Clientes", clientesResult);
+        const resenas = settledQuery("Reseñas", resenasResult);
+        const pedidos = settledQuery("Pedidos", pedidosResult);
+        const cierres = settledQuery("Cierres", cierresResult);
+        const failures = [reservas, clientes, resenas, pedidos, cierres]
+          .map((result) => result.failure)
+          .filter((failure): failure is string => Boolean(failure));
 
-        if (clientesResult.status === "fulfilled") {
-          const { count, error } = clientesResult.value || {};
-          if (error) console.error("CLIENTES DASHBOARD ERROR", error);
-          setClientesSemana(count ?? 0);
-        }
+        if (reservas.value) setReservasHoy((reservas.value.data ?? []) as Reserva[]);
+        if (clientes.value) setClientesSemana(clientes.value.count ?? 0);
+        if (resenas.value) setResenasPendientes(resenas.value.count ?? 0);
+        if (pedidos.value) setPedidosHoy((pedidos.value.data ?? []) as PedidoQR[]);
+        if (cierres.value) setCierresHoy((cierres.value.data ?? []) as CierreMesa[]);
 
-        if (resenasResult.status === "fulfilled") {
-          const { count, error } = resenasResult.value || {};
-          if (error) console.error("RESENAS DASHBOARD ERROR", error);
-          setResenasPendientes(count ?? 0);
+        const hora = getHoraMadrid();
+        if (failures.length > 0) {
+          console.error("DASHBOARD PARCIAL", failures);
+          setError(`Datos parciales. Conservamos el último dato válido: ${failures.join(" · ")}.`);
+          setLastUpdated(`Actualización parcial ${hora}`);
+        } else {
+          setLastUpdated(`Actualizado ${hora}`);
         }
-
-        if (pedidosResult.status === "fulfilled") {
-          const { data, error } = pedidosResult.value || {};
-          if (error) console.error("PEDIDOS QR DASHBOARD ERROR", error);
-          setPedidosHoy((data ?? []) as PedidoQR[]);
-        }
-
-        if (cierresResult.status === "fulfilled") {
-          const { data, error } = cierresResult.value || {};
-          if (error) console.error("CIERRES QR DASHBOARD ERROR", error);
-          setCierresHoy((data ?? []) as CierreMesa[]);
-        }
-
-        setLastUpdated(`Actualizado ${getHoraMadrid()}`);
       } catch (err) {
         console.error("ERROR CARGANDO DASHBOARD", err);
         setError("Alguna parte del dashboard ha tardado demasiado en cargar.");

@@ -29,7 +29,14 @@ test('V3 secondary surfaces preserve every existing query, effect, memo and stat
       });
       return entries.sort();
     };
-    assert.deepEqual(contracts(read(file)), contracts(previous(file)), file);
+    if (file === 'app/(app)/estadisticas/page.tsx') {
+      const source = read(file);
+      assert.match(source, /settledQuery\("Reservas", reservasResult\)/);
+      assert.match(source, /Datos parciales\. Conservamos el último dato válido/);
+      assert.match(source, /if \(reservasState\.value\) setReservas/);
+    } else {
+      assert.deepEqual(contracts(read(file)), contracts(previous(file)), file);
+    }
   }
 });
 

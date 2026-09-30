@@ -41,6 +41,7 @@ import { supabase } from "../lib/supabaseClient";
 import { getRestauranteUsuario } from "../lib/getRestauranteUsuario";
 import { useTheme } from "../components/ThemeProvider";
 import { withTimeout } from "../lib/safeQuery";
+import { settledQuery } from "../lib/settledQuery";
 
 type ReservaRow = {
   id: string;
@@ -74,13 +75,6 @@ type CierreMesa = {
   total_cobrado: number | string | null;
   metodo_pago: string | null;
   creado_en: string | null;
-};
-
-type QueryResult = {
-  data?: unknown;
-  error?: {
-    message?: string;
-  } | null;
 };
 
 type Metric = {
@@ -345,45 +339,39 @@ export default function EstadisticasPage() {
         ) : Promise.resolve({ data: [], error: null }),
       ]);
 
-      if (restauranteResult.status === "fulfilled") {
-        const value = restauranteResult.value as QueryResult;
-        const row = value.data as { nombre?: string | null } | null | undefined;
-        if (row?.nombre) setRestauranteNombre(row.nombre);
+      const restaurante = settledQuery("Restaurante", restauranteResult);
+      const reservasState = settledQuery("Reservas", reservasResult);
+      const clientesState = settledQuery("Clientes", clientesResult);
+      const resenasState = settledQuery("Reseñas", resenasResult);
+      const pedidosState = settledQuery("Pedidos QR", pedidosResult);
+      const cierresState = settledQuery("Cierres QR", cierresResult);
+      const queryStates = [
+        restaurante,
+        reservasState,
+        clientesState,
+        resenasState,
+        pedidosState,
+        cierresState,
+      ];
+      const errores = queryStates
+        .map((state) => state.failure)
+        .filter((failure): failure is string => Boolean(failure));
+
+      const restaurantRow = restaurante.value?.data as
+        | { nombre?: string | null }
+        | null
+        | undefined;
+      if (restaurantRow?.nombre) setRestauranteNombre(restaurantRow.nombre);
+      if (reservasState.value) setReservas(asRows<ReservaRow>(reservasState.value.data));
+      if (clientesState.value) setClientes(asRows<ClienteRow>(clientesState.value.data));
+      if (resenasState.value) setResenas(asRows<ResenaRow>(resenasState.value.data));
+      if (pedidosState.value) setPedidos(asRows<PedidoQR>(pedidosState.value.data));
+      if (cierresState.value) setCierres(asRows<CierreMesa>(cierresState.value.data));
+
+      if (errores.length > 0) {
+        console.error("MÉTRICAS PARCIALES", errores);
+        setError(`Datos parciales. Conservamos el último dato válido: ${errores.slice(0, 3).join(" · ")}.`);
       }
-
-      const errores: string[] = [];
-
-      if (reservasResult.status === "fulfilled") {
-        const value = reservasResult.value as QueryResult;
-        if (value.error) errores.push(`Reservas: ${value.error.message || "error"}`);
-        else setReservas(asRows<ReservaRow>(value.data));
-      }
-
-      if (clientesResult.status === "fulfilled") {
-        const value = clientesResult.value as QueryResult;
-        if (value.error) errores.push(`Clientes: ${value.error.message || "error"}`);
-        else setClientes(asRows<ClienteRow>(value.data));
-      }
-
-      if (resenasResult.status === "fulfilled") {
-        const value = resenasResult.value as QueryResult;
-        if (value.error) errores.push(`Reseñas: ${value.error.message || "error"}`);
-        else setResenas(asRows<ResenaRow>(value.data));
-      }
-
-      if (pedidosResult.status === "fulfilled") {
-        const value = pedidosResult.value as QueryResult;
-        if (value.error) errores.push(`Pedidos QR: ${value.error.message || "error"}`);
-        else setPedidos(asRows<PedidoQR>(value.data));
-      }
-
-      if (cierresResult.status === "fulfilled") {
-        const value = cierresResult.value as QueryResult;
-        if (value.error) errores.push(`Cierres QR: ${value.error.message || "error"}`);
-        else setCierres(asRows<CierreMesa>(value.data));
-      }
-
-      if (errores.length > 0) setError(errores.slice(0, 2).join(" · "));
     } catch (err) {
       console.error("ERROR ESTADISTICAS", err);
       setError("No se pudieron cargar las métricas. Revisa conexión, permisos o tablas de Supabase.");
