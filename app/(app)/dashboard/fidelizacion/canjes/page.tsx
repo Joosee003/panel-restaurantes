@@ -16,6 +16,7 @@ type CanjePuntos = {
   estado: "pendiente" | "confirmado" | "cancelado";
   creado_en: string;
   confirmado_en: string | null;
+  puntos_descontados_en: string | null;
 };
 
 type CanjePromo = {
@@ -175,7 +176,7 @@ export default function CanjesPage() {
     // 1) Canjes puntos
     const { data: canjesData, error: canjesErr } = await supabase
       .from("canjes_puntos")
-      .select("id,cliente_id,premio_id,puntos_usados,estado,creado_en,confirmado_en")
+      .select("id,cliente_id,premio_id,puntos_usados,estado,creado_en,confirmado_en,puntos_descontados_en")
       .eq("restaurante_id", rid)
       .order("creado_en", { ascending: false });
 
@@ -356,6 +357,11 @@ export default function CanjesPage() {
 
     const canjeActual = canjes.find((c) => c.id === canjeId);
     const premio = canjeActual ? premiosById[canjeActual.premio_id] : null;
+    const cliente = canjeActual ? clientesById[canjeActual.cliente_id] : null;
+    const ok = window.confirm(
+      `CONFIRMAR CANJE\n\nCliente: ${cliente?.nombre || "Cliente"}\nRecompensa: ${premio?.nombre || "Premio"}\nPuntos a descontar: ${canjeActual?.puntos_usados ?? 0}\n\nLos puntos se descontarán ahora y la operación no se puede repetir.`,
+    );
+    if (!ok) return;
 
     setBusyId(canjeId);
     setErrorMsg(null);
@@ -392,7 +398,11 @@ export default function CanjesPage() {
     const canjeActual = canjes.find((c) => c.id === canjeId);
     const premio = canjeActual ? premiosById[canjeActual.premio_id] : null;
 
-    const ok = window.confirm("Cancelar canje y devolver puntos al cliente?");
+    const ok = window.confirm(
+      canjeActual?.puntos_descontados_en
+        ? "¿Cancelar este canje legado y devolver los puntos que ya se descontaron?"
+        : "¿Cancelar esta solicitud? Todavía no se han descontado puntos.",
+    );
     if (!ok) return;
 
     setBusyId(canjeId);
@@ -415,8 +425,8 @@ export default function CanjesPage() {
         tipo: "premio",
         titulo: "Premio cancelado",
         mensaje: premio?.nombre
-          ? `El restaurante ha cancelado tu canje del premio "${premio.nombre}". Los puntos se han devuelto a tu cuenta.`
-          : "El restaurante ha cancelado tu canje. Los puntos se han devuelto a tu cuenta.",
+          ? `El restaurante ha cancelado tu canje del premio "${premio.nombre}".${canjeActual.puntos_descontados_en ? " Los puntos se han devuelto a tu cuenta." : " Tu saldo no ha cambiado."}`
+          : `El restaurante ha cancelado tu canje.${canjeActual.puntos_descontados_en ? " Los puntos se han devuelto a tu cuenta." : " Tu saldo no ha cambiado."}`,
       });
     }
 
@@ -535,18 +545,22 @@ export default function CanjesPage() {
           <div className={clsx("mt-1 text-sm font-semibold", dark ? "text-gray-400" : "text-gray-500")}>{restauranteNombre} · revisa primero las solicitudes pendientes</div>
         </div>
 
-        <button
-          className={clsx(btn, "inline-flex items-center gap-2")}
-          onClick={() =>
-            restauranteId &&
-            cargarTodo(restauranteId).catch((e: unknown) =>
-              setErrorMsg(mensajeError(e, "Error"))
-            )
-          }
-          disabled={!restauranteId || loading}
-        >
-          <RefreshCw className="h-4 w-4" /> Recargar
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/dashboard/fidelizacion/escanear" className={btnPrimary}>Escanear cliente o canje</Link>
+          <Link href="/dashboard/fidelizacion/club" className={btn}>QR público del club</Link>
+          <button
+            className={clsx(btn, "inline-flex items-center gap-2")}
+            onClick={() =>
+              restauranteId &&
+              cargarTodo(restauranteId).catch((e: unknown) =>
+                setErrorMsg(mensajeError(e, "Error"))
+              )
+            }
+            disabled={!restauranteId || loading}
+          >
+            <RefreshCw className="h-4 w-4" /> Recargar
+          </button>
+        </div>
       </div>
 
       {!loading ? (

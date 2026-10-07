@@ -35,6 +35,7 @@ import ConfirmSubmit from "./ConfirmSubmit";
 import LoadingSubmitButton from "./LoadingSubmitButton";
 import ScratchCoupon from "./ScratchCoupon";
 import LevelExperience, { type ClientLevelThresholds } from "./LevelExperience";
+import QrCode from "../../club/[slug]/QrCode";
 
 export const dynamic = "force-dynamic";
 
@@ -792,7 +793,12 @@ function RewardCard({
 
         <div className="mt-4">
           {pendiente ? (
-            <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-sm font-bold text-slate-600">Premio solicitado. Muestra el pase de validación al personal.</div>
+            <form action={canjearAction} className="space-y-2">
+              <input type="hidden" name="token" value={token} />
+              <input type="hidden" name="premio_id" value={premio.id} />
+              <div className="rounded-2xl border border-slate-100 bg-slate-50 p-3 text-sm font-bold text-slate-600">Premio solicitado. Genera un QR temporal cuando estés en el restaurante.</div>
+              <LoadingSubmitButton loadingText="Generando QR..." style={{ backgroundColor: accent }}>Generar nuevo QR de canje</LoadingSubmitButton>
+            </form>
           ) : confirmado ? (
             <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-3 text-sm font-bold text-emerald-700">Premio validado por el restaurante.</div>
           ) : disponible ? (
@@ -855,7 +861,7 @@ export default async function ClientePremiosPage({
   searchParams,
 }: {
   params: Promise<{ token: string }>;
-  searchParams: Promise<{ ok?: string; err?: string; tab?: string; cambiar?: string; hora?: string }>;
+  searchParams: Promise<{ ok?: string; err?: string; tab?: string; cambiar?: string; hora?: string; canje_token?: string; canje_id?: string; canje_expira?: string }>;
 }) {
   const { token } = await params;
   const sp = await searchParams;
@@ -864,7 +870,7 @@ export default async function ClientePremiosPage({
   const tabValues: TabKey[] = ["inicio", "reservas", "nivel", "premios", "cupones", "perfil"];
   const currentTab: TabKey = tabValues.includes((sp.tab ?? "") as TabKey) ? (sp.tab as TabKey) : "inicio";
   const buildTabHref = (tab: TabKey) => `/c/${token}?tab=${tab}`;
-  const CONFIRM_MSG = "IMPORTANTE: canjea solo cuando estés en el restaurante. Muestra esta pantalla al personal para validarlo. ¿Quieres continuar?";
+  const CONFIRM_MSG = "IMPORTANTE: genera el QR solo cuando estés en el restaurante. Tus puntos no se descontarán hasta que el personal confirme el canje. ¿Quieres continuar?";
 
   async function completarPerfilAction(formData: FormData) {
     "use server";
@@ -950,25 +956,14 @@ export default async function ClientePremiosPage({
       redirect(`/c/${tokenLocal}?tab=premios&err=nivel`);
     }
 
-    const { data: existente } = await admin
-      .from("canjes_puntos")
-      .select("id, estado")
-      .eq("cliente_id", cliente.id)
-      .eq("restaurante_id", cliente.restaurante_id)
-      .eq("premio_id", premioId)
-      .eq("estado", "pendiente")
-      .order("creado_en", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (existente) redirect(`/c/${tokenLocal}?tab=premios&ok=premio`);
-
-    const { error } = await admin.rpc("rpc_canjear_premio", { p_cliente_id: cliente.id, p_restaurante_id: cliente.restaurante_id, p_premio_id: premioId });
+    const { data, error } = await admin.rpc("club_create_redemption_for_customer", { p_cliente_id: cliente.id, p_restaurante_id: cliente.restaurante_id, p_premio_id: premioId });
     if (error) {
-      const code = /insuficientes/i.test(error.message) ? "puntos" : /no disponible/i.test(error.message) ? "premio" : "canje";
+      const code = /insuficientes|INSUFFICIENT_POINTS/i.test(error.message) ? "puntos" : /no disponible|REWARD_NOT_AVAILABLE/i.test(error.message) ? "premio" : "canje";
       redirect(`/c/${tokenLocal}?tab=premios&err=${code}`);
     }
-    redirect(`/c/${tokenLocal}?tab=premios&ok=premio`);
+    const result = data as { redemptionId?: string; token?: string; expiresAt?: string } | null;
+    if (!result?.redemptionId || !result.token || !result.expiresAt) redirect(`/c/${tokenLocal}?tab=premios&err=canje`);
+    redirect(`/c/${tokenLocal}?tab=premios&ok=premio&canje_id=${encodeURIComponent(result.redemptionId)}&canje_token=${encodeURIComponent(result.token)}&canje_expira=${encodeURIComponent(result.expiresAt)}`);
   }
 
   async function canjearCuponAction(formData: FormData) {
@@ -1698,7 +1693,8 @@ export default async function ClientePremiosPage({
                 <div id="premios-validacion" className="space-y-3 scroll-mt-24">
                   {canjesPendientes.map((c) => {
                     const premio = premiosById.get(c.premio_id);
-                    return <ValidationCard key={c.id} title={premio?.nombre ?? "Premio"} subtitle={`${c.puntos_usados} puntos usados`} code={validationCode(c.id)} accent={accent} status={c.estado} />;
+                    const isCurrentQr = sp.canje_id === c.id && Boolean(sp.canje_token);
+                    return <div key={c.id} className="space-y-3"><ValidationCard title={premio?.nombre ?? "Premio"} subtitle={`${c.puntos_usados} puntos · se descontarán al confirmar`} code={isCurrentQr ? "QR temporal listo" : validationCode(c.id)} accent={accent} status={c.estado} />{isCurrentQr && sp.canje_token ? <div className="mx-auto w-full max-w-[280px] rounded-[28px] border border-slate-100 bg-white p-3 shadow-sm"><QrCode value={sp.canje_token} label={`Canje de ${premio?.nombre ?? "premio"}`} size={260} /><div className="mt-2 text-center text-xs font-bold text-slate-500">{sp.canje_expira ? `Caduca a las ${new Date(sp.canje_expira).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}` : "QR temporal de un solo uso"}</div></div> : null}</div>;
                   })}
                 </div>
               </SectionCard>
