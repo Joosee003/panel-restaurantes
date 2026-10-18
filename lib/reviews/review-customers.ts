@@ -37,7 +37,7 @@ export function groupReviewCustomers(requests: ReviewRequest[]): ReviewCustomer[
     const latest = history[0];
     const confirmed = latest.confirmed;
     const consent = latest.consent;
-    const reviewRequest = history.find(request => request.sent_at || request.google_opened_at) || null;
+    const reviewRequest = history.find(request => ["accepted", "sent", "delivered", "read", "failed"].includes(request.status) || request.sent_at || request.google_opened_at) || null;
     const category: ReviewCustomer["category"] = confirmed ? "confirmed" : !consent ? "stopped" : reviewRequest ? "pending" : "queued";
     return {
       id, latest, history, reviewRequest, confirmed, consent, category,
@@ -52,6 +52,7 @@ export function groupReviewCustomers(requests: ReviewRequest[]): ReviewCustomer[
 export function customerReviewStage(customer: ReviewCustomer, now = Date.now()) {
   if (customer.confirmed) return { label: "Reseña confirmada", tone: "green" } as const;
   if (!customer.consent) return { label: "Sin permiso", tone: "slate" } as const;
+  if (["accepted", "sent", "delivered", "read", "failed", "uncertain"].includes(customer.latest.status)) return reviewStage(customer.latest, now);
   if (customer.lastOpenedAt) return { label: "Enlace abierto", tone: "blue" } as const;
   if (customer.lastSentAt) return { label: "Petición enviada", tone: "blue" } as const;
   return reviewStage(customer.latest, now);

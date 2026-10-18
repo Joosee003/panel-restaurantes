@@ -6,8 +6,12 @@ export type ReviewRequest = {
   telefono: string | null;
   visit_at: string;
   scheduled_for: string;
-  status: "scheduled" | "ready" | "prepared" | "sent" | "blocked" | "uncertain" | "cancelled";
+  status: "scheduled" | "ready" | "prepared" | "accepted" | "sent" | "delivered" | "read" | "failed" | "blocked" | "uncertain" | "cancelled";
+  accepted_at?: string | null;
   sent_at: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  failed_at?: string | null;
   google_opened_at: string | null;
   checked_at: string | null;
   confirmed: boolean;
@@ -56,9 +60,14 @@ export function reviewMessage(name: string, restaurant: string, url: string): st
 
 export function reviewStage(request: ReviewRequest, now = Date.now()) {
   if (request.confirmed) return { key: "confirmed", label: "Reseña confirmada", tone: "green" } as const;
+  if (request.status === "read") return { key: "read", label: "WhatsApp leído", tone: "green" } as const;
+  if (request.status === "delivered") return { key: "delivered", label: "WhatsApp entregado", tone: "green" } as const;
+  if (request.status === "sent") return { key: "sent", label: "WhatsApp enviado", tone: "blue" } as const;
+  if (request.status === "accepted") return { key: "accepted", label: "WhatsApp aceptado por el proveedor", tone: "blue" } as const;
+  if (request.status === "failed") return { key: "failed", label: "WhatsApp fallido; revisar", tone: "amber" } as const;
+  if (request.status === "uncertain") return { key: "uncertain", label: "GastroHelp está revisando el envío", tone: "amber" } as const;
   if (request.google_opened_at) return { key: "opened", label: "Abrió el enlace de Google", tone: "blue" } as const;
   if (request.sent_at) return { key: "sent", label: "Petición enviada", tone: "slate" } as const;
-  if (request.status === "uncertain") return { key: "uncertain", label: "GastroHelp está revisando el envío", tone: "amber" } as const;
   if (request.status === "cancelled") return { key: "cancelled", label: "Petición cancelada", tone: "slate" } as const;
   if (!request.consent) return { key: "blocked", label: "Sin permiso de WhatsApp", tone: "amber" } as const;
   if (new Date(request.scheduled_for).getTime() > now) return { key: "scheduled", label: "Programada tras la visita", tone: "slate" } as const;
@@ -69,7 +78,7 @@ export function reviewStage(request: ReviewRequest, now = Date.now()) {
 
 export function canPrepareReview(request: ReviewRequest, now = Date.now()): boolean {
   return !request.confirmed && !request.sent_at && request.consent
-    && !["cancelled", "uncertain"].includes(request.status)
+    && !["accepted", "sent", "delivered", "read", "failed", "cancelled", "uncertain"].includes(request.status)
     && Number.isFinite(new Date(request.scheduled_for).getTime())
     && new Date(request.scheduled_for).getTime() <= now
     && whatsappPhone(request.telefono) !== null;

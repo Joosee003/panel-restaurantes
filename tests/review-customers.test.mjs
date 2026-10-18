@@ -41,7 +41,7 @@ test('several visits become one customer with all history and the correct sent v
 test('opening Google cannot confirm a review or hide lost consent',()=>{
   const opened=row({google_opened_at:'2026-09-11T10:00:00Z'});
   const [pending]=customers.groupReviewCustomers([opened]);
-  assert.equal(pending.category,'pending');assert.equal(pending.confirmed,false);assert.equal(customers.customerReviewStage(pending).label,'Enlace abierto');
+  assert.equal(pending.category,'pending');assert.equal(pending.confirmed,false);assert.equal(customers.customerReviewStage(pending).label,'WhatsApp enviado');
   const [stopped]=customers.groupReviewCustomers([{...opened,consent:false,status:'cancelled',last_error:'review_consent_missing'}]);
   assert.equal(stopped.category,'stopped');assert.equal(customers.customerReviewStage(stopped).label,'Sin permiso');
   assert.equal(customers.matchesCustomerFilter(stopped,'pending'),true,'a stopped customer can still need a review check');

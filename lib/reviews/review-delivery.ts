@@ -8,12 +8,16 @@ type Rpc = ReviewRpc;
 type Environment = Record<string, string | undefined>;
 export type ReviewOutcome = { outcome: "sent" | "test" | "blocked" | "uncertain" | "deferred"; messageId?: string; error?: string };
 type Outcome = ReviewOutcome;
-// Null means the restaurant has no own WAHA connection. Production must never
-// fall back to a shared sender; the legacy transport is retained for isolated tests.
+// Null means the restaurant has no own WAHA connection. The shared Meta route
+// is selected only by an explicit restaurant allowlist; it is never a fallback.
 export type ReviewChannelSender = (event: ReviewEvent, delivery: Delivery, rpc: Rpc) => Promise<Outcome | null>;
 
 export function reviewWhatsAppConfigured(env: Environment, restaurantId: string) {
   return reviewWebhookConfigured(env, restaurantId, env.WHATSAPP_REVIEW_RESTAURANT_IDS);
+}
+
+export function reviewMetaSelected(env: Environment, restaurantId: string) {
+  return restaurantIncluded(restaurantId, env.WHATSAPP_REVIEW_RESTAURANT_IDS);
 }
 
 function restaurantIncluded(restaurantId: string, allowlist: string | undefined) {
@@ -136,8 +140,13 @@ export async function deliverVisitReview(event: ReviewEvent, rpc: Rpc, env: Envi
       if (["delivery_lock_lost", "review_delivery_in_progress"].includes(delivery.reason || "")) return result("skipped");
       return await finish(delivery.reason === "review_delivery_uncertain" ? "uncertain" : "blocked", delivery.reason);
     }
-    // Select by the trusted event restaurant, even in test mode. A WAHA test
-    // must not unexpectedly exercise the former shared Meta sender.
+    // An explicit restaurant assignment owns the Meta route. Missing webhook
+    // configuration blocks it rather than silently falling back to WAHA.
+    if (delivery.deliveryMode === "live" && reviewMetaSelected(env, event.restaurante_id)) {
+      const sent = await sendReviewTemplate(event, delivery, env, transport);
+      return await finish(sent.outcome, sent.error, sent.messageId);
+    }
+    // All other live restaurants keep their existing own-channel route.
     const channelResult = channelSender ? await channelSender(event, delivery, rpc) : null;
     if (channelResult) return await finish(channelResult.outcome, channelResult.error, channelResult.messageId);
     if (channelSender && delivery.deliveryMode === "live") return await finish("blocked", "own_whatsapp_number_required");

@@ -33,10 +33,20 @@ test('Phone normalization supports Spanish and international numbers without acc
 });
 test('An opened Google link is not a confirmed review and an uncertain send cannot be prepared again',()=>{
  const request={confirmed:false,sent_at:'2026-01-01T00:00:00Z',google_opened_at:'2026-01-01T01:00:00Z',status:'sent',consent:true,telefono:'600000001',scheduled_for:'2026-01-01T00:00:00Z'};
- assert.equal(flow.reviewStage(request).key,'opened');assert.equal(flow.canPrepareReview(request),false);
+ assert.equal(flow.reviewStage(request).key,'sent');assert.equal(request.confirmed,false);assert.equal(flow.canPrepareReview(request),false);
  assert.equal(flow.reviewStage({...request,confirmed:true}).key,'confirmed');
  assert.equal(flow.canPrepareReview({...request,sent_at:null,google_opened_at:null,status:'uncertain'}),false);
  assert.equal(flow.canPrepareReview({...request,sent_at:null,google_opened_at:null,status:'ready',consent:false}),false);
+});
+test('provider lifecycle labels use callbacks and never treat acceptance or clicks as publication',()=>{
+ const base={confirmed:false,sent_at:null,google_opened_at:null,status:'accepted',consent:true,telefono:'600000001',scheduled_for:'2026-01-01T00:00:00Z'};
+ assert.equal(flow.reviewStage(base).key,'accepted');assert.equal(flow.canPrepareReview(base),false);
+ assert.equal(flow.reviewStage({...base,status:'sent',sent_at:'2026-01-01T00:01:00Z'}).key,'sent');
+ assert.equal(flow.reviewStage({...base,status:'delivered'}).key,'delivered');
+ assert.equal(flow.reviewStage({...base,status:'read',google_opened_at:'2026-01-01T00:02:00Z'}).key,'read');
+ assert.equal(flow.reviewStage({...base,status:'failed'}).key,'failed');
+ assert.equal(flow.reviewStage({...base,status:'uncertain'}).key,'uncertain');
+ assert.equal(flow.reviewStage({...base,status:'read',confirmed:true}).key,'confirmed');
 });
 test('No live delivery occurs without a webhook secret and an explicit restaurant allowlist',async()=>{
  assert.equal(delivery.reviewWhatsAppConfigured(env,event.restaurante_id),true);
@@ -221,14 +231,14 @@ test('Failed recording of provider acceptance never falls into the generic retry
  assert.equal(calls,1);assert.equal(state.calls.length,2);
 });
 
-test('An opted-in restaurant uses its own channel and never falls back to the shared Meta sender',async()=>{
+test('A restaurant outside the Meta allowlist uses its own channel',async()=>{
  for(const channelOutcome of [
   {outcome:'blocked',error:'waha_offline'},
   {outcome:'uncertain',error:'waha_delivery_unknown'},
   {outcome:'sent',messageId:'waha:true_34600000001@c.us_FIXTURE'},
  ]) {
   const state=mockRpc(allowed);let selected=0;
-  const result=await delivery.deliverVisitReview(event,state.rpc,env,forbidden,async(received,context,actualRpc)=>{
+  const result=await delivery.deliverVisitReview(event,state.rpc,{...env,WHATSAPP_REVIEW_RESTAURANT_IDS:''},forbidden,async(received,context,actualRpc)=>{
    selected++;assert.deepEqual(received,event);assert.equal(context,allowed);assert.equal(actualRpc,state.rpc);
    return channelOutcome;
   });
@@ -237,15 +247,15 @@ test('An opted-in restaurant uses its own channel and never falls back to the sh
   assert.equal(state.calls[1].args.p_message_id,channelOutcome.messageId||null);
  }
 });
-test('A restaurant without an own channel cannot silently use the shared Meta sender',async()=>{
+test('An unassigned restaurant without an own channel cannot use the shared Meta sender',async()=>{
  const state=mockRpc(allowed);let sends=0;
- const result=await delivery.deliverVisitReview(event,state.rpc,env,async()=>{sends++;return Response.json(accepted);},async()=>null);
+ const result=await delivery.deliverVisitReview(event,state.rpc,{...env,WHATSAPP_REVIEW_RESTAURANT_IDS:''},async()=>{sends++;return Response.json(accepted);},async()=>null);
  assert.equal(result.status,'blocked');assert.equal(sends,0);
  assert.equal(state.calls[1].args.p_error,'own_whatsapp_number_required');
 });
 test('A channel lookup failure fails closed instead of sending from another number',async()=>{
  const state=mockRpc(allowed);
- const result=await delivery.deliverVisitReview(event,state.rpc,env,forbidden,async()=>{throw Error('lookup failed');});
+ const result=await delivery.deliverVisitReview(event,state.rpc,{...env,WHATSAPP_REVIEW_RESTAURANT_IDS:''},forbidden,async()=>{throw Error('lookup failed');});
  assert.equal(result.status,'needs_review');assert.equal(state.calls.length,1);
 });
 test('Already confirmed reviews are stopped before selecting or contacting any WAHA channel',async()=>{
