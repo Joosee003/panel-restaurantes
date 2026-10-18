@@ -97,7 +97,14 @@ try {
   const movements = (await observer.query("select count(*)::int n from puntos_movimientos where referencia=$1",[`canje-confirmado:${request.redemptionId}`])).rows[0].n;
   assert.equal(balance,70);
   assert.equal(movements,1);
-  console.log(JSON.stringify({status:'passed',engine:'PostgreSQL',connections:3,checks:['two independent confirmation connections','one debit and one movement','second confirmation rejected'],memberCodePresent:!!joined.memberCode}));
+  if (process.env.GH_LOYALTY_ROLLBACK_SQL) {
+    await a.exec('reset role');
+    await a.exec(await readFile(process.env.GH_LOYALTY_ROLLBACK_SQL,'utf8'));
+    const restored = (await observer.query("select pg_get_functiondef('public.rpc_canjear_premio(uuid,uuid,uuid)'::regprocedure) definition")).rows[0].definition;
+    assert.match(restored,/Canje de premio/);
+    assert.equal((await observer.query('select puntos from puntos_saldos where cliente_id=$1 and restaurante_id=$2',[ids.customer,ids.restaurant])).rows[0].puntos,70);
+  }
+  console.log(JSON.stringify({status:'passed',engine:'PostgreSQL',connections:3,checks:['two independent confirmation connections','one debit and one movement','second confirmation rejected'],rollbackFunctionsRestored:!!process.env.GH_LOYALTY_ROLLBACK_SQL,memberCodePresent:!!joined.memberCode}));
 } catch (error) {
   console.error(JSON.stringify({status:'failed',message:error.message,code:error.code}));
   process.exitCode = 1;
