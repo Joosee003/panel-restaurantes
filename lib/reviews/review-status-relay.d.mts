@@ -11,3 +11,11 @@ export function parseSignedReviewStatuses(
   allowedPhoneIds: string,
   now?: number,
 ): ReviewProviderStatus[] | null;
+
+export function parseAuthenticatedReviewStatuses(
+  raw: Uint8Array,
+  headers: Headers | Record<string, string | null | undefined>,
+  secret: string,
+  allowedPhoneIds: string,
+  now?: number,
+): ReviewProviderStatus[] | null;

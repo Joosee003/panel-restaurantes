@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createHmac } from 'node:crypto';
-import { parseSignedReviewStatuses } from '../lib/reviews/review-status-relay.mjs';
+import { parseSignedReviewStatuses, parseAuthenticatedReviewStatuses } from '../lib/reviews/review-status-relay.mjs';
 
 const secret = 'synthetic-relay-key-for-local-tests-only-123456789';
 const now = Date.parse('2026-10-17T12:00:00Z');
@@ -39,4 +39,16 @@ test('payload tampering, wrong key, stale signature and malformed statuses fail 
     const item = signed(invalid);
     assert.equal(parseSignedReviewStatuses(item.raw, item.headers, secret, '1234567890', now), null);
   }
+});
+
+test('existing n8n Header Auth credential authenticates a Meta-validated relay', () => {
+  const raw = Buffer.from(JSON.stringify(body));
+  const headers = new Headers({ 'x-gastrohelp-webhook-secret': secret });
+  assert.deepEqual(parseAuthenticatedReviewStatuses(raw, headers, secret, '1234567890', now).map(x => x.status), ['delivered', 'read']);
+  assert.equal(parseAuthenticatedReviewStatuses(raw, new Headers(), secret, '1234567890', now), null);
+  assert.equal(parseAuthenticatedReviewStatuses(raw, new Headers({ 'x-gastrohelp-webhook-secret': `${secret}wrong` }), secret, '1234567890', now), null);
+  assert.equal(parseAuthenticatedReviewStatuses(raw, headers, secret, '9999999999', now), null);
+  const tamperedHeaders = new Headers(headers);
+  tamperedHeaders.set('x-gastrohelp-relay-signature', 'sha256=' + '0'.repeat(64));
+  assert.equal(parseAuthenticatedReviewStatuses(raw, tamperedHeaders, secret, '1234567890', now), null);
 });

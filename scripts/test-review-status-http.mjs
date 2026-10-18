@@ -51,7 +51,7 @@ try {
   next = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--webpack', '--hostname', '127.0.0.1', '--port', '3042'], {
     env: { ...process.env, NEXT_TELEMETRY_DISABLED: '1', NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${api.address().port}`,
       NEXT_PUBLIC_SUPABASE_ANON_KEY: 'synthetic-anon-key', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-key',
-      N8N_REVIEW_STATUS_RELAY_SECRET: secret, N8N_REVIEW_STATUS_PHONE_NUMBER_IDS: '1234567890' },
+      N8N_REVIEW_WEBHOOK_SECRET: secret, N8N_REVIEW_STATUS_PHONE_NUMBER_IDS: '1234567890' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let log = '';
@@ -73,11 +73,15 @@ try {
     'X-GastroHelp-Relay-Signature': `sha256=${signature}`,
   }, body: raw });
   assert.equal(result.status, 200);
+  const readResult = await fetch(url, { method: 'POST', headers: {
+    'Content-Type': 'application/json', 'X-GastroHelp-Webhook-Secret': secret,
+  }, body: JSON.stringify({ phoneNumberId: '1234567890', statuses: [{ id: 'wamid.local-http', status: 'read', timestamp }] }) });
+  assert.equal(readResult.status, 200);
   await reviewActor(db, null, 'service_role');
-  assert.equal((await requestRow(db)).status, 'delivered');
+  assert.equal((await requestRow(db)).status, 'read');
   console.log(JSON.stringify({ status: 'passed', checks: [
     'Unsigned request is rejected before the database.',
-    'Signed local callback reaches the RPC and updates the request without sending a message.',
+    'Signed and existing-credential callbacks reach the RPC and advance the request without sending a message.',
   ] }, null, 2));
 } catch (error) {
   console.error(JSON.stringify({ status: 'failed', message: error.message, stack: error.stack }));
