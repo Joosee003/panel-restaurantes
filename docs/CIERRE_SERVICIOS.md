@@ -1,0 +1,16 @@
+# Cierre de servicios GastroHelp
+
+**Corte:** 18/10/2026. Este es el único registro general de cierre. Cada bloque conserva su evidencia detallada en el documento enlazado; un test local no acredita QA ni producción.
+
+| Bloque | Estado conocido | Siguiente comprobación para cerrar |
+|---|---|---|
+| 1. Reseñas automáticas | **Ruta alojada comprobada hasta entrega.** En `gastrohelp-panel` Production, una reserva y restaurante ficticios pasaron desde «Ha venido» hasta programación, cron automático, aceptación Meta, callbacks `sent`/`delivered` y estado «WhatsApp entregado» en el panel. Un único WhatsApp salió al número de prueba autorizado. Abrir el enlace registró `google_opened_at` sin confirmar una reseña. El usuario abrió el mensaje, pero no llegó callback `read`; el estado sigue correctamente en `delivered`. | Conservar `read` sin acreditar hasta recibir callback. Antes del primer restaurante real, configurar su remitente/consentimiento/enlace de Google y retirar la guarda exclusiva del evento de prueba. Ver [detalle y pruebas](CIERRE_RESENAS_AUTOMATICAS.md). |
+| 2. Fidelización | Cambios preexistentes sin guardar en esta rama; **no revisado en este bloque**. | Revisar y cerrar en su bloque, conservando esos cambios separados. |
+| 3. Reservas y chatbot | El componente de reservas interviene en reseñas; servicio completo **no revisado en este bloque**. | Revisar flujo propio, permisos y automatización en su bloque. |
+| 4. Carta, pedidos, cocina y panel | **No revisado en este bloque**. | Revisar recorridos acordados en su bloque. |
+| 5. Comprobación conjunta | La publicación de reseñas fue específica y autorizada; el cierre conjunto **sigue pendiente**. | Comprobar cada servicio contratado o activado por separado antes de declarar GastroHelp completo. |
+| 6. Sales | Seguimiento en su repositorio/rama; **fuera de este bloque**. | Vincular su cierre separado cuando se compruebe. |
+
+**Versión de reseñas publicada:** `codex/reviews-meta-release@6b105aceafc1a5b5bfe3ee4f981785f62763b480`, Vercel `dpl_8kpMrNd5WBa1ienSV3MuQyxPjnhY` `READY` en `panel.gastrohelp.es`; migración Supabase `20261018201158 review_provider_states`. n8n entrada activa `47c47435-eb98-4dab-b6e4-425f4f1337e8`, salida activa `55f87e82-46ed-46c4-b1f1-92bd10546cc5` limitada al evento y teléfono de prueba. El workflow de Hispanos Grill, sus datos y los cambios de fidelización no se tocaron. El laboratorio local de PostgreSQL acreditó reglas y concurrencia con conexiones independientes; no fue necesario montar Docker, WSL ni una copia local completa.
+
+**Pendiente exacto del bloque 1:** confirmación `read` ausente en el proveedor/panel al corte, sin reenvío; preparar configuración aprobada para el primer restaurante real antes de quitar la guarda sintética. El enlace real ya configurado de Hispanos Grill se comprobó solo en lectura y abre su ficha Google Maps con reseñas; el 404 observado pertenece únicamente al Place ID ficticio de la prueba.
