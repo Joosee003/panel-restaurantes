@@ -547,6 +547,7 @@ export default function ClientesPage() {
       <header className={styles.heading}>
         <div><h1>Clientes</h1><p>La relación con quienes vuelven.</p></div>
         <div className={styles.headingActions}>
+          {fidelizacionActiva ? <Link href="/dashboard/fidelizacion/escanear" className={styles.button}>Escanear cliente</Link> : null}
           {fidelizacionActiva ? <button onClick={() => setModalRanking(true)} className={styles.button}>Ranking</button> : null}
           {fidelizacionActiva ? <button onClick={() => { setNivelesForm(nivelesConfig); setModalNiveles(true); }} className={styles.button}>Niveles</button> : null}
           <button onClick={() => setModalNuevo(true)} className={styles.primary}><Plus size={15} /> Añadir cliente</button>
