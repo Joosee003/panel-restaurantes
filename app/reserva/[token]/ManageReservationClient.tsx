@@ -97,6 +97,7 @@ export default function ManageReservationClient({
   const [date, setDate] = useState(() =>
     dateInTimezone(initialReservation.start, initialReservation.timezone),
   );
+  const [party, setParty] = useState(initialReservation.party);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<AvailabilitySlot | null>(null);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -122,7 +123,7 @@ export default function ManageReservationClient({
       setError("");
 
       try {
-        const query = new URLSearchParams({ date });
+        const query = new URLSearchParams({ date, party: String(party) });
         const response = await fetch(
           `/api/public/reservations/${reservation.managementToken}/availability?${query}`,
           { signal: controller.signal, cache: "no-store" },
@@ -150,7 +151,7 @@ export default function ManageReservationClient({
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [date, mode, reservation.managementToken]);
+  }, [date, mode, party, reservation.managementToken]);
 
   function returnToSummary() {
     setMode("summary");
@@ -199,13 +200,14 @@ export default function ManageReservationClient({
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ start: selectedSlot.start }),
+          body: JSON.stringify({ start: selectedSlot.start, party }),
         },
       );
       const payload = (await response.json()) as {
         ok?: boolean;
         start?: string;
         end?: string;
+        party?: number;
         error?: string;
       };
       if (!response.ok || !payload.ok || !payload.start) {
@@ -216,10 +218,11 @@ export default function ManageReservationClient({
         ...current,
         start: payload.start || current.start,
         end: payload.end || current.end,
+        party: payload.party || current.party,
       }));
       setMode("summary");
       setSelectedSlot(null);
-      setNotice("La fecha de tu reserva se ha actualizado.");
+      setNotice("La reserva se ha actualizado.");
     } catch (requestError) {
       setError(readableError((requestError as Error).message));
     } finally {
@@ -325,6 +328,7 @@ export default function ManageReservationClient({
                       type="button"
                       onClick={() => {
                         setMode("reschedule");
+                        setParty(reservation.party);
                         setNotice("");
                       }}
                       disabled={!reservation.canReschedule}
@@ -370,7 +374,7 @@ export default function ManageReservationClient({
 
                 {!reservation.canCancel && !cancelled ? (
                   <p className="mt-5 rounded-2xl bg-amber-50 p-4 text-xs font-bold leading-5 text-amber-900">
-                    El plazo de cambios online ha terminado. Contacta con el restaurante si necesitas ayuda.
+                    Ya no puedes modificar o cancelar esta reserva desde la web. Para cualquier cambio, llama al {reservation.restaurantPhone || "restaurante"}.
                   </p>
                 ) : null}
               </>
@@ -389,7 +393,7 @@ export default function ManageReservationClient({
                   Elige otra hora
                 </h2>
                 <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
-                  Conservamos tus datos y el número de personas.
+                  Conservamos tus datos. Puedes cambiar fecha, hora y personas si hay disponibilidad.
                 </p>
 
                 <label className="mt-7 block">
@@ -404,6 +408,13 @@ export default function ManageReservationClient({
                     className="h-12 w-full rounded-xl border-slate-200 bg-white px-4 text-sm font-bold outline-none focus:border-slate-500"
                     style={{ colorScheme: "light" }}
                   />
+                </label>
+
+                <label className="mt-4 block">
+                  <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">Personas</span>
+                  <input type="number" min={1} max={reservation.restaurantSlug.startsWith("new-talgo") ? 32 : 500}
+                    value={party} onChange={(event) => setParty(Number(event.target.value))}
+                    className="h-12 w-full rounded-xl border border-slate-200 bg-white px-4 text-sm font-bold" />
                 </label>
 
                 <div className="mt-6 flex items-end justify-between gap-4">

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ComponentType } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
   ArrowRight,
@@ -156,6 +157,10 @@ function formatReserva(fecha?: string | null) {
 }
 
 export default function DashboardPage() {
+  const whiteLabel = usePathname().startsWith("/panel-personalizado");
+  const reservasPath = whiteLabel ? "/panel-personalizado/reservas" : "/reservas";
+  const clientesPath = whiteLabel ? "/panel-personalizado/clientes" : "/clientes";
+  const cartaPath = whiteLabel ? "/panel-personalizado/carta" : "/panel/carta-productos";
   const loadingRef = useRef(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -342,7 +347,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!restauranteId || !modulesReady) return;
-    cargarDashboard("inicial");
+    const timer = window.setTimeout(() => void cargarDashboard("inicial"), 0);
+    return () => window.clearTimeout(timer);
   }, [restauranteId, modulesReady, cargarDashboard]);
 
   const programarRefresh = useCallback(() => {
@@ -597,24 +603,24 @@ export default function DashboardPage() {
         </div>
         <div className={styles.actions}>
           <button onClick={() => cargarDashboard("refresh")} disabled={loading || refreshing} aria-label="Actualizar servicio"><RefreshCw size={15} className={refreshing ? "animate-spin" : ""} /><span>Actualizar</span></button>
-          {modules.reservas ? <Link href="/reservas" className={styles.primary}><CalendarDays size={15} /> Reservas</Link> : null}
-          {modules.camarero_digital ? <Link href="/panel/pedidos-qr"><ChefHat size={15} /> Cocina</Link> : modules.menu_digital ? <Link href="/panel/menu-dia">Menú</Link> : null}
+          {modules.reservas ? <Link href={reservasPath} className={styles.primary}><CalendarDays size={15} /> Reservas</Link> : null}
+          {modules.camarero_digital ? <Link href="/panel/pedidos-qr"><ChefHat size={15} /> Cocina</Link> : modules.menu_digital ? <Link href={whiteLabel ? cartaPath : "/panel/menu-dia"}>Menú</Link> : null}
         </div>
       </header>
 
       {error ? <div role="alert" className={styles.alert}>{error}</div> : null}
-      {panelVacio ? <div className={styles.onboarding}><p>Sin actividad registrada hoy. Prepara el servicio desde tus módulos.</p>{modules.menu_digital ? <Link href="/panel/carta-productos">Revisar carta</Link> : null}{modules.reservas ? <Link href="/sala">Preparar sala</Link> : null}{modules.camarero_digital ? <Link href="/panel/qr-mesas">Ver QR de mesas</Link> : null}</div> : null}
+      {panelVacio ? <div className={styles.onboarding}><p>Sin actividad registrada hoy. Prepara el servicio desde tus módulos.</p>{modules.menu_digital ? <Link href={cartaPath}>Revisar carta</Link> : null}{modules.reservas ? <Link href={whiteLabel ? reservasPath : "/sala"}>{whiteLabel ? "Gestionar reservas" : "Preparar sala"}</Link> : null}{modules.camarero_digital ? <Link href="/panel/qr-mesas">Ver QR de mesas</Link> : null}</div> : null}
 
       <div className={styles.attention} aria-label="Asuntos que requieren atención">
         <span className={styles.attentionLabel}><Clock3 size={14} /> En este momento</span>
         <div className={styles.attentionItems}>
-          {loading ? <span className={styles.muted}>Cargando el servicio…</span> : acciones.map((action) => <Link href={action.href} key={action.id} data-priority={action.prioridad} title={action.id === "pedidos-urgentes" ? "Atención a pedidos abiertos 20 min o más." : action.descripcion}>{action.prioridad === "alta" ? <AlertTriangle size={13} /> : null}{action.id === "pedidos-urgentes" ? `${pedidosUrgentes.length} pedido${pedidosUrgentes.length === 1 ? "" : "s"} abierto${pedidosUrgentes.length === 1 ? "" : "s"} ≥20 min` : action.titulo}<ArrowRight size={13} /></Link>)}
+          {loading ? <span className={styles.muted}>Cargando el servicio…</span> : acciones.map((action) => <Link href={whiteLabel && action.href === "/reservas" ? reservasPath : action.href} key={action.id} data-priority={action.prioridad} title={action.id === "pedidos-urgentes" ? "Atención a pedidos abiertos 20 min o más." : action.descripcion}>{action.prioridad === "alta" ? <AlertTriangle size={13} /> : null}{action.id === "pedidos-urgentes" ? `${pedidosUrgentes.length} pedido${pedidosUrgentes.length === 1 ? "" : "s"} abierto${pedidosUrgentes.length === 1 ? "" : "s"} ≥20 min` : action.titulo}<ArrowRight size={13} /></Link>)}
         </div>
       </div>
 
       {modules.camarero_digital && modules.reservas ? <nav className={styles.mobileServiceLinks} aria-label="Secciones del servicio"><a href="#service-arrivals-title">Llegadas ↓</a><a href="#service-tables-title">Mesas y pedidos ↓</a></nav> : null}
       <div className={`${styles.service} ${!modules.camarero_digital || !modules.reservas ? styles.serviceSolo : ""}`}>
-        {modules.reservas ? <ServiceArrivals reservations={reservasHoy} loading={loading} /> : null}
+        {modules.reservas ? <ServiceArrivals reservations={reservasHoy} loading={loading} reservasHref={reservasPath} /> : null}
         {modules.camarero_digital ? <section className={styles.kitchen} aria-labelledby="service-tables-title">
           <div className={styles.sectionHeading}>
             <div><span className={styles.kicker}>Sala y cocina · pedidos QR</span><h2 id="service-tables-title">Servicio por mesa</h2></div>
@@ -642,7 +648,7 @@ export default function DashboardPage() {
       </div>
 
       <div className={styles.summary} aria-label="Resumen de actividad">
-        {kpis.map((kpi) => <Link key={kpi.titulo} href={kpi.href} title={kpi.detalle}><strong>{loading ? "…" : kpi.valor}</strong><span>{kpi.titulo}</span></Link>)}
+        {kpis.map((kpi) => <Link key={kpi.titulo} href={whiteLabel && kpi.href === "/reservas" ? reservasPath : whiteLabel && kpi.href === "/clientes" ? clientesPath : kpi.href} title={kpi.detalle}><strong>{loading ? "…" : kpi.valor}</strong><span>{kpi.titulo}</span></Link>)}
       </div>
       <div className={styles.bottom}>
         <details className={styles.trend}>

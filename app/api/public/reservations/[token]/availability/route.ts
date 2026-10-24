@@ -27,8 +27,11 @@ export async function GET(
 ) {
   const { token } = await context.params;
   const date = request.nextUrl.searchParams.get("date") || "";
+  const requestedParty = request.nextUrl.searchParams.get("party");
+  const party = requestedParty === null ? null : Number(requestedParty);
 
-  if (!isUuid(token) || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+  if (!isUuid(token) || !/^\d{4}-\d{2}-\d{2}$/.test(date)
+    || (party !== null && (!Number.isInteger(party) || party < 1 || party > 500))) {
     return json({ ok: false, error: "INVALID_REQUEST" }, 400);
   }
 
@@ -63,7 +66,7 @@ export async function GET(
       {
         p_slug: reservation.restaurantSlug,
         p_fecha: date,
-        p_personas: reservation.party,
+        p_personas: party ?? reservation.party,
         p_excluir_reserva_id: reservation.reservationId,
       },
     );

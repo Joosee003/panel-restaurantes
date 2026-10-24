@@ -2,6 +2,7 @@
 import styles from "../../components/product/modules.module.css";
 
 import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   CheckCircle2,
@@ -38,6 +39,7 @@ type Carta = {
   restaurante_id: string;
   nombre: string;
   public_token: string;
+  estado: string;
 };
 
 type Categoria = {
@@ -153,6 +155,7 @@ function buttonBase(extra = "") {
 }
 
 export default function CartaProductosPage() {
+  const isWhiteLabel = usePathname().startsWith("/panel-personalizado");
   const { data: restauranteActual, isLoading: loadingRestaurante } = useRestaurante();
   const restauranteId = restauranteActual?.id
     ? String(restauranteActual.id)
@@ -161,6 +164,9 @@ export default function CartaProductosPage() {
   const [cartaActiva, setCartaActiva] = useState<Carta | null>(null);
   const [productos, setProductos] = useState<Producto[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
+  const [nuevaCategoria, setNuevaCategoria] = useState("");
+  const [categoriaBorradores, setCategoriaBorradores] = useState<Record<string, string>>({});
+  const [guardandoCategoria, setGuardandoCategoria] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const [idiomaActivo, setIdiomaActivo] = useState<LanguageCode>("en");
   const [productoEditando, setProductoEditando] = useState<Producto | null>(null);
@@ -228,7 +234,7 @@ export default function CartaProductosPage() {
 
     const cartasRes = await supabase
       .from("cartas_digitales")
-      .select("id, restaurante_id, nombre, public_token, created_at")
+      .select("id, restaurante_id, nombre, public_token, estado, created_at")
       .eq("restaurante_id", restauranteId)
       .order("created_at", { ascending: false });
 
@@ -287,12 +293,72 @@ export default function CartaProductosPage() {
     );
   }
 
+  async function crearCarta() {
+    if (!restauranteId || cartaActiva) return;
+    setErrorMsg(null);
+    const { data, error } = await supabase.from("cartas_digitales").insert({
+      restaurante_id: restauranteId,
+      nombre: `Carta de ${restauranteActual?.nombre || "mi restaurante"}`,
+      estado: "borrador",
+    }).select("id, restaurante_id, nombre, public_token, estado").single();
+    if (error || !data) setErrorMsg(error?.message || "No se pudo crear la carta.");
+    else { setCartaActiva(data as Carta); setOkMsg("Carta creada como borrador privado."); }
+  }
+
+  async function crearCategoria() {
+    const nombre = nuevaCategoria.trim();
+    if (!restauranteId || !cartaActiva || !nombre) return;
+    if (categorias.some((item) => item.nombre.toLocaleLowerCase("es") === nombre.toLocaleLowerCase("es"))) {
+      setErrorMsg("Esta categoría ya existe en la carta.");
+      return;
+    }
+    setGuardandoCategoria("nueva");
+    setErrorMsg(null);
+    const { data, error } = await supabase.from("carta_categorias").insert({
+      restaurante_id: restauranteId, carta_id: cartaActiva.id, nombre,
+      orden: Math.max(0, ...categorias.map((item) => Number(item.orden) || 0)) + 1,
+      activa: false,
+    }).select("*").single();
+    if (error || !data) setErrorMsg(error?.message || "No se pudo crear la categoría.");
+    else {
+      setCategorias((actual) => [...actual, data as Categoria]);
+      setNuevaCategoria("");
+      setOkMsg("Categoría creada oculta. Actívala cuando esté confirmada.");
+    }
+    setGuardandoCategoria(null);
+  }
+
+  async function guardarCategoria(categoria: Categoria, cambios: Partial<Pick<Categoria, "nombre" | "activa">>) {
+    if (!restauranteId || !cartaActiva) return;
+    const nombre = (cambios.nombre ?? categoria.nombre).trim();
+    if (!nombre) { setErrorMsg("El nombre de la categoría no puede estar vacío."); return; }
+    setGuardandoCategoria(categoria.id);
+    setErrorMsg(null);
+    const { data, error } = await supabase.from("carta_categorias")
+      .update({ ...cambios, nombre })
+      .eq("id", categoria.id)
+      .eq("restaurante_id", restauranteId)
+      .eq("carta_id", cartaActiva.id)
+      .select("*").single();
+    if (error || !data) setErrorMsg(error?.message || "No se pudo guardar la categoría.");
+    else {
+      setCategorias((actual) => actual.map((item) => item.id === categoria.id ? data as Categoria : item));
+      setCategoriaBorradores((actual) => { const next = { ...actual }; delete next[categoria.id]; return next; });
+      setOkMsg("Categoría guardada.");
+    }
+    setGuardandoCategoria(null);
+  }
+
   async function guardarProducto(producto: Producto, silent = false) {
     if (!restauranteId || !cartaActiva) return;
 
     const nombre = producto.nombre.trim();
     if (!nombre) {
       setErrorMsg("Escribe el nombre del producto antes de guardarlo.");
+      return;
+    }
+    if (producto.activo && producto.precio == null) {
+      setErrorMsg("Indica un precio confirmado antes de hacer visible el producto.");
       return;
     }
 
@@ -304,7 +370,7 @@ export default function CartaProductosPage() {
     const payload = {
       nombre,
       descripcion: producto.descripcion || "",
-      precio: toNumber(producto.precio),
+      precio: producto.precio == null ? null : toNumber(producto.precio),
       categoria_id: producto.categoria_id || null,
       imagen_url: producto.imagen_url || null,
       tipo: producto.tipo || "",
@@ -381,13 +447,13 @@ export default function CartaProductosPage() {
       categoria_id: categorias[0]?.id || null,
       nombre: "",
       descripcion: "",
-      precio: 0,
+      precio: null,
       imagen_url: null,
       imagen_prompt: null,
       tipo: "",
       alergenos: [],
       recomendado: false,
-      activo: true,
+      activo: false,
       orden: maxOrden + 1,
       traducciones: {},
     });
@@ -470,6 +536,10 @@ export default function CartaProductosPage() {
   }
 
   async function toggleRapido(producto: Producto, campo: "activo" | "recomendado") {
+    if (campo === "activo" && !producto.activo && producto.precio == null) {
+      setErrorMsg("Indica un precio confirmado antes de hacer visible el producto.");
+      return;
+    }
     const actualizado = { ...producto, [campo]: !producto[campo] };
     actualizarProductoLocal(actualizado);
     await guardarProducto(actualizado, true);
@@ -545,20 +615,21 @@ export default function CartaProductosPage() {
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                       <p className="text-xl font-black text-slate-950">{cartaActiva.nombre}</p>
-                      <p className="mt-1 text-xs font-bold text-slate-400">
+                      {!isWhiteLabel && <p className="mt-1 text-xs font-bold text-slate-400">
                         Token QR: {cartaActiva.public_token}
-                      </p>
+                      </p>}
                     </div>
-                    <span className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-3 py-2 text-xs font-black text-emerald-700 ring-1 ring-emerald-200">
-                      <CheckCircle2 className="h-4 w-4" /> Carta activa
+                    <span className={clsx("inline-flex w-fit items-center gap-2 rounded-full px-3 py-2 text-xs font-black ring-1", cartaActiva.estado === "borrador" ? "bg-amber-50 text-amber-800 ring-amber-200" : "bg-emerald-50 text-emerald-700 ring-emerald-200")}>
+                      <CheckCircle2 className="h-4 w-4" /> {cartaActiva.estado === "borrador" ? "Borrador · sin publicar" : "Carta activa"}
                     </span>
                   </div>
                 ) : (
                   <div>
                     <p className="font-black text-slate-950">Sin carta creada</p>
                     <p className="mt-1 text-sm font-semibold text-slate-500">
-                      Prepara la demo desde Admin o crea la carta del restaurante antes de añadir productos.
+                      Crea una carta privada para empezar a añadir categorías y productos.
                     </p>
+                    <button type="button" onClick={() => void crearCarta()} className={buttonBase("mt-3 bg-slate-950 text-white")}>Crear carta en borrador</button>
                   </div>
                 )}
               </div>
@@ -608,6 +679,31 @@ export default function CartaProductosPage() {
             ))}
           </div>
         </section>
+
+        {cartaActiva && <section className={`${styles.catalog} mb-5 p-5`} aria-labelledby="categorias-editor-title">
+          <h2 id="categorias-editor-title" className="text-xl font-black">Categorías</h2>
+          <details className="mt-2">
+          <summary className="cursor-pointer rounded-xl py-2 text-sm font-bold text-slate-700 underline underline-offset-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-600">Gestionar {categorias.length} categorías</summary>
+          <p className="mt-1 text-sm text-slate-500">Crea y edita las categorías de esta carta. Las nuevas permanecen ocultas hasta confirmarlas.</p>
+          <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+            <label className="sr-only" htmlFor="nueva-categoria">Nueva categoría</label>
+            <input id="nueva-categoria" className={inputClass()} value={nuevaCategoria} maxLength={80} placeholder="Nombre de nueva categoría" onChange={(event) => setNuevaCategoria(event.target.value)} />
+            <button type="button" disabled={!nuevaCategoria.trim() || !!guardandoCategoria} onClick={() => void crearCategoria()} className={buttonBase("bg-slate-950 text-white")}>Añadir categoría</button>
+          </div>
+          <ul className="mt-4 grid gap-3 md:grid-cols-2">
+            {categorias.map((categoria) => <li key={categoria.id} className="rounded-2xl border border-slate-200 bg-white p-3">
+              <div className="flex items-center gap-2">
+                <label className="sr-only" htmlFor={`categoria-${categoria.id}`}>Nombre de categoría</label>
+                <input id={`categoria-${categoria.id}`} className={inputClass()} value={categoriaBorradores[categoria.id] ?? categoria.nombre} maxLength={80} onChange={(event) => setCategoriaBorradores((actual) => ({ ...actual, [categoria.id]: event.target.value }))} />
+                <button type="button" disabled={!!guardandoCategoria || (categoriaBorradores[categoria.id] ?? categoria.nombre).trim() === categoria.nombre} onClick={() => void guardarCategoria(categoria, { nombre: categoriaBorradores[categoria.id] })} className={buttonBase("border border-slate-200 bg-white text-slate-900")}>Guardar</button>
+              </div>
+              <button type="button" disabled={!!guardandoCategoria} onClick={() => void guardarCategoria(categoria, { activa: !categoria.activa })} className="mt-2 text-sm font-bold underline underline-offset-2">
+                {categoria.activa ? "Visible · ocultar" : "Oculta · activar"}
+              </button>
+            </li>)}
+          </ul>
+          </details>
+        </section>}
 
         <section className={styles.catalog}>
           <div className={`${styles.catalogHeader} flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between`}>
@@ -670,7 +766,7 @@ export default function CartaProductosPage() {
                           {producto.nombre || "Producto sin nombre"}
                         </h3>
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-black text-slate-700">
-                          {formatEuro(producto.precio)}
+                          {producto.precio == null ? "Precio pendiente" : formatEuro(producto.precio)}
                         </span>
                         {categoria && (
                           <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-black text-blue-700 ring-1 ring-blue-100">

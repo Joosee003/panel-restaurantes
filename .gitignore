@@ -48,3 +48,5 @@ node_modules
 /supabase/.temp/
 
 /public/pruebas-agencia/
+/local-schema/
+/.npm-cache/

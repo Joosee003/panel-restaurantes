@@ -3,6 +3,7 @@ import { getSupabaseAdmin } from "../../../lib/supabaseAdmin";
 import { deliverVisitReview } from "@/lib/reviews/review-delivery";
 import { createWahaReviewSender } from "@/lib/reviews/waha-review-delivery";
 import { recoverWahaInbound } from "@/lib/whatsapp/waha-inbound";
+import { allowsNewTalgoOwnerNotice } from "@/lib/owner-notices/eligibility";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -218,6 +219,18 @@ async function deliverEvent(event: AutomationEvent) {
         consent?.loyalty_email === true;
     }
 
+    const ownerNoticeAllowed = allowsNewTalgoOwnerNotice({
+      deliveryMode: event.delivery_mode,
+      deploymentMode: process.env.GASTROHELP_DEPLOYMENT_MODE,
+      channel: process.env.NEW_TALGO_OWNER_NOTICE_CHANNEL,
+      restaurantId: event.restaurante_id,
+      configuredRestaurantId: process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID,
+      eventType: event.event_type,
+      emailEnabled: config?.email_enabled === true,
+      ownerEmail: process.env.NEW_TALGO_OWNER_EMAIL,
+      payloadRestaurantEmail: payload.restaurantEmail,
+    });
+
     if (
       event.delivery_mode === "live" &&
       ["visit.review_request", "loyalty.points_awarded"].includes(
@@ -234,7 +247,8 @@ async function deliverEvent(event: AutomationEvent) {
       event.delivery_mode === "live" &&
       event.event_type !== "automation.test" &&
       !whatsappAllowed &&
-      !emailAllowed
+      !emailAllowed &&
+      !ownerNoticeAllowed
     ) {
       await skipEvent(event, "delivery_channel_unavailable");
       return { eventId: event.event_id, status: "skipped" };

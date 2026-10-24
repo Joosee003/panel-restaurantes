@@ -43,6 +43,8 @@ type BookingWidgetProps = {
   variant?: "default" | "la-reserva";
   privacyPath: string;
   conditionsPath: string;
+  autoConfirmMaxParty?: number;
+  showReviewConsent?: boolean;
 };
 
 type BookingResult = {
@@ -92,6 +94,8 @@ export default function BookingWidget({
   variant = "default",
   privacyPath,
   conditionsPath,
+  autoConfirmMaxParty,
+  showReviewConsent = true,
 }: BookingWidgetProps) {
   const editorial = variant === "la-reserva";
   const today = useMemo(() => dateInTimezone(timezone), [timezone]);
@@ -248,12 +252,14 @@ export default function BookingWidget({
         <h3 className="mt-2 text-3xl font-black tracking-[-0.04em] text-slate-950">
           {demo && editorial
             ? "Así queda tu mesa"
-            : `Tu mesa está ${result.status === "confirmada" ? "confirmada" : "pendiente"}`}
+            : result.status === "confirmada" ? "Tu mesa está confirmada" : "Solicitud enviada a New Talgo"}
         </h3>
         <p className="mt-3 max-w-lg text-sm font-semibold leading-6 text-slate-600">
           {demo && editorial
             ? "Has completado la experiencia de reserva. Esta confirmación es local: no se ha enviado ni guardado información."
-            : `Hemos registrado tu solicitud en ${restaurantName}. Guarda la referencia corta por si necesitas contactar con el restaurante.`}
+            : result.status === "confirmada"
+              ? `Tu reserva en ${restaurantName} está confirmada. Guarda la referencia por si necesitas contactar.`
+              : `Hemos registrado tu solicitud en ${restaurantName}. La mesa no está confirmada hasta que el restaurante la apruebe.`}
         </p>
         {!demo ? <div className="mt-6 rounded-2xl border border-emerald-200 bg-white p-4">
           <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
@@ -542,10 +548,10 @@ export default function BookingWidget({
               </span>
             </label>
 
-            <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500" data-booking-legal>
+            {showReviewConsent ? <label className="flex items-start gap-3 text-xs font-semibold leading-5 text-slate-500" data-booking-legal>
               <input name="reviewWhatsapp" type="checkbox" className="mt-1 h-4 w-4" />
               <span>Quiero recibir por WhatsApp una petición para compartir mi opinión después de mis visitas a {restaurantName}. Es opcional y puedo dejar de recibirlas desde el enlace del mensaje.</span>
-            </label>
+            </label> : null}
 
             {submitError ? (
               <p className="rounded-xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700" role="alert">
@@ -561,7 +567,7 @@ export default function BookingWidget({
               data-booking-submit
             >
               {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}
-              {submitting ? "Guardando tu reserva..." : "Confirmar reserva"}
+              {submitting ? "Guardando tu reserva..." : autoConfirmMaxParty && party > autoConfirmMaxParty ? "Enviar solicitud de grupo" : "Confirmar reserva"}
               {!submitting ? <ChevronRight className="h-5 w-5" /> : null}
             </button>
           </form>

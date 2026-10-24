@@ -1,5 +1,8 @@
 import {spawnSync} from 'node:child_process';
 import {rm,copyFile} from 'node:fs/promises';
+if (process.env.GASTROHELP_DEPLOYMENT_MODE === 'approved-production') {
+  await import('./prepare-new-talgo-publication.mjs');
+}
 // Rehearsals use synthetic data and exist only on these feature previews, never in production.
 const rehearsal=process.env.VERCEL_ENV==='preview' && ['codex/post-visit-reviews','feat/reviews-customer-panel'].includes(process.env.VERCEL_GIT_COMMIT_REF);
 await rm(new URL('../public/pruebas-resenas',import.meta.url),{recursive:true,force:true});
