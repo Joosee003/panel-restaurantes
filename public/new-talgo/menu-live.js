@@ -17,6 +17,7 @@
   };
   function showMessage(message) {
     status.textContent = message;
+    status.hidden = false;
     jump.replaceChildren();
     list.replaceChildren();
     if (preview) preview.hidden = false;
@@ -35,21 +36,40 @@
     if (intro) intro.textContent = "Encuentra tu favorito entre tapas, bocadillos, pizzas y mucho más.";
     status.textContent = "";
     status.hidden = true;
-    const menuNav = document.createDocumentFragment();
+    const menuNav = node("div", "menu-jump-list");
+    const selector = node("select", "menu-category-select");
+    selector.setAttribute("aria-label", "Ir a una categoría de la carta");
+    const placeholder = node("option", "", "Elige una categoría");
+    placeholder.value = "";
+    selector.append(placeholder);
+    const shortcuts = node("div", "menu-shortcuts");
     const menuList = document.createDocumentFragment();
-    // Four real product photos punctuate the long menu. Every product remains in a text row.
-    const featuredSections = new Set(["Bocadillos", "Pizzas", "Platos combinados", "Sugerencias"]);
+    const featuredSections = new Set(["Hamburguesas", "Bocadillos", "Pizzas", "Platos combinados", "Sugerencias"]);
+    const quickNames = ["Hamburguesas", "Bocadillos", "Pizzas", "Platos combinados"];
+    const photoChoice = {
+      Hamburguesas: /nº\s*4/i,
+      Bocadillos: /jamón serrano/i,
+      Pizzas: /pepperoni/i,
+      "Platos combinados": /nº\s*1/i,
+      Sugerencias: /gambones/i,
+    };
+    const targetIds = new Map();
     categories.forEach((category, index) => {
       const items = products.filter((product) => product.categoriaId === category.id);
       if (!items.length) return;
       const id = "categoria-" + String(index + 1);
+      targetIds.set(category.nombre, id);
       const link = node("a", "", category.nombre);
       link.href = "#" + id;
       link.append(node("small", "", String(items.length).padStart(2, "0")));
       menuNav.append(link);
+      const option = node("option", "", category.nombre);
+      option.value = id;
+      selector.append(option);
       const section = node("section", "menu-category");
       section.id = id;
       section.setAttribute("aria-labelledby", id + "-title");
+      if (featuredSections.has(category.nombre)) section.classList.add("menu-category-highlight");
       const head = node("div", "menu-category-head");
       head.append(node("span", "menu-category-number", String(index + 1).padStart(2, "0")));
       const heading = node("h3", "", category.nombre);
@@ -57,7 +77,9 @@
       head.append(heading, node("span", "menu-category-count", items.length + (items.length === 1 ? " producto" : " productos")));
       section.append(head);
       if (featuredSections.has(category.nombre)) {
-        const featured = items.find((product) => product.imagenUrl);
+        const preferred = photoChoice[category.nombre];
+        const featured = items.find((product) => product.imagenUrl && preferred?.test(product.nombre))
+          || items.find((product) => product.imagenUrl);
         if (featured) {
           const figure = node("figure", "menu-feature");
           const image = document.createElement("img");
@@ -86,7 +108,20 @@
       section.append(rows);
       menuList.append(section);
     });
-    jump.replaceChildren(menuNav);
+    quickNames.forEach((name) => {
+      const id = targetIds.get(name);
+      if (!id) return;
+      const link = node("a", "", name);
+      link.href = "#" + id;
+      shortcuts.append(link);
+    });
+    selector.addEventListener("change", () => {
+      const target = document.getElementById(selector.value);
+      if (!target) return;
+      target.scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+      history.replaceState(null, "", "#" + selector.value);
+    });
+    jump.replaceChildren(selector, shortcuts, menuNav);
     list.replaceChildren(menuList);
   }
   // Deployment URLs are protected by Vercel Authentication. The private route

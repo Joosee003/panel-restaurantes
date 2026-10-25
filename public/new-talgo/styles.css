@@ -42,3 +42,47 @@
 .food-editorial .photo-slot:hover img{transform:scale(1.025)}
 @media(max-width:1000px){.promotions-grid{grid-template-columns:1fr 1fr}.nt-promo-slot:last-child{grid-column:1/-1}.nt-promo-editorial{min-height:275px}}
 @media(max-width:540px){.promotions-grid{grid-template-columns:1fr;gap:12px}.nt-promo-slot:last-child{grid-column:auto}.nt-promo-editorial{min-height:225px}.nt-promo-editorial h3{margin-top:23px}.menu-feature{height:190px}.menu-product h4{font-size:23px}.menu-price{font-size:14px}}
+
+/* Final menu rhythm: quick to scan without changing the restaurant's category order. */
+.menu-intro{grid-template-columns:1fr .75fr;gap:7%;padding-top:38px;padding-bottom:52px}
+.menu-intro h1{font-size:clamp(60px,5.8vw,90px);margin:18px 0 17px}
+.menu-intro p{margin-bottom:19px}
+.menu-intro .photo-placeholder{height:335px}
+.menu-content-header{padding-top:39px;padding-bottom:25px}
+.menu-content-header h2{font-size:clamp(48px,4.7vw,68px);margin-top:12px}
+.menu-category{padding-bottom:48px}
+.menu-category-head{padding:15px 0 19px}
+.menu-category h3{font-size:clamp(38px,3.5vw,55px)}
+.menu-category-highlight .menu-category-head{border-top-color:var(--clay)}
+.menu-category-highlight h3{color:var(--clay-dark)}
+.menu-feature{width:min(100%,410px);height:178px;margin-bottom:13px}
+.menu-product{grid-template-columns:33px minmax(0,1fr) auto;gap:12px;padding:12px 0}
+.menu-product h4{font-size:clamp(20px,1.65vw,25px);line-height:1.17}
+.menu-product p{margin-top:4px}
+.menu-category-select,.menu-shortcuts{display:none}
+.menu-jump-list{display:block}
+@media(max-width:760px){
+  .menu-intro{padding-top:35px;padding-bottom:43px}
+  .menu-intro h1{font-size:clamp(52px,8vw,69px)}
+  .menu-intro .photo-placeholder{height:270px}
+  .menu-jump{display:block;padding:8px 0 9px;max-height:none;overflow:visible;background:var(--paper)}
+  .menu-jump-list{display:none}
+  .menu-category-select{display:block;width:100%;min-height:42px;padding:0 12px;border:1px solid var(--green);border-radius:0;background:var(--paper);color:var(--ink);font:700 13px var(--sans)}
+  .menu-shortcuts{display:flex;gap:6px;overflow-x:auto;padding-top:7px;scrollbar-width:thin}
+  .menu-shortcuts a{min-height:34px;padding:8px 10px;font-size:10px;color:var(--clay-dark);border-color:var(--line)}
+  .menu-category{scroll-margin-top:112px}
+  .menu-category-head{padding-top:15px}
+}
+@media(max-width:540px){
+  .menu-intro{gap:20px;padding-top:30px;padding-bottom:32px}
+  .menu-intro h1{font-size:clamp(49px,10vw,62px);margin:15px 0}
+  .menu-intro .photo-placeholder{height:205px}
+  .menu-content-header{padding-top:30px;padding-bottom:19px}
+  .menu-content-header h2{font-size:clamp(43px,9vw,55px)}
+  .menu-category{padding-bottom:39px}
+  .menu-category h3{font-size:clamp(35px,8vw,46px)}
+  .menu-feature{height:166px}
+  .menu-product{grid-template-columns:22px minmax(0,1fr) auto;gap:7px;padding:10px 0}
+  .menu-product h4{font-size:20px}
+  .menu-price{font-size:13px}
+}
