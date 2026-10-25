@@ -33,11 +33,27 @@ export async function GET(request: Request) {
   if (!draftPreviewAllowed(request)) return Response.json({ error: "NOT_FOUND" }, { status: 404, headers });
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const restaurantId = process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID;
-  if (!url || !key || !restaurantId) return Response.json({ error: "UNAVAILABLE" }, { status: 503, headers });
+  if (!url || !restaurantId || (!key && !anonKey)) return Response.json({ error: "UNAVAILABLE" }, { status: 503, headers });
 
   try {
-    const client = createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+    // The isolated Preview reads through the viewer's JWT and the existing
+    // restaurant RLS policies. It does not need a production service key.
+    const bearer = request.headers.get("authorization")?.match(/^Bearer ([A-Za-z0-9._-]{100,5000})$/)?.[1];
+    if (!key && !bearer) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401, headers });
+    const client = key
+      ? createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
+      : createClient(url!, anonKey!, {
+          auth: { persistSession: false, autoRefreshToken: false },
+          global: { headers: { Authorization: `Bearer ${bearer}` } },
+        });
+    if (!key) {
+      const { data: identity, error: identityError } = await client.auth.getUser(bearer);
+      if (identityError || !identity.user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401, headers });
+      const { data: canAccess, error: accessError } = await client.rpc("puede_acceder_restaurante", { p_restaurante_id: restaurantId });
+      if (accessError || canAccess !== true) return Response.json({ error: "NOT_FOUND" }, { status: 404, headers });
+    }
     const { data: carta, error: cartaError } = await client.from("cartas_digitales")
       .select("id,restaurante_id,nombre,estado,created_at")
       .eq("restaurante_id", restaurantId).order("created_at", { ascending: false }).limit(1).maybeSingle();

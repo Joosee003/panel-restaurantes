@@ -128,8 +128,25 @@
   // independently rejects custom domains and every non-preview deployment.
   const privatePreview = location.hostname.endsWith(".vercel.app");
   const endpoint = privatePreview ? "/api/private/new-talgo/draft-menu" : "/api/public/new-talgo/menu";
-  fetch(endpoint, { cache: "no-store", credentials: "same-origin" })
-    .then((response) => { if (!response.ok) throw new Error("MENU_UNAVAILABLE"); return response.json(); })
-    .then(render)
+  let accessToken;
+  if (privatePreview) {
+    try {
+      const session = JSON.parse(localStorage.getItem("sb-yyiotkszobortppwiqal-auth-token") || "null");
+      if (typeof session?.access_token === "string") accessToken = session.access_token;
+    } catch { /* An invalid local session is treated as signed out. */ }
+  }
+  fetch(endpoint, {
+    cache: "no-store", credentials: "same-origin",
+    ...(accessToken ? { headers: { Authorization: "Bearer " + accessToken } } : {}),
+  })
+    .then((response) => {
+      if (privatePreview && response.status === 401) {
+        location.replace(new URL("/login?next=" + encodeURIComponent("/new-talgo/carta.html"), location.origin).href);
+        return null;
+      }
+      if (!response.ok) throw new Error("MENU_UNAVAILABLE");
+      return response.json();
+    })
+    .then((menu) => { if (menu) render(menu); })
     .catch(() => showMessage("No podemos mostrar la carta en este momento. Consulta directamente en el local."));
 })();
