@@ -88,7 +88,9 @@
     jump.replaceChildren(menuNav);
     list.replaceChildren(menuList);
   }
-  fetch("/api/public/new-talgo/menu", { cache: "no-store", credentials: "omit" })
+  // Same-origin credentials let Vercel Authentication protect the preview API.
+  // The public route itself still uses the restaurant's fixed token and ignores sessions.
+  fetch("/api/public/new-talgo/menu", { cache: "no-store", credentials: "same-origin" })
     .then((response) => { if (!response.ok) throw new Error("MENU_UNAVAILABLE"); return response.json(); })
     .then(render)
     .catch(() => showMessage("La carta no está disponible en este momento. Consulta directamente en el local."));
