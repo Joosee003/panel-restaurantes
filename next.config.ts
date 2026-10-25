@@ -13,7 +13,10 @@ function supabaseOrigins() {
   const local = url.protocol === "http:" && ["127.0.0.1", "localhost", "[::1]"].includes(url.hostname);
   const approvedRef = process.env.GASTROHELP_APPROVED_PROJECT_REF;
   const release = process.env.GASTROHELP_DEPLOYMENT_MODE === "approved-production";
-  const remote = release && /^[a-z0-9]{20}$/.test(approvedRef || "")
+  const restrictedPreview = process.env.GASTROHELP_DEPLOYMENT_MODE === "restricted-preview"
+    && process.env.VERCEL_ENV === "preview"
+    && process.env.VERCEL_GIT_COMMIT_REF === "codex/new-talgo-on-production";
+  const remote = (release || restrictedPreview) && /^[a-z0-9]{20}$/.test(approvedRef || "")
     && url.protocol === "https:" && url.hostname === `${approvedRef}.supabase.co`;
   if (release && !remote) throw new Error("APPROVED_PRODUCTION_PROJECT_REQUIRED");
   if (!local && !remote) throw new Error("ISOLATED_CLONE_REMOTE_SUPABASE_FORBIDDEN");
@@ -27,6 +30,9 @@ function supabaseOrigins() {
 
 const localOrigins = supabaseOrigins();
 const approvedProduction = process.env.GASTROHELP_DEPLOYMENT_MODE === "approved-production";
+const restrictedPreview = process.env.GASTROHELP_DEPLOYMENT_MODE === "restricted-preview"
+  && process.env.VERCEL_ENV === "preview"
+  && process.env.VERCEL_GIT_COMMIT_REF === "codex/new-talgo-on-production";
 const newTalgoIndexable = approvedProduction && process.env.NEW_TALGO_INDEXING_APPROVED === "yes";
 const newTalgoPublicHost = process.env.NEW_TALGO_PUBLIC_HOST?.toLowerCase().trim();
 if (approvedProduction && process.env.NEW_TALGO_PUBLICATION_APPROVED !== "yes") {
@@ -35,7 +41,8 @@ if (approvedProduction && process.env.NEW_TALGO_PUBLICATION_APPROVED !== "yes") 
 if (approvedProduction && !/^[a-zA-Z0-9]{32}$/.test(process.env.NEW_TALGO_PUBLIC_MENU_TOKEN || "")) {
   throw new Error("NEW_TALGO_PUBLIC_MENU_TOKEN_REQUIRED");
 }
-if (newTalgoPublicHost && (!approvedProduction || !/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(newTalgoPublicHost)
+if (newTalgoPublicHost && (!(approvedProduction || (restrictedPreview && newTalgoPublicHost === "newtalgo.gastrohelp.es"))
+  || !/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,}$/.test(newTalgoPublicHost)
   || newTalgoPublicHost === "panel.gastrohelp.es")) {
   throw new Error("NEW_TALGO_PUBLIC_HOST_REQUIRES_APPROVED_PRODUCTION");
 }
