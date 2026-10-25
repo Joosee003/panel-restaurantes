@@ -110,6 +110,11 @@
     if (!photo || !/^assets\/photos\/[a-z0-9._-]+\.(webp|avif|jpg|jpeg|png)$/i.test(photo.src || "") || !photo.alt) return;
     const frame = slot.querySelector(".photo-placeholder");
     if (!frame) return;
+    if (slot.hidden) {
+      slot.hidden = false;
+      const fallback = document.querySelector('[data-photo-fallback="' + slot.dataset.photoKey + '"]');
+      if (fallback) fallback.hidden = true;
+    }
     const image = document.createElement("img");
     image.alt = photo.alt;
     image.decoding = "async";

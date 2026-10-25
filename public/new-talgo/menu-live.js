@@ -4,38 +4,24 @@
   const jump = document.getElementById("live-menu-jump");
   const list = document.getElementById("live-menu-list");
   const preview = document.getElementById("photo-preview");
-  const sectionLabel = document.getElementById("menu-section-label");
-  const sectionIntro = document.getElementById("menu-section-intro");
+  const label = document.getElementById("menu-section-label");
+  const intro = document.getElementById("menu-section-intro");
   if (!status || !jump || !list) return;
 
   const euro = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
-  function element(tag, className, value) {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (value != null) node.textContent = String(value);
-    return node;
-  }
+  const node = (tag, className, value) => {
+    const result = document.createElement(tag);
+    if (className) result.className = className;
+    if (value != null) result.textContent = String(value);
+    return result;
+  };
   function showMessage(message) {
     status.textContent = message;
     jump.replaceChildren();
     list.replaceChildren();
     if (preview) preview.hidden = false;
-    if (sectionLabel) sectionLabel.textContent = "01 — FOTOGRAFÍAS RECIBIDAS";
-    if (sectionIntro) sectionIntro.textContent = "Mientras confirmamos la carta, puedes ver platos fotografiados por Ángel. Las fotos no indican disponibilidad ni precio.";
-  }
-  function photo(product) {
-    if (!product.imagenUrl) return null;
-    const frame = element("div", "menu-live-photo");
-    const image = document.createElement("img");
-    image.src = product.imagenUrl;
-    image.alt = product.nombre;
-    image.loading = "lazy";
-    image.decoding = "async";
-    image.width = 640;
-    image.height = 480;
-    image.addEventListener("error", () => frame.remove(), { once: true });
-    frame.append(image);
-    return frame;
+    if (label) label.textContent = "01 / FOTOGRAFÍAS RECIBIDAS";
+    if (intro) intro.textContent = "La carta publicada todavía no está disponible. Mientras tanto, puedes ver una selección de fotografías reales del restaurante.";
   }
   function render(menu) {
     const categories = Array.isArray(menu.categorias) ? menu.categorias : [];
@@ -45,38 +31,58 @@
       return;
     }
     if (preview) preview.hidden = true;
-    if (sectionLabel) sectionLabel.textContent = "01 — LA CARTA ACTUAL";
-    if (sectionIntro) sectionIntro.textContent = "Platos y precios publicados desde el panel de New Talgo. Los productos ocultos no aparecen en esta carta.";
-    status.textContent = "Carta actualizada desde el panel de New Talgo. Los productos visibles y sus precios proceden de GastroHelp.";
+    if (label) label.textContent = "01 / LA CARTA ACTUAL";
+    if (intro) intro.textContent = "Productos y precios publicados desde el panel de New Talgo.";
+    status.textContent = "Carta actualizada desde el panel del restaurante.";
     const menuNav = document.createDocumentFragment();
     const menuList = document.createDocumentFragment();
+    // Four real product photos punctuate the long menu. Every product remains in a text row.
+    const featuredSections = new Set(["Bocadillos", "Pizzas", "Platos combinados", "Sugerencias"]);
     categories.forEach((category, index) => {
+      const items = products.filter((product) => product.categoriaId === category.id);
+      if (!items.length) return;
       const id = "categoria-" + String(index + 1);
-      const link = element("a", "", category.nombre);
+      const link = node("a", "", category.nombre);
       link.href = "#" + id;
+      link.append(node("small", "", String(items.length).padStart(2, "0")));
       menuNav.append(link);
-      const section = element("section", "menu-live-category");
+      const section = node("section", "menu-category");
       section.id = id;
       section.setAttribute("aria-labelledby", id + "-title");
-      const heading = element("h3", "", category.nombre);
+      const head = node("div", "menu-category-head");
+      head.append(node("span", "menu-category-number", String(index + 1).padStart(2, "0")));
+      const heading = node("h3", "", category.nombre);
       heading.id = id + "-title";
-      section.append(heading);
-      products.filter((product) => product.categoriaId === category.id).forEach((product) => {
-        const card = element("article", "menu-live-product");
-        const image = photo(product);
-        if (image) card.append(image);
-        else card.classList.add("menu-live-product--text");
-        const copy = element("div", "menu-live-copy");
-        const top = element("div", "menu-live-top");
-        top.append(element("h4", "", product.nombre), element("strong", "menu-live-price", euro.format(product.precio)));
-        copy.append(top);
-        if (product.descripcion) copy.append(element("p", "", product.descripcion));
-        if (Array.isArray(product.alergenos) && product.alergenos.length) {
-          copy.append(element("small", "menu-live-allergens", "Alérgenos declarados: " + product.alergenos.join(", ")));
+      head.append(heading, node("span", "menu-category-count", items.length + (items.length === 1 ? " producto" : " productos")));
+      section.append(head);
+      if (featuredSections.has(category.nombre)) {
+        const featured = items.find((product) => product.imagenUrl);
+        if (featured) {
+          const figure = node("figure", "menu-feature");
+          const image = document.createElement("img");
+          image.src = featured.imagenUrl;
+          image.alt = featured.nombre;
+          image.loading = "lazy";
+          image.decoding = "async";
+          image.addEventListener("error", () => figure.remove(), { once: true });
+          figure.append(image, node("figcaption", "", featured.nombre));
+          section.append(figure);
         }
-        card.append(copy);
-        section.append(card);
+      }
+      const rows = node("div", "menu-product-list");
+      items.forEach((product, itemIndex) => {
+        const row = node("article", "menu-product");
+        row.append(node("span", "menu-product-number", String(itemIndex + 1).padStart(2, "0")));
+        const detail = node("div", "menu-product-detail");
+        detail.append(node("h4", "", product.nombre));
+        if (product.descripcion) detail.append(node("p", "", product.descripcion));
+        if (Array.isArray(product.alergenos) && product.alergenos.length) {
+          detail.append(node("small", "menu-allergens", "Alérgenos declarados: " + product.alergenos.join(", ")));
+        }
+        row.append(detail, node("strong", "menu-price", euro.format(product.precio)));
+        rows.append(row);
       });
+      section.append(rows);
       menuList.append(section);
     });
     jump.replaceChildren(menuNav);

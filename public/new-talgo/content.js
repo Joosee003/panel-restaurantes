@@ -22,7 +22,7 @@ window.NEW_TALGO_CONTENT = Object.freeze({
   menuCategories: ["Tapas", "Bocadillos", "Hamburguesas", "Pizzas", "Pizzas gourmet", "Tostas", "Sándwiches", "Paninis", "Platos combinados", "Huevos rotos", "Revueltos", "Enrollados", "Perritos", "Sugerencias", "Ensaladas", "Salaitos"],
   /* Fotografías autorizadas por Ángel. La carta vigente está cargada en Supabase local; disponibilidad sujeta al local. */
   photos: {
-    hero: {src:"assets/photos/hero-pizza-pepperoni.webp",small:"assets/photos/hero-pizza-pepperoni-640.webp",width:1440,height:1080,smallWidth:640,alt:"Pizza fotografiada en New Talgo",caption:"Pizza Pepperoni · fotografía enviada por Ángel. Consulta disponibilidad en el local."},
+    hero: {src:"assets/photos/tosta-mexicana.webp",small:"assets/photos/tosta-mexicana-640.webp",width:1080,height:1440,smallWidth:480,alt:"Tosta fotografiada en New Talgo",caption:"Tostá mexicana · fotografía enviada por Ángel. Consulta disponibilidad en el local."},
     menu: {src:"assets/photos/carta-plato-combinado.webp",small:"assets/photos/carta-plato-combinado-640.webp",width:1440,height:1080,smallWidth:640,alt:"Plato combinado fotografiado en New Talgo",caption:"Plato combinado · fotografía enviada por Ángel. Consulta disponibilidad en el local."},
     tapas: {src:"assets/photos/tapas-patatas.webp",small:"assets/photos/tapas-patatas-640.webp",width:1080,height:1440,smallWidth:480,alt:"Patatas con salsas fotografiadas en New Talgo",caption:"Patatas 6 salsas · fotografía enviada por Ángel."},
     bocadillos: {src:"assets/photos/bocadillo-jamon.webp",small:"assets/photos/bocadillo-jamon-640.webp",width:1080,height:1440,smallWidth:480,alt:"Bocadillo de jamón fotografiado en New Talgo",caption:"Bocadillo de jamón serrano · fotografía enviada por Ángel."},

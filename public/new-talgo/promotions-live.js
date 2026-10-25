@@ -66,18 +66,13 @@
   }
 
   function render(promotions) {
-    let activeCommunity = false;
     for (const [location, slot] of Object.entries(slots)) {
       const items = promotions.filter((item) => item.ubicacion === location);
       slot.replaceChildren(...items.map(card));
       slot.hidden = items.length === 0;
-      const fallback = document.querySelector(`[data-promo-fallback="${location}"]`);
-      if (fallback) fallback.hidden = items.length > 0;
-      if (location !== "estacion" && items.length) activeCommunity = true;
     }
-    document.querySelector("[data-station-section]").hidden = slots.estacion.hidden;
-    const heading = document.querySelector("[data-promo-heading]");
-    if (heading) heading.textContent = activeCommunity ? "03 — ACTUALIDAD DE NEW TALGO" : "03 — IDEAS EN ESTUDIO";
+    const section = document.querySelector("[data-promotions-section]");
+    if (section) section.hidden = !Object.values(slots).some((slot) => !slot.hidden);
   }
 
   async function refresh() {
