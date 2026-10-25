@@ -24,3 +24,21 @@
 .visit-hero-photo .photo-placeholder{height:430px}
 .visit-hero-photo figcaption{color:#d6dfd5}
 @media(max-width:540px){.visit-hero-photo .photo-placeholder{height:330px}}
+
+/* Editorial sections and compact menu photographs. */
+.promotions h2{line-height:1.04;margin-bottom:16px}
+.promotions-lead{font-size:15px;line-height:1.7;color:var(--muted);max-width:570px;margin:0 0 34px}
+.promotions-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
+.nt-promo-editorial{min-height:315px;padding:23px;display:flex;flex-direction:column;transition:transform .2s,background .2s}
+.nt-promo-editorial:hover{transform:translateY(-3px);background:#efe6d9}
+.nt-promo-index{color:var(--clay-dark);font-size:10px;font-weight:800;letter-spacing:.16em}
+.nt-promo-editorial h3{font-size:clamp(31px,2.8vw,42px);line-height:1.08;margin:31px 0 13px}
+.nt-promo-editorial p{font-size:13px;line-height:1.65;color:var(--muted);margin:0 0 25px}
+.nt-promo-editorial a{display:flex;justify-content:space-between;gap:10px;margin-top:auto;padding-top:14px;border-top:1px solid var(--line);font-size:10px;text-transform:uppercase;letter-spacing:.11em;font-weight:800}
+.menu-feature{display:block;width:min(100%,440px);height:205px;margin:0 0 18px;background:#e7d7c5}
+.menu-feature img{width:100%;height:100%;object-fit:cover;object-position:center 48%}
+.menu-live-status[hidden]{display:none}
+.photo-placeholder img{transition:transform .5s ease}
+.food-editorial .photo-slot:hover img{transform:scale(1.025)}
+@media(max-width:1000px){.promotions-grid{grid-template-columns:1fr 1fr}.nt-promo-slot:last-child{grid-column:1/-1}.nt-promo-editorial{min-height:275px}}
+@media(max-width:540px){.promotions-grid{grid-template-columns:1fr;gap:12px}.nt-promo-slot:last-child{grid-column:auto}.nt-promo-editorial{min-height:225px}.nt-promo-editorial h3{margin-top:23px}.menu-feature{height:190px}.menu-product h4{font-size:23px}.menu-price{font-size:14px}}

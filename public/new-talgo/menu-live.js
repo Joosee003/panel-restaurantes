@@ -20,20 +20,21 @@
     jump.replaceChildren();
     list.replaceChildren();
     if (preview) preview.hidden = false;
-    if (label) label.textContent = "01 / FOTOGRAFÍAS RECIBIDAS";
-    if (intro) intro.textContent = "La carta publicada todavía no está disponible. Mientras tanto, puedes ver una selección de fotografías reales del restaurante.";
+    if (label) label.textContent = "01 / LA CARTA";
+    if (intro) intro.textContent = "Descubre algunos de nuestros platos y visítanos para conocer la carta del día.";
   }
   function render(menu) {
     const categories = Array.isArray(menu.categorias) ? menu.categorias : [];
     const products = Array.isArray(menu.productos) ? menu.productos : [];
-    if (menu.status !== "publicada" || !products.length) {
-      showMessage("La carta está pendiente de confirmación. Consulta directamente en el local.");
+    if ((menu.status !== "publicada" && menu.status !== "vista_previa") || !products.length) {
+      showMessage("Para conocer la carta de hoy, consulta en el local.");
       return;
     }
     if (preview) preview.hidden = true;
     if (label) label.textContent = "01 / LA CARTA ACTUAL";
-    if (intro) intro.textContent = "Productos y precios publicados desde el panel de New Talgo.";
-    status.textContent = "Carta actualizada desde el panel del restaurante.";
+    if (intro) intro.textContent = "Encuentra tu favorito entre tapas, bocadillos, pizzas y mucho más.";
+    status.textContent = "";
+    status.hidden = true;
     const menuNav = document.createDocumentFragment();
     const menuList = document.createDocumentFragment();
     // Four real product photos punctuate the long menu. Every product remains in a text row.
@@ -65,7 +66,7 @@
           image.loading = "lazy";
           image.decoding = "async";
           image.addEventListener("error", () => figure.remove(), { once: true });
-          figure.append(image, node("figcaption", "", featured.nombre));
+          figure.append(image);
           section.append(figure);
         }
       }
@@ -88,10 +89,12 @@
     jump.replaceChildren(menuNav);
     list.replaceChildren(menuList);
   }
-  // Same-origin credentials let Vercel Authentication protect the preview API.
-  // The public route itself still uses the restaurant's fixed token and ignores sessions.
-  fetch("/api/public/new-talgo/menu", { cache: "no-store", credentials: "same-origin" })
+  // Deployment URLs are protected by Vercel Authentication. The private route
+  // independently rejects custom domains and every non-preview deployment.
+  const privatePreview = location.hostname.endsWith(".vercel.app");
+  const endpoint = privatePreview ? "/api/private/new-talgo/draft-menu" : "/api/public/new-talgo/menu";
+  fetch(endpoint, { cache: "no-store", credentials: "same-origin" })
     .then((response) => { if (!response.ok) throw new Error("MENU_UNAVAILABLE"); return response.json(); })
     .then(render)
-    .catch(() => showMessage("La carta no está disponible en este momento. Consulta directamente en el local."));
+    .catch(() => showMessage("No podemos mostrar la carta en este momento. Consulta directamente en el local."));
 })();

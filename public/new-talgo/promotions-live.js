@@ -3,6 +3,7 @@
 
   const slots = Object.fromEntries(["universitarios", "partidas", "estacion"].map((name) => [name, document.querySelector(`[data-promo-slot="${name}"]`)]));
   if (!slots.universitarios || !slots.partidas || !slots.estacion) return;
+  const editorial = Object.fromEntries(Object.entries(slots).map(([name, slot]) => [name, Array.from(slot.children)]));
   const euro = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
   const number = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
   const labels = { universitarios: "ESTUDIANTES", partidas: "TARDES DE PARTIDAS", estacion: "CERCA DE LA ESTACIÓN" };
@@ -68,11 +69,9 @@
   function render(promotions) {
     for (const [location, slot] of Object.entries(slots)) {
       const items = promotions.filter((item) => item.ubicacion === location);
-      slot.replaceChildren(...items.map(card));
-      slot.hidden = items.length === 0;
+      slot.replaceChildren(...(items.length ? items.map(card) : editorial[location]));
+      slot.hidden = false;
     }
-    const section = document.querySelector("[data-promotions-section]");
-    if (section) section.hidden = !Object.values(slots).some((slot) => !slot.hidden);
   }
 
   async function refresh() {

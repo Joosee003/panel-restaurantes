@@ -24,11 +24,11 @@ function menuPhoto(value: unknown, supabaseUrl: string): string | null {
 // The original obtener_carta_publica RPC decides which menu, categories and
 // products are published. This projection exposes only the fields this site
 // needs and fails closed for incomplete products or another restaurant.
-export function projectNewTalgoMenu(payload: unknown, restaurantId: string, supabaseUrl: string) {
+export function projectNewTalgoMenu(payload: unknown, restaurantId: string, supabaseUrl: string, allowDraft = false) {
   if (!payload || typeof payload !== "object") return null;
   const source = payload as RecordValue;
   const carta = source.carta as RecordValue | undefined;
-  if (!carta || carta.restaurante_id !== restaurantId || carta.estado !== "activa") return null;
+  if (!carta || carta.restaurante_id !== restaurantId || (carta.estado !== "activa" && !(allowDraft && carta.estado === "borrador"))) return null;
   const categories = (Array.isArray(source.categorias) ? source.categorias : [])
     .filter((value): value is RecordValue => !!value && typeof value === "object")
     .filter((value) => value.restaurante_id === restaurantId && value.carta_id === carta.id && value.activa === true && text(value.nombre))
