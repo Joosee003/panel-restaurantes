@@ -23,7 +23,7 @@ window.NEW_TALGO_CONTENT = Object.freeze({
   /* Fotografías autorizadas por Ángel. La carta vigente está cargada en Supabase local; disponibilidad sujeta al local. */
   photos: {
     hero: {src:"assets/photos/tosta-mexicana.webp",small:"assets/photos/tosta-mexicana-640.webp",width:1080,height:1440,smallWidth:480,alt:"Tosta fotografiada en New Talgo"},
-    menu: {src:"assets/photos/carta-plato-combinado.webp",small:"assets/photos/carta-plato-combinado-640.webp",width:1440,height:1080,smallWidth:640,alt:"Plato combinado fotografiado en New Talgo"},
+    menu: {src:"assets/photos/hero-pizza-pepperoni.webp",small:"assets/photos/hero-pizza-pepperoni-640.webp",width:1440,height:1080,smallWidth:640,alt:"Pizza de pepperoni fotografiada en New Talgo"},
     tapas: {src:"assets/photos/tapas-patatas.webp",small:"assets/photos/tapas-patatas-640.webp",width:1080,height:1440,smallWidth:480,alt:"Patatas con salsas fotografiadas en New Talgo"},
     bocadillos: {src:"assets/photos/bocadillo-jamon.webp",small:"assets/photos/bocadillo-jamon-640.webp",width:1080,height:1440,smallWidth:480,alt:"Bocadillo de jamón fotografiado en New Talgo"},
     hamburguesas: {src:"assets/photos/hamburguesa-4.webp",small:"assets/photos/hamburguesa-4-640.webp",width:1080,height:1440,smallWidth:480,alt:"Hamburguesa fotografiada en New Talgo"},
