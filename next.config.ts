@@ -15,7 +15,7 @@ function supabaseOrigins() {
   const release = process.env.GASTROHELP_DEPLOYMENT_MODE === "approved-production";
   const restrictedPreview = process.env.GASTROHELP_DEPLOYMENT_MODE === "restricted-preview"
     && process.env.VERCEL_ENV === "preview"
-    && process.env.VERCEL_GIT_COMMIT_REF === "codex/new-talgo-on-production";
+    && process.env.VERCEL_GIT_COMMIT_REF === "codex/new-talgo-premium-reservas";
   const remote = (release || restrictedPreview) && /^[a-z0-9]{20}$/.test(approvedRef || "")
     && url.protocol === "https:" && url.hostname === `${approvedRef}.supabase.co`;
   if (release && !remote) throw new Error("APPROVED_PRODUCTION_PROJECT_REQUIRED");
@@ -32,7 +32,7 @@ const localOrigins = supabaseOrigins();
 const approvedProduction = process.env.GASTROHELP_DEPLOYMENT_MODE === "approved-production";
 const restrictedPreview = process.env.GASTROHELP_DEPLOYMENT_MODE === "restricted-preview"
   && process.env.VERCEL_ENV === "preview"
-  && process.env.VERCEL_GIT_COMMIT_REF === "codex/new-talgo-on-production";
+  && process.env.VERCEL_GIT_COMMIT_REF === "codex/new-talgo-premium-reservas";
 const newTalgoIndexable = approvedProduction && process.env.NEW_TALGO_INDEXING_APPROVED === "yes";
 const newTalgoPublicHost = process.env.NEW_TALGO_PUBLIC_HOST?.toLowerCase().trim();
 if (approvedProduction && process.env.NEW_TALGO_PUBLICATION_APPROVED !== "yes") {

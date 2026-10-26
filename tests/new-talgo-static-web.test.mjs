@@ -19,6 +19,10 @@ test("staged New Talgo web has valid local navigation and stays unindexed pendin
     assert.match(html, /<main\b[^>]*id="main"/);
     for (const [, href] of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
       if (href.startsWith("#") || /^(https?:|tel:|mailto:)/.test(href)) continue;
+      if (href === "/new-talgo/reservar") {
+        assert.ok(existsSync(join(process.cwd(), "app", "new-talgo", "reservar", "page.tsx")));
+        continue;
+      }
       assert.ok(existsSync(join(root, href.split("#")[0])), `${page}: missing ${href}`);
     }
   }
@@ -66,10 +70,13 @@ test("confirmed details, disabled services and real photos are represented accur
   assert.doesNotMatch(servedMenu, /<article class="menu-v2-row"/);
   assert.doesNotMatch(servedMenu, /Carta por confirmar/);
   assert.doesNotMatch(readFileSync(join(root, "index.html"), "utf8"), /href="carta\.html#/);
-  assert.match(readFileSync(join(root, "index.html"), "utf8"), /Fotografías autorizadas por Ángel/);
+  assert.match(readFileSync(join(root, "index.html"), "utf8"), /Fotografías reales enviadas por Ángel/);
   assert.doesNotMatch(readFileSync(join(root, "index.html"), "utf8"), /derechos de uso pendientes de confirmar/i);
   assert.match(readFileSync(join(root, "index.html"), "utf8"), /href="carta.html"/);
   assert.match(readFileSync(join(root, "index.html"), "utf8"), /href="visitanos.html"/);
-  assert.match(readFileSync(join(root, "index.html"), "utf8"), /src="promotions-live\.js"/);
-  for (const placement of ["universitarios", "partidas", "estacion"]) assert.match(readFileSync(join(root, "index.html"), "utf8"), new RegExp(`data-promo-slot="${placement}"`));
+  const home = readFileSync(join(root, "index.html"), "utf8");
+  assert.match(home, /href="\/new-talgo\/reservar"/);
+  assert.match(home, /Reservas online en preparación/);
+  assert.match(home, /data-gallery-next/);
+  assert.doesNotMatch(home, /data-promo-slot|dos por uno|descuento activo/i);
 });

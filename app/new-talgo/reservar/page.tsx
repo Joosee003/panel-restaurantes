@@ -30,7 +30,7 @@ export default async function NewTalgoBookingPage() {
         <section>
           <p className="text-xs font-bold uppercase tracking-[.2em] text-[#b75b42]">New Talgo · Segovia</p>
           <h1 className="mt-3 font-serif text-5xl leading-tight sm:text-6xl">Ven a comer.<br /><em>Reserva tu mesa.</em></h1>
-          <p className="mt-5 max-w-md text-base leading-7">Elige fecha, hora y personas. Para grupos de más de cuatro personas, Ángel revisará tu solicitud antes de confirmarla.</p>
+          <p className="mt-5 max-w-md text-base leading-7">De 1 a 4 personas, la mesa se confirma solo si hay disponibilidad. De 5 a 32, Ángel revisa la solicitud antes de confirmarla. Para más de 32, llámanos.</p>
           <p className="mt-4 text-sm leading-6">Carretera de Villacastín 14, 40006 Segovia. Entrada desde la calle.</p>
           <a href="tel:+34643970267" className="mt-3 inline-block text-sm font-bold underline underline-offset-4">643 97 02 67</a>
         </section>
@@ -39,7 +39,7 @@ export default async function NewTalgoBookingPage() {
           restaurantName="New Talgo"
           timezone={restaurant.booking.timezone}
           minParty={restaurant.booking.minParty}
-          maxParty={restaurant.booking.maxParty}
+          maxParty={Math.min(restaurant.booking.maxParty, 32)}
           maxAdvanceDays={restaurant.booking.maxAdvanceDays}
           requiresPhone={true}
           requiresEmail={false}

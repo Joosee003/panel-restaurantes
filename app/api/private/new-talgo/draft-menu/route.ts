@@ -20,7 +20,7 @@ export function draftPreviewAllowed(request: Request, environment: NodeJS.Proces
   try { supabaseHost = new URL(environment.NEXT_PUBLIC_SUPABASE_URL || "").hostname; } catch { return false; }
   return environment.GASTROHELP_DEPLOYMENT_MODE === "restricted-preview"
     && environment.VERCEL_ENV === "preview"
-    && environment.VERCEL_GIT_COMMIT_REF === "codex/new-talgo-on-production"
+    && environment.VERCEL_GIT_COMMIT_REF === "codex/new-talgo-premium-reservas"
     && !!deploymentHost && /^[a-z0-9-]+\.vercel\.app$/.test(deploymentHost)
     && requestHost === deploymentHost
     && new URL(request.url).hostname.toLowerCase() === deploymentHost

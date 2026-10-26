@@ -22,6 +22,73 @@
     });
   }
 
+  // The booking page decides whether the existing widget is available. Its
+  // closed state always offers the confirmed restaurant phone number.
+  if (!document.querySelector(".nt-mobile-booking")) {
+    const bookingLink = document.createElement("a");
+    bookingLink.className = "nt-mobile-booking";
+    bookingLink.href = "/new-talgo/reservar";
+    bookingLink.setAttribute("aria-label", "Reservar mesa; si las reservas online están cerradas, llamar al restaurante");
+    bookingLink.innerHTML = 'Reservar mesa <span aria-hidden="true">↗</span>';
+    document.body.append(bookingLink);
+  }
+
+  const gallery = document.getElementById("nt-gallery-track");
+  if (gallery) {
+    const items = Array.from(gallery.querySelectorAll(".nt-gallery-item"));
+    const count = document.querySelector("[data-gallery-count]");
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const currentIndex = function () {
+      if (!items.length) return 0;
+      let nearest = 0;
+      let distance = Infinity;
+      items.forEach(function (item, index) {
+        const delta = Math.abs(item.offsetLeft - items[0].offsetLeft - gallery.scrollLeft);
+        if (delta < distance) { distance = delta; nearest = index; }
+      });
+      return nearest;
+    };
+    const updateCount = function () {
+      if (count) count.textContent = String(currentIndex() + 1).padStart(2, "0") + " / " + String(items.length).padStart(2, "0");
+    };
+    const goTo = function (index) {
+      const item = items[Math.max(0, Math.min(items.length - 1, index))];
+      if (item) gallery.scrollTo({ left: item.offsetLeft - items[0].offsetLeft, behavior: reducedMotion.matches ? "auto" : "smooth" });
+    };
+    document.querySelector("[data-gallery-prev]")?.addEventListener("click", function () { goTo(currentIndex() - 1); });
+    document.querySelector("[data-gallery-next]")?.addEventListener("click", function () { goTo(currentIndex() + 1); });
+    gallery.addEventListener("keydown", function (event) {
+      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+        event.preventDefault();
+        goTo(currentIndex() + (event.key === "ArrowRight" ? 1 : -1));
+      }
+    });
+    let pending = false;
+    gallery.addEventListener("scroll", function () {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () { updateCount(); pending = false; });
+    }, { passive: true });
+    updateCount();
+  }
+
+  if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    const revealNodes = document.querySelectorAll(".nt-reveal");
+    const revealObserver = new IntersectionObserver(function (entries, observer) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) {
+          entry.target.classList.remove("nt-before-reveal");
+          entry.target.classList.add("nt-is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { rootMargin: "0px 0px -35px 0px", threshold: 0.08 });
+    revealNodes.forEach(function (node) {
+      if (node.getBoundingClientRect().top > window.innerHeight) node.classList.add("nt-before-reveal");
+      revealObserver.observe(node);
+    });
+  }
+
   document.querySelectorAll("#year").forEach(function (node) {
     node.textContent = String(new Date().getFullYear());
   });
