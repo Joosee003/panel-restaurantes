@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default async function NewTalgoBookingPage() {
   const restaurantId = process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID;
-  const web = restaurantId && /^[0-9a-f-]{36}$/i.test(restaurantId)
+  const web = process.env.SUPABASE_SERVICE_ROLE_KEY && restaurantId && /^[0-9a-f-]{36}$/i.test(restaurantId)
     ? await getSupabaseAdmin().from("restaurante_webs").select("slug")
       .eq("restaurante_id", restaurantId).maybeSingle()
     : null;
@@ -61,3 +61,4 @@ export default async function NewTalgoBookingPage() {
     </div>
   </main>;
 }
+
