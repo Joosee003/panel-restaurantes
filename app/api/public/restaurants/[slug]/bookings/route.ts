@@ -4,6 +4,7 @@ import { BOOKING_LEGAL_VERSION } from "../../../../../lib/publicLegal";
 import { getPublicRestaurant } from "../../../../../lib/publicRestaurant";
 import { consumePublicRateLimit } from "../../../../../lib/publicRateLimit";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
+import { newTalgoBookingReady } from "../../../../../lib/newTalgoBookingReadiness";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -118,6 +119,9 @@ export async function POST(
   }
   if (restaurant.restauranteId === process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID && party > 32) {
     return json({ ok: false, error: "PHONE_CONTACT_REQUIRED" }, 400);
+  }
+  if (!(await newTalgoBookingReady(restaurant.restauranteId))) {
+    return json({ ok: false, error: "BOOKING_NOT_AVAILABLE" }, 404);
   }
 
   if (

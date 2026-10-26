@@ -10,6 +10,7 @@ test('public demo rejects valid direct booking requests before storing contact d
     '../../../../../lib/bookingDate':{isBookingStartAllowed:()=>true},
     '../../../../../lib/publicLegal':{BOOKING_LEGAL_VERSION:'2026-08-03'},
     '../../../../../lib/publicRestaurant':{getPublicRestaurant:async()=>({demo:true,booking:{enabled:true}})},
+    '../../../../../lib/newTalgoBookingReadiness':{newTalgoBookingReady:async()=>true},
     '../../../../../lib/publicRateLimit':{consumePublicRateLimit:async()=>true},
     '../../../../../lib/supabaseAdmin':{getSupabaseAdmin:()=>{writes++;throw Error('Must not reach storage')}},
   });

@@ -4,6 +4,7 @@ import BookingWidget from "../../restaurante/[slug]/BookingWidget";
 import { legalPath } from "../../lib/publicLegal";
 import { getPublicRestaurant } from "../../lib/publicRestaurant";
 import { getSupabaseAdmin } from "../../lib/supabaseAdmin";
+import { newTalgoBookingReady } from "../../lib/newTalgoBookingReadiness";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
@@ -18,7 +19,8 @@ export default async function NewTalgoBookingPage() {
       .eq("restaurante_id", restaurantId).maybeSingle()
     : null;
   const restaurant = web?.data?.slug ? await getPublicRestaurant(web.data.slug) : null;
-  const enabled = restaurant?.published && restaurant.booking.enabled && !restaurant.demo;
+  const enabled = restaurant?.published && restaurant.booking.enabled && !restaurant.demo &&
+    await newTalgoBookingReady(restaurant.restauranteId);
 
   return <main className="min-h-screen bg-[#f5f0e6] px-4 py-7 text-[#203831] sm:px-8 sm:py-12">
     <div className="mx-auto max-w-5xl">
