@@ -26,7 +26,12 @@ try {
     "20261027001000_new_talgo_reschedule_notice_fix.sql",
   ];
   for (const name of names) {
-    await db.exec(await readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8"));
+    const sql = await readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8");
+    if (name === "20261027001000_new_talgo_reschedule_notice_fix.sql") {
+      await assert.rejects(db.exec(sql.replace("df06f3511ae541a80ccb1397a91364a1", "00000000000000000000000000000000")),
+        /NEW_TALGO_RESCHEDULE_PREFLIGHT_FAILED/);
+    }
+    await db.exec(sql);
   }
   await db.exec(`
     alter role service_role bypassrls;
