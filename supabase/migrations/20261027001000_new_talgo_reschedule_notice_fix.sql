@@ -1,5 +1,30 @@
 -- A reschedule must not emit a temporary cancellation event.
 -- Availability already supports excluding the reservation being moved.
+-- This function is shared by restaurants. Abort if its deployed source or
+-- access rules have changed since the reviewed version.
+DO $guard$
+DECLARE
+  v_function oid;
+  v_source text;
+BEGIN
+  SELECT p.oid, p.prosrc INTO v_function, v_source
+  FROM pg_proc p
+  WHERE p.pronamespace = 'public'::regnamespace
+    AND p.proname = 'modificar_reserva_publica_gestion'
+    AND p.pronargs = 3;
+
+  IF v_function IS NULL
+    OR md5(replace(v_source, E'\r\n', E'\n')) <> 'df06f3511ae541a80ccb1397a91364a1'
+    OR has_function_privilege('anon', v_function, 'EXECUTE')
+    OR has_function_privilege('authenticated', v_function, 'EXECUTE')
+    OR NOT has_function_privilege('service_role', v_function, 'EXECUTE')
+    OR to_regprocedure('public.obtener_disponibilidad_reservas(text,date,integer,uuid)') IS NULL
+  THEN
+    RAISE EXCEPTION 'NEW_TALGO_RESCHEDULE_PREFLIGHT_FAILED';
+  END IF;
+END;
+$guard$;
+
 CREATE OR REPLACE FUNCTION public.modificar_reserva_publica_gestion(p_gestion_token uuid, p_nuevo_inicio_at timestamp with time zone, p_nuevas_personas integer)
  RETURNS jsonb
  LANGUAGE plpgsql

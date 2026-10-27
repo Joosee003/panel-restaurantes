@@ -14,6 +14,7 @@ const config = {
 const restaurantId = "11111111-1111-4111-8111-111111111111";
 let currentConfig = config;
 let emailEnabled = true;
+let restaurantEmail = "owner@example.invalid";
 let tables = Array.from({ length: 8 }, () => ({ capacidad: 4 }));
 const client = {
   from(table) {
@@ -21,13 +22,15 @@ const client = {
       return { eq() {
         if (table === "sala_mesas") return { eq: async () => ({ data: tables, error: null }) };
         return { maybeSingle: async () => ({
-          data: table === "reservas_config" ? currentConfig : { email_enabled: emailEnabled }, error: null,
+          data: table === "reservas_config" ? currentConfig :
+            table === "restaurantes" ? { email_notificaciones: restaurantEmail } :
+              { email_enabled: emailEnabled }, error: null,
         }) };
       } };
     } };
   },
 };
-const module = { exports: {} };
+const testModule = { exports: {} };
 const source = readFileSync(new URL("../app/lib/newTalgoBookingReadiness.ts", import.meta.url), "utf8");
 new Function("require", "module", "exports", ts.transpileModule(source, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
@@ -35,8 +38,8 @@ new Function("require", "module", "exports", ts.transpileModule(source, {
   if (name === "server-only") return {};
   if (name === "./supabaseAdmin") return { getSupabaseAdmin: () => client };
   throw Error(name);
-}, module, module.exports);
-const { newTalgoBookingReady } = module.exports;
+}, testModule, testModule.exports);
+const { newTalgoBookingReady } = testModule.exports;
 
 test("New Talgo bookings stay closed until every group and notice gate is ready", async () => {
   const previous = Object.fromEntries([
@@ -61,12 +64,16 @@ test("New Talgo bookings stay closed until every group and notice gate is ready"
     emailEnabled = false;
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     emailEnabled = true;
+    restaurantEmail = "wrong@example.invalid";
+    assert.equal(await newTalgoBookingReady(restaurantId), false);
+    restaurantEmail = "owner@example.invalid";
     tables = tables.slice(0, 7);
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     assert.equal(await newTalgoBookingReady("22222222-2222-4222-8222-222222222222"), true);
   } finally {
     currentConfig = config;
     emailEnabled = true;
+    restaurantEmail = "owner@example.invalid";
     tables = Array.from({ length: 8 }, () => ({ capacidad: 4 }));
     for (const [key, value] of Object.entries(previous)) {
       if (value === undefined) delete process.env[key];

@@ -8,15 +8,16 @@ export async function newTalgoBookingReady(restaurantId: string | null): Promise
   if (!restaurantId || restaurantId !== process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID) {
     return true;
   }
+  const ownerEmail = process.env.NEW_TALGO_OWNER_EMAIL?.trim().toLowerCase() || "";
   if (
     process.env.GASTROHELP_DEPLOYMENT_MODE !== "approved-production" ||
     process.env.NEW_TALGO_OWNER_NOTICE_CHANNEL !== "n8n" ||
-    !process.env.NEW_TALGO_OWNER_EMAIL ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(ownerEmail) ||
     !process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET
   ) return false;
 
   const supabase = getSupabaseAdmin();
-  const [config, automation, tables] = await Promise.all([
+  const [config, automation, tables, restaurant] = await Promise.all([
     supabase.from("reservas_config")
       .select("activo,confirmacion_automatica,confirmacion_automatica_hasta,personas_minimas,personas_maximas,mesas_activas_en_disponibilidad")
       .eq("restaurante_id", restaurantId).maybeSingle(),
@@ -24,10 +25,13 @@ export async function newTalgoBookingReady(restaurantId: string | null): Promise
       .eq("restaurante_id", restaurantId).maybeSingle(),
     supabase.from("sala_mesas").select("capacidad")
       .eq("restaurante_id", restaurantId).eq("activa", true),
+    supabase.from("restaurantes").select("email_notificaciones")
+      .eq("id", restaurantId).maybeSingle(),
   ]);
-  if (config.error || automation.error || tables.error) return false;
+  if (config.error || automation.error || tables.error || restaurant.error) return false;
   const booking = config.data;
-  return booking?.activo === true &&
+  return restaurant.data?.email_notificaciones?.trim().toLowerCase() === ownerEmail &&
+    booking?.activo === true &&
     booking.confirmacion_automatica === true &&
     booking.confirmacion_automatica_hasta === 4 &&
     booking.personas_minimas === 1 &&

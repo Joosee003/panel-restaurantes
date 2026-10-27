@@ -36,18 +36,19 @@ try {
       ('${I.otherUser}','other-owner@example.invalid');
     alter table auth.users enable trigger user;
     insert into restaurantes(id,nombre,slug,owner_id,capacidad_total,capacidad_comida,capacidad_cena)
-      values ('${I.restaurant}','New Talgo isolated','new-talgo-isolated','${I.user}',32,32,32),
+      values ('${I.restaurant}','Bar & Tapas New Talgo','new-talgo-isolated','${I.user}',32,32,32),
         ('${I.otherRestaurant}','Other isolated','other-isolated','${I.otherUser}',16,16,16);
     insert into usuarios_restaurantes(user_id,restaurante_id)
       values ('${I.user}','${I.restaurant}'),('${I.otherUser}','${I.otherRestaurant}');
     insert into restaurante_modulos(restaurante_id,reservas,clientes,automatizaciones,estado)
       values ('${I.restaurant}',true,true,true,'activo'),('${I.otherRestaurant}',true,true,true,'activo');
-    update restaurante_webs set publicada=true where restaurante_id in ('${I.restaurant}','${I.otherRestaurant}');
-    update reservas_config set activo=true,zona_horaria='Europe/Madrid',duracion_minutos=60,
+    update restaurante_webs set publicada=false where restaurante_id='${I.restaurant}';
+    update restaurante_webs set publicada=true where restaurante_id='${I.otherRestaurant}';
+    update reservas_config set activo=false,zona_horaria='Europe/Madrid',duracion_minutos=60,
       intervalo_minutos=30,antelacion_minutos=0,dias_maximos_antelacion=60,
-      personas_minimas=1,personas_maximas=32,capacidad_por_turno=32,
-      confirmacion_automatica=true,confirmacion_automatica_hasta=4,
-      mesas_activas_en_disponibilidad=true,solicitudes_pendientes_no_ocupan=true,
+      personas_minimas=1,personas_maximas=12,capacidad_por_turno=32,
+      confirmacion_automatica=true,confirmacion_automatica_hasta=null,
+      mesas_activas_en_disponibilidad=false,solicitudes_pendientes_no_ocupan=false,
       requiere_telefono=true,requiere_email=false
       where restaurante_id='${I.restaurant}';
     update reservas_config set activo=true,zona_horaria='Europe/Madrid',duracion_minutos=60,
@@ -55,7 +56,7 @@ try {
       personas_minimas=1,personas_maximas=16,capacidad_por_turno=16,
       mesas_activas_en_disponibilidad=false
       where restaurante_id='${I.otherRestaurant}';
-    update automatizaciones_config set enabled=true,delivery_mode='test',email_enabled=true,
+    update automatizaciones_config set enabled=false,delivery_mode='test',email_enabled=false,
       confirmation_enabled=true,reminder_enabled=false where restaurante_id='${I.restaurant}';
     delete from reservas_horarios where restaurante_id='${I.restaurant}';
     insert into reservas_horarios(restaurante_id,dia_semana,turno,hora_inicio,hora_fin,activo,capacidad_override)
@@ -64,6 +65,19 @@ try {
       select '${I.otherRestaurant}',d,'comida','12:00','17:00',true,16 from generate_series(0,6) d;
     insert into sala_mesas(restaurante_id,nombre,capacidad,orden,activa,bloqueada)
       select '${I.restaurant}','Mesa '||i,4,i,true,false from generate_series(1,8) i;
+  `);
+  const stagedConfig = (await readFile(new URL("./new-talgo-booking-config-pending.sql", import.meta.url), "utf8"))
+    .replaceAll("408f0cff-68a0-40a7-b975-d2ed8e2dbfcc", I.restaurant);
+  await db.exec(stagedConfig);
+  const stillClosed = (await db.query("select c.activo,w.publicada,c.personas_maximas,c.confirmacion_automatica_hasta from reservas_config c join restaurante_webs w on w.restaurante_id=c.restaurante_id where c.restaurante_id=$1", [I.restaurant])).rows[0];
+  assert.equal(stillClosed.activo, false);
+  assert.equal(stillClosed.publicada, false);
+  assert.equal(stillClosed.personas_maximas, 32);
+  assert.equal(stillClosed.confirmacion_automatica_hasta, 4);
+  await db.exec(`
+    update restaurante_webs set publicada=true where restaurante_id='${I.restaurant}';
+    update reservas_config set activo=true where restaurante_id='${I.restaurant}';
+    update automatizaciones_config set enabled=true,email_enabled=true where restaurante_id='${I.restaurant}';
   `);
   await reviewActor(db, null, "service_role");
   const setup = (await db.query("select w.slug,w.publicada,c.personas_maximas,c.confirmacion_automatica_hasta,(select count(*) from sala_mesas m where m.restaurante_id=w.restaurante_id) mesas from restaurante_webs w join reservas_config c on c.restaurante_id=w.restaurante_id where w.restaurante_id=$1", [I.restaurant])).rows[0];
