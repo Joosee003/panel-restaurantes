@@ -325,6 +325,12 @@ async function deliverEvent(event: AutomationEvent) {
 }
 
 export async function POST(request: NextRequest) {
+  // This project shares a database with other restaurants. Its restricted
+  // preview must never claim events from the global production queue.
+  if (process.env.GASTROHELP_DEPLOYMENT_MODE === "restricted-preview") {
+    return json({ ok: false, error: "DISPATCH_DISABLED_IN_PREVIEW" }, 403);
+  }
+
   const contentLength = Number(request.headers.get("content-length") || 0);
   if (contentLength > 2_000) {
     return json({ ok: false, error: "INVALID_REQUEST" }, 413);
