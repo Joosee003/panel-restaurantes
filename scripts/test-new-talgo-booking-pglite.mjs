@@ -115,6 +115,9 @@ try {
   assert.equal(individualEvents.filter(event => event.event_type === "reservation.cancelled").length, 1, "Reschedule must not enqueue a cancellation");
   assert.equal(individualEvents.find(event => event.event_type === "reservation.cancelled").status, "pending", "Actual cancellation must remain dispatchable");
   assert.equal(new Set(individualEvents.map(event => event.event_id)).size, individualEvents.length);
+  const movedGroup = (await db.query("select modificar_reserva_publica_gestion($1,$2,5) result", [group.gestion_token, slots.at(-2).inicio_at])).rows[0].result;
+  assert.equal(movedGroup.estado, "pendiente", "A rescheduled group still needs approval");
+  assert.equal((await db.query("select count(*)::int n from reservation_webhook_deliveries where reservation_id=$1 and event_type='reservation.cancelled'", [group.reserva_id])).rows[0].n, 0, "Group rescheduling must not create a false cancellation");
   const tableIds = (await db.query("select id from sala_mesas where restaurante_id=$1 order by orden", [I.restaurant])).rows.map(row => row.id);
   await reviewActor(db, I.otherUser);
   await assert.rejects(db.query("select confirmar_reserva_grupo($1,$2::uuid[]) result", [group.reserva_id, tableIds.slice(0, 2)]), /RESTAURANT_ACCESS_DENIED/);
