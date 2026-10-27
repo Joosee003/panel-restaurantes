@@ -1,5 +1,5 @@
--- PREPARED ONLY. Apply to the GastroHelp Supabase project only after approval.
--- This sets New Talgo's booking limits without opening public bookings or email.
+-- Applied to GastroHelp Supabase on 2026-10-27 with explicit approval.
+-- Sets New Talgo's booking limits without opening public bookings or email.
 -- Reservation service hours and table duration remain unset until Angel confirms them.
 BEGIN;
 

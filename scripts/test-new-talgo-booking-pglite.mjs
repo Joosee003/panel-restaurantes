@@ -23,11 +23,11 @@ try {
     "20261024134500_new_talgo_manage_party.sql",
     "20261024140000_new_talgo_manual_tables.sql",
     "20261024141500_new_talgo_manual_availability.sql",
-    "20261027001000_new_talgo_reschedule_notice_fix.sql",
+    "20261027155943_new_talgo_reschedule_notice_fix.sql",
   ];
   for (const name of names) {
     const sql = await readFile(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8");
-    if (name === "20261027001000_new_talgo_reschedule_notice_fix.sql") {
+    if (name === "20261027155943_new_talgo_reschedule_notice_fix.sql") {
       await assert.rejects(db.exec(sql.replace("df06f3511ae541a80ccb1397a91364a1", "00000000000000000000000000000000")),
         /NEW_TALGO_RESCHEDULE_PREFLIGHT_FAILED/);
     }
@@ -71,7 +71,7 @@ try {
     insert into sala_mesas(restaurante_id,nombre,capacidad,orden,activa,bloqueada)
       select '${I.restaurant}','Mesa '||i,4,i,true,false from generate_series(1,8) i;
   `);
-  const stagedConfig = (await readFile(new URL("./new-talgo-booking-config-pending.sql", import.meta.url), "utf8"))
+  const stagedConfig = (await readFile(new URL("./new-talgo-booking-config-32-4-closed.sql", import.meta.url), "utf8"))
     .replaceAll("408f0cff-68a0-40a7-b975-d2ed8e2dbfcc", I.restaurant);
   await db.exec(stagedConfig);
   const stillClosed = (await db.query("select c.activo,w.publicada,c.personas_maximas,c.confirmacion_automatica_hasta from reservas_config c join restaurante_webs w on w.restaurante_id=c.restaurante_id where c.restaurante_id=$1", [I.restaurant])).rows[0];
