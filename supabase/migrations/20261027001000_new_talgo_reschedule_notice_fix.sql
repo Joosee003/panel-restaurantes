@@ -6,15 +6,18 @@ DO $guard$
 DECLARE
   v_function oid;
   v_source text;
+  v_security_definer boolean;
+  v_settings text[];
 BEGIN
-  SELECT p.oid, p.prosrc INTO v_function, v_source
+  SELECT p.oid, p.prosrc, p.prosecdef, p.proconfig
+    INTO v_function, v_source, v_security_definer, v_settings
   FROM pg_proc p
-  WHERE p.pronamespace = 'public'::regnamespace
-    AND p.proname = 'modificar_reserva_publica_gestion'
-    AND p.pronargs = 3;
+  WHERE p.oid = to_regprocedure('public.modificar_reserva_publica_gestion(uuid,timestamptz,integer)');
 
   IF v_function IS NULL
     OR md5(replace(v_source, E'\r\n', E'\n')) <> 'df06f3511ae541a80ccb1397a91364a1'
+    OR v_security_definer IS DISTINCT FROM true
+    OR NOT ('search_path=""' = ANY(v_settings))
     OR has_function_privilege('anon', v_function, 'EXECUTE')
     OR has_function_privilege('authenticated', v_function, 'EXECUTE')
     OR NOT has_function_privilege('service_role', v_function, 'EXECUTE')
