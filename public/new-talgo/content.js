@@ -40,7 +40,7 @@ window.NEW_TALGO_CONTENT = Object.freeze({
     sugerencias: {src:"assets/photos/paella-sugerencia.webp",small:"assets/photos/paella-sugerencia-640.webp",width:1080,height:1440,smallWidth:480,alt:"Paella fotografiada en New Talgo"},
     ensaladas: {src:"assets/photos/ensalada-1.webp",small:"assets/photos/ensalada-1-640.webp",width:1279,height:1440,smallWidth:568,alt:"Ensalada fotografiada en New Talgo"},
     salaitos: {src:"assets/photos/salaitos-variados.webp",small:"assets/photos/salaitos-variados-640.webp",width:1080,height:1440,smallWidth:480,alt:"Bandeja de salaitos fotografiada en New Talgo"},
-    facade: null,
+    facade: {src:"assets/photos/fachada-real-1600.webp",small:"assets/photos/fachada-real-640.webp",width:1600,height:1200,smallWidth:640,alt:"Fachada real de New Talgo en Carretera de Villacastín"},
     // BEGIN GENERATED MENU PHOTOS
     "bocadillo-pollo": {"src": "assets/photos/bocadillo-pollo.webp", "small": "assets/photos/bocadillo-pollo-640.webp", "width": 1440, "height": 1350, "smallWidth": 640, "alt": "Fotografía de Bocadillo Filetes de Pollo empanado N°11 en New Talgo"},
     "bocadillo-bacon": {"src": "assets/photos/bocadillo-bacon.webp", "small": "assets/photos/bocadillo-bacon-640.webp", "width": 1080, "height": 1440, "smallWidth": 480, "alt": "Fotografía de Bocadillo de Bacon N°5 en New Talgo"},

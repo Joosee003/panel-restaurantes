@@ -20,10 +20,19 @@
         toggle.focus();
       }
     });
+    mobileNav.querySelectorAll("a").forEach(function (link) {
+      link.addEventListener("click", function () {
+        mobileNav.hidden = true;
+        toggle.setAttribute("aria-expanded", "false");
+        toggle.setAttribute("aria-label", "Abrir menú");
+        document.querySelector(".site-header")?.classList.remove("menu-open");
+      });
+    });
+    toggle.addEventListener("click", function () {
+      document.querySelector(".site-header")?.classList.toggle("menu-open", toggle.getAttribute("aria-expanded") === "true");
+    });
   }
 
-  // The booking page decides whether the existing widget is available. Its
-  // closed state always offers the confirmed restaurant phone number.
   if (!document.querySelector(".nt-mobile-booking")) {
     const bookingLink = document.createElement("a");
     bookingLink.className = "nt-mobile-booking";
@@ -33,60 +42,52 @@
     document.body.append(bookingLink);
   }
 
-  const gallery = document.getElementById("nt-gallery-track");
-  if (gallery) {
-    const items = Array.from(gallery.querySelectorAll(".nt-gallery-item"));
-    const count = document.querySelector("[data-gallery-count]");
-    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const currentIndex = function () {
-      if (!items.length) return 0;
-      let nearest = 0;
-      let distance = Infinity;
-      items.forEach(function (item, index) {
-        const delta = Math.abs(item.offsetLeft - items[0].offsetLeft - gallery.scrollLeft);
-        if (delta < distance) { distance = delta; nearest = index; }
-      });
-      return nearest;
-    };
-    const updateCount = function () {
-      if (count) count.textContent = String(currentIndex() + 1).padStart(2, "0") + " / " + String(items.length).padStart(2, "0");
-    };
-    const goTo = function (index) {
-      const item = items[Math.max(0, Math.min(items.length - 1, index))];
-      if (item) gallery.scrollTo({ left: item.offsetLeft - items[0].offsetLeft, behavior: reducedMotion.matches ? "auto" : "smooth" });
-    };
-    document.querySelector("[data-gallery-prev]")?.addEventListener("click", function () { goTo(currentIndex() - 1); });
-    document.querySelector("[data-gallery-next]")?.addEventListener("click", function () { goTo(currentIndex() + 1); });
-    gallery.addEventListener("keydown", function (event) {
-      if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
-        event.preventDefault();
-        goTo(currentIndex() + (event.key === "ArrowRight" ? 1 : -1));
-      }
-    });
-    let pending = false;
-    gallery.addEventListener("scroll", function () {
-      if (pending) return;
-      pending = true;
-      requestAnimationFrame(function () { updateCount(); pending = false; });
-    }, { passive: true });
-    updateCount();
-  }
+  if (document.body.classList.contains("nt-premium")) {
+    const header = document.querySelector(".site-header");
+    const syncHeader = function () { header?.classList.toggle("is-scrolled", window.scrollY > 45); };
+    syncHeader();
+    window.addEventListener("scroll", syncHeader, { passive: true });
 
-  if ("IntersectionObserver" in window && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    const revealNodes = document.querySelectorAll(".nt-reveal");
-    const revealObserver = new IntersectionObserver(function (entries, observer) {
-      entries.forEach(function (entry) {
-        if (entry.isIntersecting) {
-          entry.target.classList.remove("nt-before-reveal");
-          entry.target.classList.add("nt-is-visible");
-          observer.unobserve(entry.target);
-        }
-      });
-    }, { rootMargin: "0px 0px -35px 0px", threshold: 0.08 });
-    revealNodes.forEach(function (node) {
-      if (node.getBoundingClientRect().top > window.innerHeight) node.classList.add("nt-before-reveal");
-      revealObserver.observe(node);
-    });
+    if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches && "IntersectionObserver" in window) {
+      const reveal = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          entry.target.animate([
+            { opacity: 0, transform: "translateY(24px)" },
+            { opacity: 1, transform: "translateY(0)" }
+          ], { duration: 720, easing: "cubic-bezier(.16,1,.3,1)" });
+          reveal.unobserve(entry.target);
+        });
+      }, { threshold: .12 });
+      document.querySelectorAll(".nt-reveal").forEach(function (node) { reveal.observe(node); });
+    }
+
+    const gallery = document.querySelector("[data-gallery]");
+    if (gallery) {
+      const slides = [
+        { src: "assets/photos/comedor-real-1600.webp", alt: "Mesas del comedor de New Talgo", kicker: "01 / EL COMEDOR", caption: "Un sitio para sentarse." },
+        { src: "assets/photos/barra-real-1600.webp", alt: "Barra de New Talgo", kicker: "02 / LA BARRA", caption: "El corazón del bar." },
+        { src: "assets/photos/fachada-real-1600.webp", alt: "Fachada de New Talgo", kicker: "03 / LA FACHADA", caption: "Aquí nos encuentras." }
+      ];
+      const picture = gallery.querySelector("[data-gallery-image]");
+      const dots = Array.from(gallery.querySelectorAll("[data-gallery-dot]"));
+      let selected = 0;
+      function select(next) {
+        selected = (next + slides.length) % slides.length;
+        const slide = slides[selected];
+        gallery.querySelector(".nt-gallery-stage")?.classList.add("is-changing");
+        picture.src = slide.src;
+        picture.alt = slide.alt;
+        picture.onload = function () { gallery.querySelector(".nt-gallery-stage")?.classList.remove("is-changing"); };
+        gallery.querySelector("[data-gallery-kicker]").textContent = slide.kicker;
+        gallery.querySelector("[data-gallery-caption]").textContent = slide.caption;
+        gallery.querySelector("[data-gallery-count]").textContent = String(selected + 1).padStart(2, "0") + " / 03";
+        dots.forEach(function (dot, index) { dot.setAttribute("aria-pressed", String(index === selected)); });
+      }
+      gallery.querySelector("[data-gallery-prev]").addEventListener("click", function () { select(selected - 1); });
+      gallery.querySelector("[data-gallery-next]").addEventListener("click", function () { select(selected + 1); });
+      dots.forEach(function (dot, index) { dot.addEventListener("click", function () { select(index); }); });
+    }
   }
 
   document.querySelectorAll("#year").forEach(function (node) {
@@ -143,3 +144,4 @@
     frame.prepend(image);
   });
 })();
+

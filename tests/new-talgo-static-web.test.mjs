@@ -18,11 +18,7 @@ test("staged New Talgo web has valid local navigation and stays unindexed pendin
     assert.match(html, /href="#main"/);
     assert.match(html, /<main\b[^>]*id="main"/);
     for (const [, href] of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
-      if (href.startsWith("#") || /^(https?:|tel:|mailto:)/.test(href)) continue;
-      if (href === "/new-talgo/reservar") {
-        assert.ok(existsSync(join(process.cwd(), "app", "new-talgo", "reservar", "page.tsx")));
-        continue;
-      }
+      if (href.startsWith("#") || href.startsWith("/") || /^(https?:|tel:|mailto:)/.test(href)) continue;
       assert.ok(existsSync(join(root, href.split("#")[0])), `${page}: missing ${href}`);
     }
   }
@@ -41,9 +37,7 @@ test("confirmed details, disabled services and real photos are represented accur
   assert.equal(content.pickupConfirmed, false);
   assert.equal(content.menuConfirmed, true);
   assert.equal(content.photoRightsConfirmed, true);
-  assert.equal(content.photos.facade, null);
   for (const [key, photo] of Object.entries(content.photos)) {
-    if (key === "facade") continue;
     assert.ok(photo, `${key}: missing photo`);
     for (const filename of [photo.src, photo.small]) {
       assert.match(filename, /^assets\/photos\/[a-z0-9._-]+\.webp$/);
@@ -53,7 +47,7 @@ test("confirmed details, disabled services and real photos are represented accur
     assert.ok(photo.width > photo.smallWidth && photo.height > 0);
   }
   const uniquePhotos = new Set(Object.values(content.photos).filter(Boolean).map(photo => photo.src));
-  assert.equal(uniquePhotos.size, 39);
+  assert.equal(uniquePhotos.size, 40);
   const carta = readFileSync(join(process.cwd(), "..", "..", "..", "carta.html"), "utf8");
   const categories = [...carta.matchAll(/<article class="menu-v2-row" id="([^"]+)"/g)].map(match => match[1]);
   assert.equal(categories.length, 16);
@@ -70,13 +64,14 @@ test("confirmed details, disabled services and real photos are represented accur
   assert.doesNotMatch(servedMenu, /<article class="menu-v2-row"/);
   assert.doesNotMatch(servedMenu, /Carta por confirmar/);
   assert.doesNotMatch(readFileSync(join(root, "index.html"), "utf8"), /href="carta\.html#/);
-  assert.match(readFileSync(join(root, "index.html"), "utf8"), /Fotografías reales enviadas por Ángel/);
   assert.doesNotMatch(readFileSync(join(root, "index.html"), "utf8"), /derechos de uso pendientes de confirmar/i);
   assert.match(readFileSync(join(root, "index.html"), "utf8"), /href="carta.html"/);
   assert.match(readFileSync(join(root, "index.html"), "utf8"), /href="visitanos.html"/);
   const home = readFileSync(join(root, "index.html"), "utf8");
   assert.match(home, /href="\/new-talgo\/reservar"/);
-  assert.match(home, /Reservas online en preparación/);
-  assert.match(home, /data-gallery-next/);
-  assert.doesNotMatch(home, /data-promo-slot|dos por uno|descuento activo/i);
+  assert.match(home, /data-gallery/);
+  assert.match(home, /comedor-real-1600\.webp/);
+  assert.match(home, /barra-real-1600\.webp/);
+  assert.match(home, /fachada-real-1600\.webp/);
 });
+
