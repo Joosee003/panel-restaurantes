@@ -23,8 +23,11 @@ export async function GET() {
       url: process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL,
       secret: process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET,
     })!;
-  } catch {
-    return NextResponse.json({ ok: false, error: "WEBHOOK_NOT_CONFIGURED" }, { status: 503 });
+  } catch (error) {
+    const reason = error instanceof Error && error.message.startsWith("NEW_TALGO_")
+      ? error.message
+      : "WEBHOOK_NOT_CONFIGURED";
+    return NextResponse.json({ ok: false, error: reason }, { status: 503 });
   }
 
   const eventId = `automation.test:new-talgo-preview-auth-${crypto.randomUUID()}`;
