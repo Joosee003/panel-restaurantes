@@ -113,7 +113,7 @@
 .nt-premium .nav{gap:30px}
 .nt-premium .nav-link,.nt-premium .header-cta{color:inherit}
 .nt-premium .header-cta{border-color:currentColor}
-.nt-premium .menu-toggle{border-color:currentColor}
+.nt-premium .menu-toggle{color:inherit;border-color:currentColor}
 .nt-premium .menu-toggle span{background:currentColor}
 .nt-hero{min-height:760px;height:100svh;max-height:1100px;position:relative;color:#fff;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;background:#24362d}
 .nt-hero-photo,.nt-hero-photo img,.nt-hero-shade{position:absolute;inset:0;width:100%;height:100%}
