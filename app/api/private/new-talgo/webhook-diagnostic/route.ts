@@ -27,7 +27,14 @@ export async function GET() {
     const reason = error instanceof Error && error.message.startsWith("NEW_TALGO_")
       ? error.message
       : "WEBHOOK_NOT_CONFIGURED";
-    return NextResponse.json({ ok: false, error: reason }, { status: 503 });
+    const runtimeSecret = process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET?.trim() || "";
+    return NextResponse.json({
+      ok: false,
+      error: reason,
+      secretPresent: runtimeSecret.length > 0,
+      secretLengthAtLeast32: runtimeSecret.length >= 32,
+      urlPresent: Boolean(process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL?.trim()),
+    }, { status: 503 });
   }
 
   const eventId = `automation.test:new-talgo-preview-auth-${crypto.randomUUID()}`;
