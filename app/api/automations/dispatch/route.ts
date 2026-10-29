@@ -4,6 +4,7 @@ import { deliverVisitReview } from "@/lib/reviews/review-delivery";
 import { createWahaReviewSender } from "@/lib/reviews/waha-review-delivery";
 import { recoverWahaInbound } from "@/lib/whatsapp/waha-inbound";
 import { allowsNewTalgoOwnerNotice } from "@/lib/owner-notices/eligibility";
+import { resolveNewTalgoWebhookTarget } from "@/lib/owner-notices/new-talgo-routing";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -278,11 +279,17 @@ async function deliverEvent(event: AutomationEvent) {
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30_000);
-    const webhookSecret =
+    const newTalgoTarget = resolveNewTalgoWebhookTarget({
+      restaurantId: event.restaurante_id,
+      configuredRestaurantId: process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID,
+      url: process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL,
+      secret: process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET,
+    });
+    const webhookSecret = newTalgoTarget?.secret ||
       process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET?.trim();
     let response: Response;
     try {
-      response = await fetch(await webhookFor(), {
+      response = await fetch(newTalgoTarget?.url || await webhookFor(), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
