@@ -28,12 +28,24 @@ export async function GET() {
       ? error.message
       : "WEBHOOK_NOT_CONFIGURED";
     const runtimeSecret = process.env.N8N_NATIVE_BOOKING_WEBHOOK_SECRET?.trim() || "";
+    let urlValid = false;
+    try {
+      urlValid = Boolean(resolveNewTalgoWebhookTarget({
+        restaurantId: NEW_TALGO_ID,
+        configuredRestaurantId: NEW_TALGO_ID,
+        url: process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL,
+        secret: "diagnostic-only-placeholder-of-32-chars",
+      }));
+    } catch {
+      urlValid = false;
+    }
     return NextResponse.json({
       ok: false,
       error: reason,
       secretPresent: runtimeSecret.length > 0,
       secretLengthAtLeast32: runtimeSecret.length >= 32,
       urlPresent: Boolean(process.env.N8N_NATIVE_BOOKING_WEBHOOK_URL?.trim()),
+      urlValid,
     }, { status: 503 });
   }
 
