@@ -194,3 +194,23 @@
 @media(max-width:480px){.nt-hero h1{font-size:clamp(74px,17vw,95px)}.nt-hero-top{white-space:nowrap}.nt-hero-side p{font-size:19px}.nt-hero-actions .nt-button{min-height:53px;font-size:10px}.nt-hero-link{font-size:10px}.nt-hero-bottom span{display:none}.nt-hero-bottom{justify-content:flex-end}.nt-food-large{height:330px}.nt-food-pair{grid-template-rows:210px}.nt-food-card strong{font-size:25px}.nt-food-card a{font-size:9px}.nt-story-image{height:360px}.nt-gallery-stage{min-height:330px}.nt-gallery-caption strong{font-size:27px}.nt-visit-image{height:330px}}
 @media(prefers-reduced-motion:reduce){.nt-hero-photo img,.nt-kicker,.nt-hero h1,.nt-hero-side{animation:none!important}.nt-reveal{opacity:1!important;transform:none!important}.nt-gallery-stage>img{transition:none!important}}
 
+/* Active New Talgo promotions, shown only when the existing API returns offers. */
+.nt-promotions{padding:112px 0;background:var(--nt-cream)}
+.nt-promotions-inner{display:grid;grid-template-columns:17% minmax(0,1fr);gap:4%}
+.nt-promotions-head{display:flex;align-items:end;justify-content:space-between;gap:35px;margin-bottom:42px}
+.nt-promotions-head h2{font:400 clamp(52px,5.5vw,82px)/1.02 Georgia,serif;letter-spacing:-.06em;margin:0}
+.nt-promotions-head p{max-width:330px;color:#5c625a;font-size:15px;line-height:1.7;margin:0}
+.nt-promotions-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,275px),1fr));gap:17px}
+.nt-promotions .nt-promo-card{display:flex;flex-direction:column;border-top:3px solid var(--nt-clay);background:#fffaf1}
+.nt-promotions .nt-promo-picture{height:240px;background:#e4d8c6}
+.nt-promotions .nt-promo-picture img{display:block;width:100%;height:100%;object-fit:cover}
+.nt-promotions .nt-promo-body{display:flex;flex:1;flex-direction:column;padding:24px}
+.nt-promotions .nt-promo-kicker{color:#9b4b34}
+.nt-promotions .nt-promo-body h3{font:400 clamp(32px,3vw,46px)/1.08 Georgia,serif;letter-spacing:-.045em;margin:16px 0}
+.nt-promotions .nt-promo-description,.nt-promotions .nt-promo-audience,.nt-promotions .nt-promo-products,.nt-promotions .nt-promo-terms{display:block;color:#5c625a;font-size:13px;line-height:1.6;margin:0 0 12px}
+.nt-promotions .nt-promo-audience{font-weight:700;color:var(--nt-green)}
+.nt-promotions .nt-promo-offer{color:#9b4b34;font:400 33px Georgia,serif;margin:8px 0 15px}
+.nt-promotions .nt-promo-link{margin-top:auto;padding-top:16px;color:var(--nt-green)}
+@media(max-width:900px){.nt-promotions-inner{display:block}.nt-promotions .nt-section-label{margin-bottom:25px}.nt-promotions-head{display:block}.nt-promotions-head p{max-width:560px;margin-top:15px}}
+@media(max-width:760px){.nt-promotions{padding:85px 0}.nt-promotions-head h2{font-size:clamp(48px,9vw,68px)}.nt-promotions-grid{gap:13px}}
+@media(max-width:480px){.nt-promotions .nt-promo-picture{height:215px}.nt-promotions .nt-promo-body{padding:20px}}
