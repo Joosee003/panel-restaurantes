@@ -1,9 +1,10 @@
 (function () {
   "use strict";
 
-  const slots = Object.fromEntries(["universitarios", "partidas", "estacion"].map((name) => [name, document.querySelector(`[data-promo-slot="${name}"]`)]));
-  if (!slots.universitarios || !slots.partidas || !slots.estacion) return;
-  const editorial = Object.fromEntries(Object.entries(slots).map(([name, slot]) => [name, Array.from(slot.children)]));
+  const section = document.querySelector("[data-promo-section]");
+  const grid = document.querySelector("[data-promo-grid]");
+  if (!section || !grid) return;
+  const navLinks = document.querySelectorAll("[data-promo-nav]");
   const euro = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
   const number = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
   const labels = { universitarios: "ESTUDIANTES", partidas: "TARDES DE PARTIDAS", estacion: "CERCA DE LA ESTACIÓN" };
@@ -22,7 +23,7 @@
       case "porcentaje": return promotion.descuentoPorcentaje ? `−${number.format(promotion.descuentoPorcentaje)} %` : "";
       case "descuento_fijo": return promotion.descuentoEuros ? `−${euro.format(promotion.descuentoEuros)}` : "";
       case "dos_por_uno": return "2 × 1";
-      case "grupos": return promotion.personasMinimas ? `Desde ${promotion.personasMinimas} personas` : "";
+      case "grupos": return [promotion.personasMinimas ? `Desde ${promotion.personasMinimas} personas` : "", promotion.precio ? euro.format(promotion.precio) : ""].filter(Boolean).join(" · ");
       default: return "";
     }
   }
@@ -54,6 +55,7 @@
     body.append(element("span", "nt-promo-kicker", labels[promotion.ubicacion] || "NEW TALGO"));
     body.append(element("h3", "", promotion.titulo));
     if (promotion.descripcion) body.append(element("p", "nt-promo-description", promotion.descripcion));
+    if (promotion.publico) body.append(element("p", "nt-promo-audience", promotion.publico));
     if (promotion.productos) body.append(element("p", "nt-promo-products", promotion.productos));
     const detail = offer(promotion);
     if (detail) body.append(element("strong", "nt-promo-offer", detail));
@@ -67,11 +69,10 @@
   }
 
   function render(promotions) {
-    for (const [location, slot] of Object.entries(slots)) {
-      const items = promotions.filter((item) => item.ubicacion === location);
-      slot.replaceChildren(...(items.length ? items.map(card) : editorial[location]));
-      slot.hidden = false;
-    }
+    grid.replaceChildren(...promotions.map(card));
+    const visible = promotions.length > 0;
+    section.hidden = !visible;
+    navLinks.forEach((link) => { link.hidden = !visible; });
   }
 
   async function refresh() {
@@ -81,7 +82,7 @@
       const result = await response.json();
       render(Array.isArray(result.promociones) ? result.promociones : []);
     } catch {
-      // Existing editorial content remains visible when the public API is unavailable.
+      // Keep offers hidden until the existing API confirms current availability.
       render([]);
     }
   }
