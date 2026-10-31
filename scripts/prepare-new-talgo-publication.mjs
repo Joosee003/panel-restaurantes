@@ -39,12 +39,10 @@ for (const page of pages) {
     html = html.replace(/<meta name="robots" content="[^"]*">/, '<meta name="robots" content="index,follow">');
   }
   html = html.replace(/<div class="preview-banner">.*?<\/div>/s, "");
-  html = html.replace(/<meta property="og:title" content="[^"]*">/, `<meta property="og:title" content="${title}">`);
-  html = html.replace(/<meta property="og:description" content="[^"]*">/, `<meta property="og:description" content="${description}">`);
   const heroPhoto = content.photos?.hero?.src;
   const photoTag = typeof heroPhoto === "string" && /^assets\/photos\/[a-z0-9._-]+\.webp$/.test(heroPhoto)
-    ? `<meta property="og:image" content="${new URL(heroPhoto, base).href}"><meta property="og:image:alt" content="Comida fotografiada para New Talgo">` : "";
-  let seoTags = `<link rel="canonical" href="${canonical}"><meta property="og:url" content="${canonical}">${photoTag}`;
+    ? `<meta property="og:image" content="${new URL(heroPhoto, base).href}"><meta property="og:image:alt" content="Comida fotografiada en New Talgo"><meta name="twitter:image" content="${new URL(heroPhoto, base).href}">` : "";
+  let seoTags = `<link rel="canonical" href="${canonical}"><meta property="og:type" content="website"><meta property="og:locale" content="es_ES"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${canonical}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}">${photoTag}`;
   if (page === "index.html") {
     const schema = {
       "@context": "https://schema.org", "@type": "Restaurant", name: content.businessName,
