@@ -39,9 +39,14 @@ for (const page of pages) {
     html = html.replace(/<meta name="robots" content="[^"]*">/, '<meta name="robots" content="index,follow">');
   }
   html = html.replace(/<div class="preview-banner">.*?<\/div>/s, "");
-  const heroPhoto = content.photos?.hero?.src;
-  const photoTag = typeof heroPhoto === "string" && /^assets\/photos\/[a-z0-9._-]+\.webp$/.test(heroPhoto)
-    ? `<meta property="og:image" content="${new URL(heroPhoto, base).href}"><meta property="og:image:alt" content="Comida fotografiada en New Talgo"><meta name="twitter:image" content="${new URL(heroPhoto, base).href}">` : "";
+  const socialPhotos = {
+    "index.html": { src: "assets/photos/comedor-real-1600.webp", alt: "Comedor de New Talgo en Segovia" },
+    "carta.html": { src: content.photos?.menu?.src, alt: "Plato de la carta de New Talgo" },
+    "visitanos.html": { src: content.photos?.facade?.src, alt: "Fachada de New Talgo en Carretera de Villacastín" },
+  };
+  const socialPhoto = socialPhotos[page];
+  const photoTag = typeof socialPhoto.src === "string" && /^assets\/photos\/[a-z0-9._-]+\.webp$/.test(socialPhoto.src)
+    ? `<meta property="og:image" content="${new URL(socialPhoto.src, base).href}"><meta property="og:image:alt" content="${socialPhoto.alt}"><meta name="twitter:image" content="${new URL(socialPhoto.src, base).href}">` : "";
   let seoTags = `<link rel="canonical" href="${canonical}"><meta property="og:type" content="website"><meta property="og:locale" content="es_ES"><meta property="og:title" content="${title}"><meta property="og:description" content="${description}"><meta property="og:url" content="${canonical}"><meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="${title}"><meta name="twitter:description" content="${description}">${photoTag}`;
   if (page === "index.html") {
     const schema = {

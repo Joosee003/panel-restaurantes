@@ -4,6 +4,7 @@ import {
   isPlatformDomain,
   normalizePublicDomain,
 } from "../lib/publicRestaurant";
+import { newTalgoPublicRobots } from "../lib/newTalgoRobots";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export async function GET(request: NextRequest) {
   try { if (process.env.NEW_TALGO_PUBLIC_BASE_URL) base = new URL(process.env.NEW_TALGO_PUBLIC_BASE_URL); } catch { /* release preflight rejects malformed URLs */ }
   if (host && host === process.env.NEW_TALGO_PUBLIC_HOST?.toLowerCase().trim()) {
     const body = indexable && base?.hostname === host
-      ? "User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /panel-personalizado/\nSitemap: https://" + host + "/sitemap.xml\n"
+      ? newTalgoPublicRobots(host)
       : "User-agent: *\nDisallow: /\n";
     return new NextResponse(body, {
       headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "public, max-age=300" },

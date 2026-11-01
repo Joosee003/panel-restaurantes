@@ -120,6 +120,10 @@ const nextConfig: NextConfig = {
         headers: [{ key: "X-Robots-Tag", value: newTalgoIndexable ? "index, follow" : "noindex, nofollow, noarchive" }],
       },
       {
+        source: "/new-talgo/reservar",
+        headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" }],
+      },
+      {
         source: "/pruebas-resenas/:path*",
         headers: [
           { key: "Content-Security-Policy", value: contentSecurityPolicy.replace("script-src 'self' 'unsafe-inline'", "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'") },
@@ -162,7 +166,17 @@ const nextConfig: NextConfig = {
     ];
   },
   async redirects() {
-    return [{ source: "/new-talgo", destination: "/new-talgo/index.html", permanent: false }];
+    const canonicalRedirects = newTalgoPublicHost
+      ? [
+        { source: "/new-talgo", destination: "/", permanent: true, has: [{ type: "host" as const, value: newTalgoPublicHost }] },
+        ...["index.html", "carta.html", "visitanos.html"].map((page) => ({
+          source: `/new-talgo/${page}`,
+          destination: page === "index.html" ? "/" : `/${page}`,
+          permanent: true,
+          has: [{ type: "host" as const, value: newTalgoPublicHost }],
+        })),
+      ] : [];
+    return [...canonicalRedirects, { source: "/new-talgo", destination: "/new-talgo/index.html", permanent: false }];
   },
   async rewrites() {
     if (!newTalgoPublicHost) return [];
