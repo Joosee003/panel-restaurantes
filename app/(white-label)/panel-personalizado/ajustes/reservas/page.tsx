@@ -136,7 +136,7 @@ export default function WhiteLabelBookingSettings() {
         <label className={label}>Duración de cada reserva<select className={input} value={config.duracion_minutos} onChange={e => setNumber("duracion_minutos", e.target.value)}>{[60,90,120,150,180].map(n => <option key={n} value={n}>{n} minutos</option>)}</select></label>
         <label className={label}>Tiempo mínimo para reservar<select className={input} value={config.antelacion_minutos} onChange={e => setNumber("antelacion_minutos", e.target.value)}>{[0,30,60,120,240,1440].map(n => <option key={n} value={n}>{n} minutos</option>)}</select></label>
         <label className={label}>Hasta cuántos días antes<input className={input} type="number" min={1} max={365} value={config.dias_maximos_antelacion} onChange={e => setNumber("dias_maximos_antelacion", e.target.value)} /></label>
-        <label className={label}>Límite para cambiar o cancelar<select className={input} value={config.cancelacion_minutos} onChange={e => setNumber("cancelacion_minutos", e.target.value)}>{[0,30,60,120,240,1440].map(n => <option key={n} value={n}>{n === 0 ? "Hasta la hora" : n < 60 ? `${n} minutos antes` : `${n / 60} horas antes`}</option>)}</select></label>
+        <label className={label}>Límite para cambiar o cancelar<select className={input} value={config.cancelacion_minutos} onChange={e => setNumber("cancelacion_minutos", e.target.value)}>{[0,30,60,120,240,1440].map(n => <option key={n} value={n}>{n === 0 ? "Hasta la hora" : n < 60 ? `${n} minutos antes` : n === 60 ? "1 hora antes" : n === 1440 ? "1 día antes" : `${n / 60} horas antes`}</option>)}</select></label>
       </div>
     </section>
     <section className="rounded-2xl border border-[#ded7cb] bg-[#fffdf9] p-5 sm:p-7">

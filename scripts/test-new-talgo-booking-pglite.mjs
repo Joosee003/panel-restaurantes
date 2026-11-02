@@ -74,11 +74,14 @@ try {
   const stagedConfig = (await readFile(new URL("./new-talgo-booking-config-32-4-closed.sql", import.meta.url), "utf8"))
     .replaceAll("408f0cff-68a0-40a7-b975-d2ed8e2dbfcc", I.restaurant);
   await db.exec(stagedConfig);
-  const stillClosed = (await db.query("select c.activo,w.publicada,c.personas_maximas,c.confirmacion_automatica_hasta from reservas_config c join restaurante_webs w on w.restaurante_id=c.restaurante_id where c.restaurante_id=$1", [I.restaurant])).rows[0];
+  await db.query("update reservas_config set cancelacion_minutos=60, politica_cancelacion='Puedes cancelar o modificar tu reserva hasta 1 hora antes de la hora prevista.' where restaurante_id=$1", [I.restaurant]);
+  const stillClosed = (await db.query("select c.activo,w.publicada,c.personas_maximas,c.confirmacion_automatica_hasta,c.cancelacion_minutos,c.politica_cancelacion from reservas_config c join restaurante_webs w on w.restaurante_id=c.restaurante_id where c.restaurante_id=$1", [I.restaurant])).rows[0];
   assert.equal(stillClosed.activo, false);
   assert.equal(stillClosed.publicada, false);
   assert.equal(stillClosed.personas_maximas, 32);
   assert.equal(stillClosed.confirmacion_automatica_hasta, 4);
+  assert.equal(stillClosed.cancelacion_minutos, 60);
+  assert.match(stillClosed.politica_cancelacion, /1 hora antes/);
   await db.exec(`
     update restaurante_webs set publicada=true where restaurante_id='${I.restaurant}';
     update reservas_config set activo=true where restaurante_id='${I.restaurant}';
@@ -111,6 +114,13 @@ try {
   assert.ok(saved.mesa_id);
   const group = await create(5, "Grupo ficticio");
   assert.equal(group.estado, "pendiente");
+  const boundary = await create(5, "Límite ficticio", randomUUID(), slots[0].inicio_at);
+  await db.query("update reservas set inicio_at=now()+interval '59 minutes' where id=$1", [boundary.reserva_id]);
+  await assert.rejects(db.query("select cancelar_reserva_publica_gestion($1)", [boundary.gestion_token]), /CANCELLATION_WINDOW_CLOSED/);
+  await assert.rejects(db.query("select modificar_reserva_publica_gestion($1,$2,5)", [boundary.gestion_token, slots.at(-2).inicio_at]), /CANCELLATION_WINDOW_CLOSED/);
+  await db.query("update reservas set inicio_at=now()+interval '61 minutes' where id=$1", [boundary.reserva_id]);
+  const boundaryCancelled = (await db.query("select cancelar_reserva_publica_gestion($1) result", [boundary.gestion_token])).rows[0].result;
+  assert.equal(boundaryCancelled.estado, "cancelada");
   for (let party = 6; party <= 31; party++) {
     const request = await create(party, `Grupo ${party} ficticio`, randomUUID(), slots[0].inicio_at);
     assert.equal(request.estado, "pendiente", `${party} people must await approval`);
