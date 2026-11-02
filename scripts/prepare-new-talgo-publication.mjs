@@ -23,6 +23,10 @@ if (!/^\+?[0-9\s()-]{7,20}$/.test(content.phone || "") || !content.openingHours
   || !content.streetAddress || !content.postalCode || !content.addressLocality || content.addressCountry !== "ES") {
   throw new Error("NEW_TALGO_CONFIRMED_CONTACT_DETAILS_REQUIRED");
 }
+if (content.openingHours !== "Martes a domingo, 11:30–23:30. Lunes cerrado."
+  || content.instagramOfficial !== "https://www.instagram.com/new_talgo_/") {
+  throw new Error("NEW_TALGO_SEO_FACTS_REQUIRE_REVIEW");
+}
 const pages = ["index.html", "carta.html", "visitanos.html"];
 const prepared = [];
 for (const page of pages) {
@@ -52,6 +56,12 @@ for (const page of pages) {
     const schema = {
       "@context": "https://schema.org", "@type": "Restaurant", name: content.businessName,
       url: canonical, menu: new URL("carta.html", base).href, telephone: content.phone,
+      sameAs: content.instagramOfficial,
+      openingHoursSpecification: {
+        "@type": "OpeningHoursSpecification",
+        dayOfWeek: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+        opens: "11:30", closes: "23:30",
+      },
       address: { "@type": "PostalAddress", streetAddress: content.streetAddress, postalCode: content.postalCode,
         addressLocality: content.addressLocality, addressCountry: content.addressCountry },
     };

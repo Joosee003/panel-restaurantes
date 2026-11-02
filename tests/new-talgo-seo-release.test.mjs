@@ -33,6 +33,15 @@ test("approved New Talgo build prepares canonical, social metadata and Restauran
       assert.match(html, /<meta name="robots" content="index,follow">/);
     }
     assert.match(home, /<script type="application\/ld\+json">/);
+    const schema = JSON.parse(home.match(/<script type="application\/ld\+json">([^<]+)<\/script>/)?.[1] || "null");
+    assert.equal(schema["@type"], "Restaurant");
+    assert.equal(schema.sameAs, "https://www.instagram.com/new_talgo_/");
+    assert.deepEqual(schema.openingHoursSpecification, {
+      "@type": "OpeningHoursSpecification",
+      dayOfWeek: ["Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
+      opens: "11:30", closes: "23:30",
+    });
+    assert.equal(schema.address.streetAddress, "Carretera de Villacastín 14");
     assert.doesNotMatch(menu, /<script type="application\/ld\+json">/);
     assert.match(home, /og:image" content="https:\/\/newtalgo\.gastrohelp\.es\/assets\/photos\/comedor-real-1600\.webp"/);
     assert.match(menu, /og:image" content="https:\/\/newtalgo\.gastrohelp\.es\/assets\/photos\/instagram-hamburguesa-patatas\.webp"/);

@@ -11,6 +11,7 @@ window.NEW_TALGO_CONTENT = Object.freeze({
   station: "Estación convencional de Segovia",
   phone: "643 97 02 67",
   phoneConfirmed: true,
+  instagramOfficial: "https://www.instagram.com/new_talgo_/",
   openingHours: "Martes a domingo, 11:30–23:30. Lunes cerrado.",
   openingHoursConfirmed: true,
   totalTables: 8,
