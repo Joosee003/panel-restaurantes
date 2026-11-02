@@ -214,3 +214,4 @@
 @media(max-width:900px){.nt-promotions-inner{display:block}.nt-promotions .nt-section-label{margin-bottom:25px}.nt-promotions-head{display:block}.nt-promotions-head p{max-width:560px;margin-top:15px}}
 @media(max-width:760px){.nt-promotions{padding:85px 0}.nt-promotions-head h2{font-size:clamp(48px,9vw,68px)}.nt-promotions-grid{gap:13px}}
 @media(max-width:480px){.nt-promotions .nt-promo-picture{height:215px}.nt-promotions .nt-promo-body{padding:20px}}
+.menu-intro .page-intro-photo img{object-position:center 15%}

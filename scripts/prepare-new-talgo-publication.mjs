@@ -41,7 +41,7 @@ for (const page of pages) {
   html = html.replace(/<div class="preview-banner">.*?<\/div>/s, "");
   const socialPhotos = {
     "index.html": { src: "assets/photos/comedor-real-1600.webp", alt: "Comedor de New Talgo en Segovia" },
-    "carta.html": { src: content.photos?.menu?.src, alt: "Plato de la carta de New Talgo" },
+    "carta.html": { src: content.photos?.menu?.src, alt: "Hamburguesa con patatas de New Talgo" },
     "visitanos.html": { src: content.photos?.facade?.src, alt: "Fachada de New Talgo en Carretera de Villacastín" },
   };
   const socialPhoto = socialPhotos[page];

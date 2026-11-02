@@ -35,7 +35,8 @@ test("approved New Talgo build prepares canonical, social metadata and Restauran
     assert.match(home, /<script type="application\/ld\+json">/);
     assert.doesNotMatch(menu, /<script type="application\/ld\+json">/);
     assert.match(home, /og:image" content="https:\/\/newtalgo\.gastrohelp\.es\/assets\/photos\/comedor-real-1600\.webp"/);
-    assert.match(menu, /og:image" content="https:\/\/newtalgo\.gastrohelp\.es\/assets\/photos\/hero-pizza-pepperoni\.webp"/);
+    assert.match(menu, /og:image" content="https:\/\/newtalgo\.gastrohelp\.es\/assets\/photos\/instagram-hamburguesa-patatas\.webp"/);
+    assert.match(menu, /og:image:alt" content="Hamburguesa con patatas de New Talgo"/);
     assert.match(visit, /og:image" content="https:\/\/newtalgo\.gastrohelp\.es\/assets\/photos\/fachada-real-1600\.webp"/);
   } finally {
     rmSync(root, { recursive: true, force: true });

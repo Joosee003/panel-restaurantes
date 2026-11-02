@@ -19,7 +19,7 @@ test("staged New Talgo web has valid local navigation and stays unindexed pendin
     assert.match(html, /<main\b[^>]*id="main"/);
     for (const [, href] of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
       if (href.startsWith("#") || href.startsWith("/") || /^(https?:|tel:|mailto:)/.test(href)) continue;
-      assert.ok(existsSync(join(root, href.split("#")[0])), `${page}: missing ${href}`);
+      assert.ok(existsSync(join(root, href.split(/[?#]/)[0])), `${page}: missing ${href}`);
     }
   }
 });
@@ -47,7 +47,10 @@ test("confirmed details, disabled services and real photos are represented accur
     assert.ok(photo.width > photo.smallWidth && photo.height > 0);
   }
   const uniquePhotos = new Set(Object.values(content.photos).filter(Boolean).map(photo => photo.src));
-  assert.equal(uniquePhotos.size, 40);
+  assert.equal(uniquePhotos.size, 39);
+  assert.equal(content.photos.menu.src, content.photos.hamburguesas.src);
+  assert.match(content.photos.menu.src, /instagram-hamburguesa-patatas\.webp$/);
+  assert.match(content.photos.tapas.src, /instagram-croquetas-jamon\.webp$/);
   const carta = readFileSync(join(process.cwd(), "..", "..", "..", "carta.html"), "utf8");
   const categories = [...carta.matchAll(/<article class="menu-v2-row" id="([^"]+)"/g)].map(match => match[1]);
   assert.equal(categories.length, 16);
@@ -59,6 +62,7 @@ test("confirmed details, disabled services and real photos are represented accur
     for (const key of keys) assert.ok(content.photos[key], `${category}: missing ${key}`);
   }
   const servedMenu = readFileSync(join(root, "carta.html"), "utf8");
+  assert.match(servedMenu, /preload[^>]+instagram-hamburguesa-patatas-640\.webp/);
   assert.match(servedMenu, /src="menu-live\.js"/);
   assert.match(servedMenu, /id="live-menu-list"/);
   assert.doesNotMatch(servedMenu, /<article class="menu-v2-row"/);
@@ -69,6 +73,9 @@ test("confirmed details, disabled services and real photos are represented accur
   assert.match(readFileSync(join(root, "index.html"), "utf8"), /href="visitanos.html"/);
   const home = readFileSync(join(root, "index.html"), "utf8");
   assert.match(home, /href="\/new-talgo\/reservar"/);
+  assert.match(home, /instagram-ponche-segoviano\.webp/);
+  assert.match(home, /instagram-croquetas-jamon\.webp/);
+  assert.doesNotMatch(home, /<img src="assets\/photos\/(?:pizza-carbonara|tapas-patatas)\.webp"/);
   assert.match(home, /Horario de reservas: comidas 11:30–14:30/);
   assert.match(home, /Grupos de más de 10: WhatsApp/);
   assert.match(home, /https:\/\/wa\.me\/34643970267/);
