@@ -44,8 +44,8 @@ export async function GET(
   if (!restaurant || !restaurant.booking.enabled) {
     return json({ ok: false, error: "BOOKING_NOT_AVAILABLE" }, 404);
   }
-  if (restaurant.restauranteId === process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID && party > 32) {
-    return json({ ok: false, error: "PHONE_CONTACT_REQUIRED" }, 400);
+  if (restaurant.restauranteId === process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID && party > 10) {
+    return json({ ok: false, error: "WHATSAPP_CONTACT_REQUIRED", whatsappUrl: "https://wa.me/34643970267" }, 400);
   }
   if (!(await newTalgoBookingReady(restaurant.restauranteId))) {
     return json({ ok: false, error: "BOOKING_NOT_AVAILABLE" }, 404);

@@ -57,7 +57,7 @@ export default function WhiteLabelBookingSettings() {
         activo: Boolean(row.activo), zona_horaria: "Europe/Madrid",
         intervalo_minutos: Number(row.intervalo_minutos ?? 30), duracion_minutos: Number(row.duracion_minutos ?? 90),
         capacidad_por_turno: Number(row.capacidad_por_turno ?? 32), personas_minimas: Number(row.personas_minimas ?? 1),
-        personas_maximas: Number(row.personas_maximas ?? 32), confirmacion_automatica: Boolean(row.confirmacion_automatica),
+        personas_maximas: Number(row.personas_maximas ?? 10), confirmacion_automatica: Boolean(row.confirmacion_automatica),
         confirmacion_automatica_hasta: Number(row.confirmacion_automatica_hasta ?? 4),
         antelacion_minutos: Number(row.antelacion_minutos ?? 60), dias_maximos_antelacion: Number(row.dias_maximos_antelacion ?? 30),
         cancelacion_minutos: Number(row.cancelacion_minutos ?? 120),
@@ -84,9 +84,9 @@ export default function WhiteLabelBookingSettings() {
     if (!restaurant?.id || !config || !configRow || !web || !legal || busy) return;
     setError(""); setMessage("");
     if (config.capacidad_por_turno < 1 || config.capacidad_por_turno > 32 ||
-        config.personas_maximas < 1 || config.personas_maximas > 32 ||
+        config.personas_maximas < 1 || config.personas_maximas > 10 ||
         config.confirmacion_automatica_hasta < 1 || config.confirmacion_automatica_hasta > config.personas_maximas) {
-      setError("New Talgo tiene 32 plazas. Revisa capacidad, máximo online y umbral automático."); return;
+      setError("New Talgo tiene 32 plazas y admite hasta 10 personas por reserva online. Revisa la capacidad y el umbral automático."); return;
     }
     const active = slots.filter(slot => slot.enabled);
     if (config.activo && active.length === 0) { setError("Elige al menos un turno antes de activar reservas."); return; }
@@ -130,7 +130,7 @@ export default function WhiteLabelBookingSettings() {
       <p className="mt-1 text-sm text-[#56665e]">La web sigue cerrada hasta que GastroHelp confirme la recepción de avisos en el móvil de Ángel.</p>
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className={label}>Plazas simultáneas (máx. 32)<input className={input} type="number" min={1} max={32} value={config.capacidad_por_turno} onChange={e => setNumber("capacidad_por_turno", e.target.value)} /></label>
-        <label className={label}>Personas máximas online<input className={input} type="number" min={1} max={32} value={config.personas_maximas} onChange={e => setNumber("personas_maximas", e.target.value)} /></label>
+        <label className={label}>Personas máximas online (máx. 10)<input className={input} type="number" min={1} max={10} value={config.personas_maximas} onChange={e => setNumber("personas_maximas", e.target.value)} /><span className="text-xs font-normal">Más de 10: WhatsApp 643 97 02 67.</span></label>
         <label className={label}>Confirmar automáticamente hasta<input className={input} type="number" min={1} max={config.personas_maximas} value={config.confirmacion_automatica_hasta} onChange={e => setNumber("confirmacion_automatica_hasta", e.target.value)} /><span className="text-xs font-normal">Los grupos mayores quedan pendientes.</span></label>
         <label className={label}>Cada cuántos minutos<select className={input} value={config.intervalo_minutos} onChange={e => setNumber("intervalo_minutos", e.target.value)}>{[15,30,45,60].map(n => <option key={n} value={n}>{n} minutos</option>)}</select></label>
         <label className={label}>Duración de cada reserva<select className={input} value={config.duracion_minutos} onChange={e => setNumber("duracion_minutos", e.target.value)}>{[60,90,120,150,180].map(n => <option key={n} value={n}>{n} minutos</option>)}</select></label>

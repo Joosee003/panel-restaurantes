@@ -69,6 +69,9 @@ test("confirmed details, disabled services and real photos are represented accur
   assert.match(readFileSync(join(root, "index.html"), "utf8"), /href="visitanos.html"/);
   const home = readFileSync(join(root, "index.html"), "utf8");
   assert.match(home, /href="\/new-talgo\/reservar"/);
+  assert.match(home, /Horario de reservas: comidas 11:30–14:30/);
+  assert.match(home, /Grupos de más de 10: WhatsApp/);
+  assert.match(home, /https:\/\/wa\.me\/34643970267/);
   assert.match(home, /data-gallery/);
   assert.match(home, /comedor-real-1600\.webp/);
   assert.match(home, /barra-real-1600\.webp/);

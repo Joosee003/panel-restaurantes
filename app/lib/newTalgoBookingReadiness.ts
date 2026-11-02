@@ -35,7 +35,7 @@ export async function newTalgoBookingReady(restaurantId: string | null): Promise
     booking.confirmacion_automatica === true &&
     booking.confirmacion_automatica_hasta === 4 &&
     booking.personas_minimas === 1 &&
-    booking.personas_maximas === 32 &&
+    booking.personas_maximas === 10 &&
     booking.mesas_activas_en_disponibilidad === true &&
     automation.data?.email_enabled === true &&
     tables.data?.length === 8 && tables.data.every((table) => table.capacidad === 4);

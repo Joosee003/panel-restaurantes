@@ -74,11 +74,15 @@ try {
   const stagedConfig = (await readFile(new URL("./new-talgo-booking-config-32-4-closed.sql", import.meta.url), "utf8"))
     .replaceAll("408f0cff-68a0-40a7-b975-d2ed8e2dbfcc", I.restaurant);
   await db.exec(stagedConfig);
+  await db.query("update restaurantes set horario_comida='11:30–14:30' where id=$1", [I.restaurant]);
+  await db.query("update reservas_horarios set hora_inicio='11:30',hora_fin='14:30' where restaurante_id=$1 and turno='comida'", [I.restaurant]);
+  await db.query("update restaurante_webs set whatsapp='643970267' where restaurante_id=$1", [I.restaurant]);
+  await db.query("update reservas_config set personas_maximas=10, aviso_reserva='De 5 a 10 personas: aprobación. Más de 10: WhatsApp.' where restaurante_id=$1", [I.restaurant]);
   await db.query("update reservas_config set cancelacion_minutos=60, politica_cancelacion='Puedes cancelar o modificar tu reserva hasta 1 hora antes de la hora prevista.' where restaurante_id=$1", [I.restaurant]);
   const stillClosed = (await db.query("select c.activo,w.publicada,c.personas_maximas,c.confirmacion_automatica_hasta,c.cancelacion_minutos,c.politica_cancelacion from reservas_config c join restaurante_webs w on w.restaurante_id=c.restaurante_id where c.restaurante_id=$1", [I.restaurant])).rows[0];
   assert.equal(stillClosed.activo, false);
   assert.equal(stillClosed.publicada, false);
-  assert.equal(stillClosed.personas_maximas, 32);
+  assert.equal(stillClosed.personas_maximas, 10);
   assert.equal(stillClosed.confirmacion_automatica_hasta, 4);
   assert.equal(stillClosed.cancelacion_minutos, 60);
   assert.match(stillClosed.politica_cancelacion, /1 hora antes/);
@@ -90,7 +94,7 @@ try {
   await reviewActor(db, null, "service_role");
   const setup = (await db.query("select w.slug,w.publicada,c.personas_maximas,c.confirmacion_automatica_hasta,(select count(*) from sala_mesas m where m.restaurante_id=w.restaurante_id) mesas from restaurante_webs w join reservas_config c on c.restaurante_id=w.restaurante_id where w.restaurante_id=$1", [I.restaurant])).rows[0];
   assert.equal(setup.publicada, true);
-  assert.equal(setup.personas_maximas, 32);
+  assert.equal(setup.personas_maximas, 10);
   assert.equal(setup.confirmacion_automatica_hasta, 4);
   assert.equal(Number(setup.mesas), 8);
   let slots;
@@ -100,12 +104,14 @@ try {
     if (found.length >= 3) { slots = found; break; }
   }
   assert.ok(slots?.length >= 3, "Fixture must offer a future service");
+  const firstLunch = slots.find(slot => new Date(slot.inicio_at).toLocaleTimeString("en-GB", { timeZone: "Europe/Madrid", hour: "2-digit", minute: "2-digit", hour12: false }) === "11:30");
+  assert.ok(firstLunch, `First lunch slot must be 11:30: ${JSON.stringify(slots.slice(0, 3))}`);
   const start = slots.at(-1).inicio_at;
   const create = async (party, name, key = randomUUID(), at = start) => (await db.query(
     "select crear_reserva_publica_con_resena($1,$2,$3,$4,$5,$6,$7,$8,true,true,'2026-08-03',false) result",
     [setup.slug, at, party, name, "+34600000091", null, null, key],
   )).rows[0].result;
-  await assert.rejects(create(33, "Too large ficticio"), /INVALID_BOOKING_REQUEST/);
+  await assert.rejects(create(11, "WhatsApp ficticio"), /INVALID_BOOKING_REQUEST/);
   const individualKey = randomUUID();
   const individual = await create(2, "Individual ficticio", individualKey);
   assert.equal(individual.estado, "confirmada");
@@ -121,7 +127,7 @@ try {
   await db.query("update reservas set inicio_at=now()+interval '61 minutes' where id=$1", [boundary.reserva_id]);
   const boundaryCancelled = (await db.query("select cancelar_reserva_publica_gestion($1) result", [boundary.gestion_token])).rows[0].result;
   assert.equal(boundaryCancelled.estado, "cancelada");
-  for (let party = 6; party <= 31; party++) {
+  for (let party = 6; party <= 10; party++) {
     const request = await create(party, `Grupo ${party} ficticio`, randomUUID(), slots[0].inicio_at);
     assert.equal(request.estado, "pendiente", `${party} people must await approval`);
     await db.query("select cancelar_reserva_publica_gestion($1)", [request.gestion_token]);
@@ -158,19 +164,24 @@ try {
   let fullStart;
   for (let offset = 13; offset <= 24; offset++) {
     const date = (await db.query("select (current_date+$1::integer)::text date", [offset])).rows[0].date;
-    const found = (await db.query("select * from obtener_disponibilidad_reservas($1,$2,32)", [setup.slug, date])).rows;
+    const found = (await db.query("select * from obtener_disponibilidad_reservas($1,$2,8)", [setup.slug, date])).rows;
     if (found.length) { fullStart = found.at(-1).inicio_at; break; }
   }
   assert.ok(fullStart, "Eight tables must make 32 places available");
-  const fullGroup = await create(32, "Full group ficticio", randomUUID(), fullStart);
-  assert.equal(fullGroup.estado, "pendiente");
-  await reviewActor(db, I.user);
-  const fullApproval = (await db.query("select confirmar_reserva_grupo($1,$2::uuid[]) result", [fullGroup.reserva_id, tableIds])).rows[0].result;
-  assert.equal(fullApproval.estado, "confirmada");
-  assert.equal((await db.query("select count(*)::int n from reserva_mesas_grupo where reserva_id=$1", [fullGroup.reserva_id])).rows[0].n, 8);
+  const fullGroups = [];
+  for (let index = 0; index < 4; index++) {
+    const fullGroup = await create(8, `Capacity group ${index} ficticio`, randomUUID(), fullStart);
+    assert.equal(fullGroup.estado, "pendiente");
+    await reviewActor(db, I.user);
+    const fullApproval = (await db.query("select confirmar_reserva_grupo($1,$2::uuid[]) result", [fullGroup.reserva_id, tableIds.slice(index * 2, index * 2 + 2)])).rows[0].result;
+    assert.equal(fullApproval.estado, "confirmada");
+    fullGroups.push(fullGroup);
+    await reviewActor(db, null, "service_role");
+  }
+  assert.equal((await db.query("select count(*)::int n from reserva_mesas_grupo where reserva_id=any($1::uuid[])", [fullGroups.map(group => group.reserva_id)])).rows[0].n, 8);
   await reviewActor(db, null, "service_role");
   await assert.rejects(create(2, "Overbook ficticio", randomUUID(), fullStart), /SLOT_NOT_AVAILABLE/);
-  await db.query("select cancelar_reserva_publica_gestion($1)", [fullGroup.gestion_token]);
+  await db.query("select cancelar_reserva_publica_gestion($1)", [fullGroups[0].gestion_token]);
   const reopened = await create(2, "Reopened ficticio", randomUUID(), fullStart);
   assert.equal(reopened.estado, "confirmada");
   const manualStart = slots[0].inicio_at;
@@ -190,7 +201,7 @@ try {
   assert.equal((await db.query("select count(*)::int n from reservation_webhook_deliveries where reservation_id=$1 and event_type='reservation.cancelled'", [other.reserva_id])).rows[0].n, 0);
   const notices = (await db.query("select event_type,status,delivery_mode,count(*)::int n from reservation_webhook_deliveries where restaurante_id=$1 group by event_type,status,delivery_mode order by event_type", [I.restaurant])).rows;
   console.log({ individual: individual.estado, group: group.estado, modified: moved.personas,
-    cancelled: cancelled?.estado, approved: approved.estado, fullGroup: fullApproval.estado,
+    cancelled: cancelled?.estado, approved: approved.estado, fullGroups: fullGroups.length,
     manual: manual.estado, availableSlots: slots.length, notices });
   console.log(`Applied ${names.length} New Talgo migrations to isolated PGlite`);
 } catch (error) {

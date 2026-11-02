@@ -14,14 +14,15 @@ const sql = `
 BEGIN;
 UPDATE public.restaurantes SET
   direccion='Carr. de Villacastín, 14, 40006 Segovia', telefono='643970267',
+  horario_comida='11:30–14:30',
   capacidad_total=32, capacidad_comida=32, capacidad_cena=32
 WHERE id='${id}' AND slug='new-talgo-local';
 UPDATE public.restaurante_webs SET
   direccion_publica='Carr. de Villacastín, 14, 40006 Segovia',
-  telefono_publico='643970267', publicada=false
+  telefono_publico='643970267', whatsapp='643970267', publicada=false
 WHERE restaurante_id='${id}';
 UPDATE public.reservas_config SET
-  capacidad_por_turno=32, personas_minimas=1, personas_maximas=32,
+  capacidad_por_turno=32, personas_minimas=1, personas_maximas=10,
   confirmacion_automatica=true, confirmacion_automatica_hasta=4,
   mesas_activas_en_disponibilidad=true, solicitudes_pendientes_no_ocupan=true,
   requiere_telefono=true, requiere_email=false, zona_horaria='Europe/Madrid'
@@ -37,4 +38,4 @@ execFileSync(psql, ["-X", "-h", "127.0.0.1", "-p", "54322", "-U", "supabase_admi
   input: sql, encoding: "utf8", stdio: ["pipe", "pipe", "pipe"],
   env: { ...process.env, PGPASSWORD: "postgres" },
 });
-console.log("New Talgo ficticio: dirección confirmada, 8 mesas de 4, 32 plazas y umbral 4 configurados solo en Supabase local. Web pública cerrada.");
+console.log("New Talgo ficticio: reservas desde las 11:30, máximo online 10, WhatsApp para grupos mayores, 8 mesas de 4 y umbral 4 configurados solo en Supabase local. Web pública cerrada.");

@@ -117,8 +117,8 @@ export async function POST(
   if (restaurant.demo) {
     return json({ ok: false, error: "DEMO_READ_ONLY" }, 403);
   }
-  if (restaurant.restauranteId === process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID && party > 32) {
-    return json({ ok: false, error: "PHONE_CONTACT_REQUIRED" }, 400);
+  if (restaurant.restauranteId === process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID && party > 10) {
+    return json({ ok: false, error: "WHATSAPP_CONTACT_REQUIRED", whatsappUrl: "https://wa.me/34643970267" }, 400);
   }
   if (!(await newTalgoBookingReady(restaurant.restauranteId))) {
     return json({ ok: false, error: "BOOKING_NOT_AVAILABLE" }, 404);

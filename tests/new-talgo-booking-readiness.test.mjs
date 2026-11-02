@@ -8,7 +8,7 @@ const config = {
   confirmacion_automatica: true,
   confirmacion_automatica_hasta: 4,
   personas_minimas: 1,
-  personas_maximas: 32,
+  personas_maximas: 10,
   mesas_activas_en_disponibilidad: true,
 };
 const restaurantId = "11111111-1111-4111-8111-111111111111";
@@ -58,6 +58,9 @@ test("New Talgo bookings stay closed until every group and notice gate is ready"
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     process.env.GASTROHELP_DEPLOYMENT_MODE = "approved-production";
     assert.equal(await newTalgoBookingReady(restaurantId), true);
+    currentConfig = { ...config, personas_maximas: 32 };
+    assert.equal(await newTalgoBookingReady(restaurantId), false);
+    currentConfig = config;
     currentConfig = { ...config, confirmacion_automatica_hasta: null };
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     currentConfig = config;
