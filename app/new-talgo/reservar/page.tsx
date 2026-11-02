@@ -57,7 +57,7 @@ export default async function NewTalgoBookingPage() {
           conditionsPath={legalPath(restaurant, "condiciones-reserva")}
         /> : <section className="rounded-3xl border border-[#d8cfc1] bg-white p-7" role="status">
           <h2 className="font-serif text-3xl">Reservas online aún no disponibles</h2>
-          <p className="mt-3 leading-7">Estamos comprobando los horarios y los avisos al restaurante. Por ahora, llama a New Talgo para consultar una mesa.</p>
+          <p className="mt-3 leading-7">Estamos verificando la recepción de avisos al restaurante. Por ahora, llama a New Talgo para consultar una mesa.</p>
           <a href="tel:+34643970267" className="mt-5 inline-flex min-h-12 items-center rounded-xl bg-[#203831] px-6 font-bold text-white">Llamar al 643 97 02 67</a>
         </section>}
       </div>

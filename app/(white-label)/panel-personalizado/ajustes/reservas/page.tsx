@@ -93,6 +93,9 @@ export default function WhiteLabelBookingSettings() {
     if (active.some(slot => !slot.start || !slot.end || slot.end <= slot.start)) {
       setError("Completa las horas de cada turno activo. La hora final debe ser posterior."); return;
     }
+    if (active.some(slot => slot.start < "11:30")) {
+      setError("La primera franja de reservas de New Talgo empieza a las 11:30."); return;
+    }
     if (active.some((slot, index) => active.some((other, otherIndex) => index !== otherIndex &&
       slot.day === other.day && slot.start < other.end && other.start < slot.end))) {
       setError("Hay turnos solapados en un mismo día. Ajusta las horas antes de guardar."); return;

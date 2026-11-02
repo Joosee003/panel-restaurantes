@@ -15,6 +15,7 @@ const restaurantId = "11111111-1111-4111-8111-111111111111";
 let currentConfig = config;
 let emailEnabled = true;
 let restaurantEmail = "owner@example.invalid";
+let lunchHours = "11:30–14:30";
 let tables = Array.from({ length: 8 }, () => ({ capacidad: 4 }));
 const client = {
   from(table) {
@@ -23,7 +24,7 @@ const client = {
         if (table === "sala_mesas") return { eq: async () => ({ data: tables, error: null }) };
         return { maybeSingle: async () => ({
           data: table === "reservas_config" ? currentConfig :
-            table === "restaurantes" ? { email_notificaciones: restaurantEmail } :
+            table === "restaurantes" ? { email_notificaciones: restaurantEmail, horario_comida: lunchHours } :
               { email_enabled: emailEnabled }, error: null,
         }) };
       } };
@@ -64,12 +65,16 @@ test("New Talgo bookings stay closed until every group and notice gate is ready"
     currentConfig = { ...config, confirmacion_automatica_hasta: null };
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     currentConfig = config;
+    lunchHours = "11:00–14:30";
+    assert.equal(await newTalgoBookingReady(restaurantId), false);
+    lunchHours = "11:30–14:30";
     emailEnabled = false;
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     emailEnabled = true;
     restaurantEmail = "wrong@example.invalid";
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     restaurantEmail = "owner@example.invalid";
+    lunchHours = "11:30–14:30";
     tables = tables.slice(0, 7);
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     assert.equal(await newTalgoBookingReady("22222222-2222-4222-8222-222222222222"), true);

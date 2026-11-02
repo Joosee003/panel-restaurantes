@@ -25,12 +25,13 @@ export async function newTalgoBookingReady(restaurantId: string | null): Promise
       .eq("restaurante_id", restaurantId).maybeSingle(),
     supabase.from("sala_mesas").select("capacidad")
       .eq("restaurante_id", restaurantId).eq("activa", true),
-    supabase.from("restaurantes").select("email_notificaciones")
+    supabase.from("restaurantes").select("email_notificaciones,horario_comida")
       .eq("id", restaurantId).maybeSingle(),
   ]);
   if (config.error || automation.error || tables.error || restaurant.error) return false;
   const booking = config.data;
   return restaurant.data?.email_notificaciones?.trim().toLowerCase() === ownerEmail &&
+    restaurant.data?.horario_comida === "11:30–14:30" &&
     booking?.activo === true &&
     booking.confirmacion_automatica === true &&
     booking.confirmacion_automatica_hasta === 4 &&
