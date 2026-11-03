@@ -64,7 +64,7 @@ function LegalContent({ restaurant, document }: { restaurant: PublicRestaurant; 
       </Section>
       <Section title="Proveedores y transferencias">
         <p>El personal autorizado de New Talgo accede a las reservas y recibe avisos en newtalgo@gmail.com. GastroHelp presta el servicio técnico; intervienen Supabase para la base de datos, Vercel para la aplicación, n8n sobre Hetzner para los avisos y Google para el correo. Los datos podrán comunicarse a autoridades cuando lo exija la ley. No se venden datos.</p>
-        <p>Supabase almacena la base de datos en una región europea. Vercel, Supabase y Google pueden implicar tratamiento fuera del Espacio Económico Europeo. Puede solicitar a <Value>{legal.privacyEmail}</Value> información sobre los mecanismos y garantías aplicables a esos proveedores.</p>
+        <p>Supabase almacena la base de datos en una región europea. Vercel, Supabase y Google pueden implicar tratamiento fuera del Espacio Económico Europeo. Sus <a href="https://vercel.com/legal/dpa" target="_blank" rel="noopener noreferrer">acuerdos de Vercel</a>, <a href="https://supabase.com/legal/customer-resources/data-processing-addendum" target="_blank" rel="noopener noreferrer">Supabase</a> y <a href="https://policies.google.com/privacy/frameworks?hl=es" target="_blank" rel="noopener noreferrer">marcos de Google</a> describen las garantías de transferencia, incluidas decisiones de adecuación o cláusulas contractuales tipo cuando corresponden. Puedes solicitar información sobre las garantías aplicables a <Value>{legal.privacyEmail}</Value>.</p>
       </Section>
       <Section title="Conservación">
         <p>{legal.bookingRetention || "El plazo de conservación de las reservas está pendiente de aprobación por el titular."}</p>
