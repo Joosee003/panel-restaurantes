@@ -33,6 +33,78 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function LegalContent({ restaurant, document }: { restaurant: PublicRestaurant; document: LegalDocument }) {
   const legal = restaurant.legal;
 
+  if (restaurant.slug === "new-talgo") {
+    if (document === "aviso-legal") return <>
+      <Section title="Titular y contacto">
+        <p>Este sitio y la actividad de New Talgo pertenecen a <Value>{legal.owner}</Value>, persona física, NIF <Value>{legal.taxId}</Value>, con domicilio fiscal en <Value>{legal.address}</Value>. Contacto: <Value>{legal.email}</Value>.</p>
+      </Section>
+      <Section title="Uso de la web">
+        <p>La web informa sobre el restaurante, su carta y las reservas. Utilízala de forma lícita y facilita datos correctos al solicitar mesa. Los horarios, precios y platos pueden variar; la reserva se rige por el estado indicado al finalizar la solicitud y por sus condiciones publicadas.</p>
+      </Section>
+      <Section title="Contenidos y enlaces">
+        <p>Los textos, fotografías, diseño y signos identificativos pertenecen a sus respectivos titulares. Su reproducción o explotación requiere autorización, salvo los usos permitidos por la ley.</p>
+        <p>Los enlaces a Google Maps, Instagram o WhatsApp abren servicios externos sujetos a sus propias condiciones y políticas.</p>
+      </Section>
+      <Section title="Servicio técnico">
+        <p>GastroHelp proporciona por cuenta del titular la infraestructura de la web, el panel y las reservas. Ángel Arranz Ruiz es responsable de la actividad del restaurante, su información comercial y la atención a los clientes.</p>
+      </Section>
+    </>;
+
+    if (document === "privacidad") return <>
+      <Section title="Responsable">
+        <p><Value>{legal.owner}</Value>, NIF <Value>{legal.taxId}</Value>, domicilio <Value>{legal.address}</Value>. Para ejercer derechos o consultar sobre privacidad: <Value>{legal.privacyEmail}</Value>.</p>
+      </Section>
+      <Section title="Datos y finalidades">
+        <p>Para reservar se trata el nombre, teléfono, fecha y hora, número de personas y, si los facilitas, correo electrónico y observaciones. Se guardan el estado y cambios de la reserva, la constancia de la información legal mostrada, un enlace de gestión y una ficha interna de cliente vinculada a la reserva. Se tratan datos técnicos de conexión para proteger el servicio.</p>
+        <p>Estos datos se usan para comprobar disponibilidad, tramitar la reserva, comunicar sus cambios y atender incidencias. No escribas información médica en las observaciones; para alergias o necesidades especiales contacta directamente con el restaurante. La reserva no autoriza publicidad ni peticiones de reseña por WhatsApp.</p>
+      </Section>
+      <Section title="Base jurídica y datos necesarios">
+        <p>La gestión de la solicitud y la reserva se basa en el artículo 6.1.b del RGPD; las obligaciones legales, en el artículo 6.1.c; y la seguridad y defensa frente a reclamaciones, en el interés legítimo del titular del artículo 6.1.f, limitado a lo necesario. La casilla de lectura acredita que recibiste esta información y no constituye consentimiento publicitario.</p>
+        <p>Nombre, teléfono y datos de la mesa son necesarios para reservar online. Correo y observaciones son opcionales. Sin los datos necesarios puedes contactar por teléfono.</p>
+      </Section>
+      <Section title="Proveedores y transferencias">
+        <p>El personal autorizado de New Talgo accede a las reservas y recibe avisos en newtalgo@gmail.com. GastroHelp presta el servicio técnico; intervienen Supabase para la base de datos, Vercel para la aplicación, n8n sobre Hetzner para los avisos y Google para el correo. Los datos podrán comunicarse a autoridades cuando lo exija la ley. No se venden datos.</p>
+        <p>Supabase almacena la base de datos en una región europea. Vercel, Supabase y Google pueden implicar tratamiento fuera del Espacio Económico Europeo. Puede solicitar a <Value>{legal.privacyEmail}</Value> información sobre los mecanismos y garantías aplicables a esos proveedores.</p>
+      </Section>
+      <Section title="Conservación">
+        <p>{legal.bookingRetention || "El plazo de conservación de las reservas está pendiente de aprobación por el titular."}</p>
+        <p>Los datos técnicos de seguridad se conservan solo mientras sean necesarios para prevenir abusos. Cuando una obligación legal o reclamación exija conservar algún dato durante más tiempo, se limitará a lo necesario.</p>
+      </Section>
+      <Section title="Derechos">
+        <p>Puedes solicitar acceso, rectificación, supresión, limitación, oposición o portabilidad cuando procedan escribiendo a <Value>{legal.privacyEmail}</Value>. También puedes reclamar ante la Agencia Española de Protección de Datos (www.aepd.es).</p>
+      </Section>
+    </>;
+
+    if (document === "condiciones-reserva") return <>
+      <Section title="Solicitud y confirmación">
+        <p>Se puede solicitar mesa de martes a domingo, con primera franja de comidas a las 11:30 y cenas desde las 19:00, según la disponibilidad mostrada. El lunes está cerrado. Las solicitudes son para 1 a 10 personas; para más de 10, contacta por WhatsApp en el 643 970 267.</p>
+        <p>De 1 a 4 personas, la reserva se confirma si hay mesa disponible. De 5 a 10 queda pendiente hasta que Ángel la apruebe. La pantalla muestra el estado; una solicitud pendiente no equivale a una reserva confirmada.</p>
+      </Section>
+      <Section title="Datos y necesidades especiales">
+        <p>Facilita un nombre y teléfono válidos. El correo electrónico y las observaciones son opcionales. No incluyas datos médicos en el formulario; para alergias o necesidades especiales consulta directamente con el restaurante antes de pedir.</p>
+      </Section>
+      <Section title="Cambios, cancelación y llegada">
+        <p>Puedes modificar o cancelar desde el enlace de gestión hasta 60 minutos antes de la hora prevista. Después, contacta con el restaurante. Si vas a llegar tarde, avisa al 643 970 267; la disponibilidad de la mesa puede verse afectada.</p>
+      </Section>
+      <Section title="Carta y contacto">
+        <p>La carta web es informativa y no permite comprar platos. Antes de pedir, solicita al personal información sobre ingredientes y alérgenos. La disponibilidad de platos y precios puede cambiar.</p>
+        <p>New Talgo, Carretera de Villacastín 14, 40006 Segovia. Teléfono 643 970 267. Correo: newtalgo@gmail.com.</p>
+      </Section>
+    </>;
+
+    return <>
+      <Section title="Uso actual">
+        <p>La web pública no incorpora actualmente herramientas opcionales de analítica, publicidad, píxeles de seguimiento ni mapas o redes sociales incrustados. Los enlaces a Google Maps, Instagram o WhatsApp abren esos servicios solo cuando los pulsas y se aplican sus propias políticas.</p>
+      </Section>
+      <Section title="Funciones técnicas">
+        <p>La aplicación puede utilizar cookies o almacenamiento técnico necesario para seguridad, funcionamiento del servicio y sesión del panel privado. No se destinan a publicidad y no requieren una casilla de aceptación. Puedes borrarlos o bloquearlos desde el navegador; algunas funciones privadas pueden dejar de funcionar.</p>
+      </Section>
+      <Section title="Cambios y contacto">
+        <p>Si se añadieran herramientas opcionales, se informaría y pediría consentimiento antes de activarlas. Consultas: <Value>{legal.email}</Value>.</p>
+      </Section>
+    </>;
+  }
+
   if (document === "aviso-legal") {
     return (
       <>
@@ -175,3 +247,4 @@ export default function LegalPage({ restaurant, document }: { restaurant: Public
     </main>
   );
 }
+
