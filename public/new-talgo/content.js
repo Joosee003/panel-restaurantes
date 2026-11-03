@@ -19,7 +19,7 @@ window.NEW_TALGO_CONTENT = Object.freeze({
   pickupConfirmed: false,
   menuConfirmed: true,
   photoRightsConfirmed: true,
-  legalConfirmed: false,
+  legalConfirmed: true,
   menuCategories: ["Tapas", "Bocadillos", "Hamburguesas", "Pizzas", "Pizzas gourmet", "Tostas", "Sándwiches", "Paninis", "Platos combinados", "Huevos rotos", "Revueltos", "Enrollados", "Perritos", "Sugerencias", "Ensaladas", "Salaitos"],
   /* Fotografías autorizadas por Ángel. La carta vigente está cargada en Supabase local; disponibilidad sujeta al local. */
   photos: {
