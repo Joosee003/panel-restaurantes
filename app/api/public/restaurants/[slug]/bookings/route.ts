@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isBookingStartAllowed } from "../../../../../lib/bookingDate";
-import { BOOKING_LEGAL_VERSION } from "../../../../../lib/publicLegal";
+import { BOOKING_LEGAL_VERSION, NEW_TALGO_BOOKING_LEGAL_VERSION } from "../../../../../lib/publicLegal";
 import { getPublicRestaurant } from "../../../../../lib/publicRestaurant";
 import { consumePublicRateLimit } from "../../../../../lib/publicRateLimit";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
@@ -100,7 +100,6 @@ export async function POST(
     name.length < 2 ||
     !privacyInformed ||
     !conditionsAccepted ||
-    legalVersion !== BOOKING_LEGAL_VERSION ||
     !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
       idempotencyKey,
     )
@@ -111,6 +110,11 @@ export async function POST(
   const restaurant = await getPublicRestaurant(slug);
   if (!restaurant || !restaurant.booking.enabled) {
     return json({ ok: false, error: "BOOKING_NOT_AVAILABLE" }, 404);
+  }
+  const expectedLegalVersion = restaurant.restauranteId === "408f0cff-68a0-40a7-b975-d2ed8e2dbfcc"
+    ? NEW_TALGO_BOOKING_LEGAL_VERSION : BOOKING_LEGAL_VERSION;
+  if (legalVersion !== expectedLegalVersion) {
+    return json({ ok: false, error: "INVALID_BOOKING_REQUEST" }, 400);
   }
   // The public demonstration is visible to every demo visitor. Never store
   // contact details submitted through that shared demonstration.
@@ -173,7 +177,7 @@ export async function POST(
       p_idempotency_key: idempotencyKey,
       p_privacidad_informada: privacyInformed,
       p_condiciones_aceptadas: conditionsAccepted,
-      p_version_legal: BOOKING_LEGAL_VERSION,
+      p_version_legal: expectedLegalVersion,
       p_review_whatsapp: body.reviewWhatsapp === true,
     });
 
