@@ -17,6 +17,7 @@ import {
   dateInTimezone,
   isBookingDateAllowed,
 } from "../../lib/bookingDate";
+import { isValidNewTalgoPhone } from "../../lib/newTalgoPhone";
 import styles from "./la-reserva.module.css";
 
 type AvailabilitySlot = {
@@ -46,6 +47,7 @@ type BookingWidgetProps = {
   conditionsPath: string;
   autoConfirmMaxParty?: number;
   showReviewConsent?: boolean;
+  newTalgo?: boolean;
 };
 
 type BookingResult = {
@@ -69,6 +71,7 @@ function readableError(code: string) {
     SLOT_NOT_AVAILABLE:
       "Esa hora acaba de ocuparse. Actualiza la disponibilidad y elige otra.",
     INVALID_BOOKING_REQUEST: "Revisa los datos antes de continuar.",
+    INVALID_PHONE: "Introduce un teléfono válido. Para España, usa 9 cifras (por ejemplo, 600 000 000); para otro país, añade el prefijo con +.",
     BOOKING_NOT_AVAILABLE: "Las reservas online no están disponibles ahora mismo.",
     DEMO_READ_ONLY: "Esta demostración es de solo lectura y no guarda reservas.",
     LEGAL_ACCEPTANCE_REQUIRED: "Debes leer la información de privacidad y aceptar las condiciones de reserva.",
@@ -97,6 +100,7 @@ export default function BookingWidget({
   conditionsPath,
   autoConfirmMaxParty,
   showReviewConsent = true,
+  newTalgo = false,
 }: BookingWidgetProps) {
   const editorial = variant === "la-reserva";
   const today = useMemo(() => dateInTimezone(timezone), [timezone]);
@@ -113,6 +117,7 @@ export default function BookingWidget({
   const [slotsError, setSlotsError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [result, setResult] = useState<BookingResult | null>(null);
 
   function changeBookingDate(nextDate: string) {
@@ -178,6 +183,12 @@ export default function BookingWidget({
     if (!selectedSlot || submitting) return;
 
     const form = new FormData(event.currentTarget);
+    const phone = String(form.get("phone") || "").trim();
+    if (newTalgo && !isValidNewTalgoPhone(phone)) {
+      setPhoneError("Introduce un teléfono válido. Para España, usa 9 cifras (por ejemplo, 600 000 000); para otro país, añade el prefijo con +.");
+      return;
+    }
+    setPhoneError("");
     if (form.get("reviewWhatsapp") === "on" && !String(form.get("phone") || "").trim()) {
       setSubmitError("Indica tu teléfono si quieres recibir la petición de reseña por WhatsApp.");
       return;
@@ -495,9 +506,14 @@ export default function BookingWidget({
                   required={requiresPhone}
                   maxLength={40}
                   autoComplete="tel"
+                  inputMode="tel"
+                  aria-invalid={newTalgo && !!phoneError}
+                  aria-describedby={newTalgo && phoneError ? "new-talgo-phone-error" : undefined}
+                  onChange={newTalgo ? () => setPhoneError("") : undefined}
                   className="h-12 w-full rounded-xl border-slate-200 bg-white px-4 text-sm font-semibold outline-none focus:border-slate-500"
                   placeholder="600 000 000"
                 />
+                {newTalgo && phoneError ? <span id="new-talgo-phone-error" className="mt-2 block text-sm font-semibold text-red-700" role="alert">{phoneError}</span> : null}
               </label>
               <label className="block">
                 <span className="mb-2 block text-xs font-black uppercase tracking-wider text-slate-500">
@@ -563,8 +579,9 @@ export default function BookingWidget({
             <button
               type="submit"
               disabled={submitting}
-              className="flex h-13 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60"
+              className={`flex h-13 w-full items-center justify-center gap-2 rounded-xl px-5 text-sm font-black text-white shadow-lg transition hover:-translate-y-0.5 disabled:cursor-wait disabled:opacity-60 ${newTalgo ? styles.newTalgoBookingSubmit : ""}`}
               style={{ backgroundColor: primaryColor }}
+              aria-busy={submitting}
               data-booking-submit
             >
               {submitting ? <Loader2 className="h-5 w-5 animate-spin" /> : null}

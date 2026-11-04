@@ -5,6 +5,7 @@ import { getPublicRestaurant } from "../../../../../lib/publicRestaurant";
 import { consumePublicRateLimit } from "../../../../../lib/publicRateLimit";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
 import { newTalgoBookingReady } from "../../../../../lib/newTalgoBookingReadiness";
+import { isValidNewTalgoPhone } from "../../../../../lib/newTalgoPhone";
 import { kickNewTalgoLiveDispatch } from "@/lib/owner-notices/new-talgo-live-kick";
 
 export const runtime = "nodejs";
@@ -124,6 +125,9 @@ export async function POST(
   }
   if (restaurant.restauranteId === process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID && party > 10) {
     return json({ ok: false, error: "WHATSAPP_CONTACT_REQUIRED", whatsappUrl: "https://wa.me/34643970267" }, 400);
+  }
+  if (restaurant.restauranteId === process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID && !isValidNewTalgoPhone(phone)) {
+    return json({ ok: false, error: "INVALID_PHONE" }, 400);
   }
   if (!(await newTalgoBookingReady(restaurant.restauranteId))) {
     return json({ ok: false, error: "BOOKING_NOT_AVAILABLE" }, 404);

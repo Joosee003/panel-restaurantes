@@ -2579,6 +2579,23 @@
   letter-spacing: 0.04em;
 }
 
+.reservaBookingCard [data-booking-submit].newTalgoBookingSubmit {
+  min-height: 3.35rem;
+  background: #203831 !important;
+  color: #fff !important;
+  opacity: 1;
+}
+
+.reservaBookingCard [data-booking-submit].newTalgoBookingSubmit:hover:not(:disabled) {
+  background: #172c25 !important;
+}
+
+.reservaBookingCard [data-booking-submit].newTalgoBookingSubmit:disabled {
+  background: #203831 !important;
+  color: #fff !important;
+  opacity: 0.72;
+}
+
 .reservaBookingCard [data-booking-foot] {
   border-color: rgba(29, 41, 34, 0.16) !important;
 }

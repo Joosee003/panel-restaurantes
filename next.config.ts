@@ -173,7 +173,7 @@ const nextConfig: NextConfig = {
     const has = [{ type: "host" as const, value: newTalgoPublicHost }];
     return [
       { source: "/", destination: "/new-talgo/index.html", has },
-      ...["index.html", "carta.html", "visitanos.html", "styles.css", "app.js", "content.js", "menu-live.js", "promotions-live.js"]
+      ...["index.html", "carta.html", "visitanos.html", "styles.css", "premium.css", "app.js", "content.js", "menu-live.js", "promotions-live.js"]
         .map(path => ({ source: `/${path}`, destination: `/new-talgo/${path}`, has })),
       { source: "/assets/:path*", destination: "/new-talgo/assets/:path*", has },
     ];

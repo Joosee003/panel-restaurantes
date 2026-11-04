@@ -53,6 +53,7 @@ export default async function NewTalgoBookingPage() {
           demo={false}
           autoConfirmMaxParty={4}
           showReviewConsent={false}
+          newTalgo={true}
           privacyPath={legalPath(restaurant, "privacidad")}
           conditionsPath={legalPath(restaurant, "condiciones-reserva")}
         /> : <section className="rounded-3xl border border-[#d8cfc1] bg-white p-7" role="status">
