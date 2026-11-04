@@ -11,6 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { BOOKING_LEGAL_VERSION, NEW_TALGO_BOOKING_LEGAL_VERSION } from "../../lib/publicLegal";
 import {
   addCalendarDays,
   dateInTimezone,
@@ -214,7 +215,7 @@ export default function BookingWidget({
             privacyInformed: form.get("privacyInformed") === "on",
             reviewWhatsapp: form.get("reviewWhatsapp") === "on",
             conditionsAccepted: form.get("conditionsAccepted") === "on",
-            legalVersion: "2026-08-03",
+            legalVersion: slug === "bar-tapas-new-talgo-408f0c" ? NEW_TALGO_BOOKING_LEGAL_VERSION : BOOKING_LEGAL_VERSION,
           }),
         },
       );
