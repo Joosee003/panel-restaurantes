@@ -33,7 +33,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function LegalContent({ restaurant, document }: { restaurant: PublicRestaurant; document: LegalDocument }) {
   const legal = restaurant.legal;
 
-  if (restaurant.slug === "new-talgo") {
+  if (restaurant.restauranteId === "408f0cff-68a0-40a7-b975-d2ed8e2dbfcc") {
     if (document === "aviso-legal") return <>
       <Section title="Titular y contacto">
         <p>Este sitio y la actividad de New Talgo pertenecen a <Value>{legal.owner}</Value>, persona física, NIF <Value>{legal.taxId}</Value>, con domicilio fiscal en <Value>{legal.address}</Value>. Contacto: <Value>{legal.email}</Value>.</p>
