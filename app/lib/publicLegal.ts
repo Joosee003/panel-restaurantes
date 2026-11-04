@@ -19,6 +19,9 @@ export function legalPath(
   restaurant: Pick<PublicRestaurant, "slug" | "customDomain" | "legalBasePath">,
   document: LegalDocument,
 ) {
+  if (restaurant.slug === "bar-tapas-new-talgo-408f0c") {
+    return `/restaurante/${restaurant.slug}/legal/${document}`;
+  }
   if (restaurant.legalBasePath) {
     return `${restaurant.legalBasePath.replace(/\/$/, "")}/${document}`;
   }
