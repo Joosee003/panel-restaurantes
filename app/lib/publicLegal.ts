@@ -1,6 +1,7 @@
 import type { PublicRestaurant } from "./publicRestaurant";
 
 export const BOOKING_LEGAL_VERSION = "2026-08-03";
+export const NEW_TALGO_BOOKING_LEGAL_VERSION = "2026-11-03";
 
 export const LEGAL_DOCUMENTS = [
   "aviso-legal",
