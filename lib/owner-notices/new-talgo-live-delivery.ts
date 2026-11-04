@@ -11,8 +11,12 @@ function bodyFor(event: NewTalgoLiveEvent) {
   }
   const customer = payload.customer && typeof payload.customer === "object" && !Array.isArray(payload.customer)
     ? payload.customer as Record<string, unknown> : {};
+  const safePayload = { ...payload };
+  delete safePayload.notes;
+  delete safePayload.managementPath;
+  delete safePayload.reviewPath;
   return {
-    ...payload,
+    ...safePayload,
     customer: { ...customer, email: null, phone: null },
     event: event.event_type,
     automationEventId: event.event_id,
@@ -53,6 +57,17 @@ export async function dispatchNewTalgoLiveEvents() {
     let accepted = false;
     let errorText: string | null = null;
     try {
+      const [config, modules] = await Promise.all([
+        supabase.from("automatizaciones_config").select("enabled,delivery_mode,email_enabled")
+          .eq("restaurante_id", NEW_TALGO_RESTAURANT_ID).maybeSingle(),
+        supabase.from("restaurante_modulos").select("automatizaciones")
+          .eq("restaurante_id", NEW_TALGO_RESTAURANT_ID).maybeSingle(),
+      ]);
+      if (config.error || modules.error || !config.data?.enabled ||
+          config.data.delivery_mode !== "live" || !config.data.email_enabled ||
+          modules.data?.automatizaciones !== true) {
+        throw new Error("NEW_TALGO_AUTOMATION_DISABLED");
+      }
       const response = await fetch(target.url, {
         method: "POST",
         headers: { "Content-Type": "application/json",
