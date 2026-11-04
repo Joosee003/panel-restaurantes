@@ -5,6 +5,7 @@ import { getPublicRestaurant } from "../../../../../lib/publicRestaurant";
 import { consumePublicRateLimit } from "../../../../../lib/publicRateLimit";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
 import { newTalgoBookingReady } from "../../../../../lib/newTalgoBookingReadiness";
+import { kickNewTalgoLiveDispatch } from "@/lib/owner-notices/new-talgo-live-kick";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -191,6 +192,8 @@ export async function POST(
     if (!result?.ok || !result.reserva_id || !result.inicio_at || !result.gestion_token) {
       return json({ ok: false, error: "BOOKING_FAILED" }, 500);
     }
+
+    await kickNewTalgoLiveDispatch(restaurant.restauranteId);
 
     return json(
       {
