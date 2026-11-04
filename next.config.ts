@@ -166,17 +166,7 @@ const nextConfig: NextConfig = {
     ];
   },
   async redirects() {
-    const canonicalRedirects = newTalgoPublicHost
-      ? [
-        { source: "/new-talgo", destination: "/", permanent: true, has: [{ type: "host" as const, value: newTalgoPublicHost }] },
-        ...["index.html", "carta.html", "visitanos.html"].map((page) => ({
-          source: `/new-talgo/${page}`,
-          destination: page === "index.html" ? "/" : `/${page}`,
-          permanent: true,
-          has: [{ type: "host" as const, value: newTalgoPublicHost }],
-        })),
-      ] : [];
-    return [...canonicalRedirects, { source: "/new-talgo", destination: "/new-talgo/index.html", permanent: false }];
+    return [{ source: "/new-talgo", destination: "/new-talgo/index.html", permanent: false }];
   },
   async rewrites() {
     if (!newTalgoPublicHost) return [];
