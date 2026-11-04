@@ -124,11 +124,29 @@
     jump.replaceChildren(selector, shortcuts, menuNav);
     list.replaceChildren(menuList);
   }
-  // The public endpoint serves only the active menu and enforces this restaurant's token.
+  // Production serves the active menu. Preview retains its owner-only draft route.
   fetch("/api/public/new-talgo/menu", {
     cache: "no-store", credentials: "same-origin",
   })
     .then((response) => {
+      if (!response.ok) throw new Error("MENU_UNAVAILABLE");
+      return response.json();
+    })
+    .then(async (menu) => {
+      if (menu.status === "publicada" || !location.hostname.endsWith(".vercel.app")) return menu;
+      let accessToken;
+      try {
+        const session = JSON.parse(localStorage.getItem("sb-yyiotkszobortppwiqal-auth-token") || "null");
+        if (typeof session?.access_token === "string") accessToken = session.access_token;
+      } catch { /* Invalid local sessions remain signed out. */ }
+      const response = await fetch("/api/private/new-talgo/draft-menu", {
+        cache: "no-store", credentials: "same-origin",
+        ...(accessToken ? { headers: { Authorization: "Bearer " + accessToken } } : {}),
+      });
+      if (response.status === 401) {
+        location.replace(new URL("/login?next=" + encodeURIComponent("/new-talgo/carta.html"), location.origin).href);
+        return null;
+      }
       if (!response.ok) throw new Error("MENU_UNAVAILABLE");
       return response.json();
     })
