@@ -21,7 +21,7 @@ export async function newTalgoBookingReady(restaurantId: string | null): Promise
     supabase.from("reservas_config")
       .select("activo,confirmacion_automatica,confirmacion_automatica_hasta,personas_minimas,personas_maximas,mesas_activas_en_disponibilidad")
       .eq("restaurante_id", restaurantId).maybeSingle(),
-    supabase.from("automatizaciones_config").select("email_enabled")
+    supabase.from("automatizaciones_config").select("enabled,delivery_mode,email_enabled")
       .eq("restaurante_id", restaurantId).maybeSingle(),
     supabase.from("sala_mesas").select("capacidad")
       .eq("restaurante_id", restaurantId).eq("activa", true),
@@ -38,6 +38,8 @@ export async function newTalgoBookingReady(restaurantId: string | null): Promise
     booking.personas_minimas === 1 &&
     booking.personas_maximas === 10 &&
     booking.mesas_activas_en_disponibilidad === true &&
-    automation.data?.email_enabled === true &&
+    automation.data?.enabled === true &&
+    automation.data?.delivery_mode === "live" &&
+    automation.data.email_enabled === true &&
     tables.data?.length === 8 && tables.data.every((table) => table.capacidad === 4);
 }
