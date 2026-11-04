@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { isUuid } from "../../../../../lib/managedReservation";
 import { consumePublicRateLimit } from "../../../../../lib/publicRateLimit";
 import { getSupabaseAdmin } from "../../../../../lib/supabaseAdmin";
+import { kickNewTalgoLiveDispatch } from "@/lib/owner-notices/new-talgo-live-kick";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +36,8 @@ export async function POST(
       );
     }
 
-    const { data, error } = await getSupabaseAdmin().rpc(
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.rpc(
       "cancelar_reserva_publica_gestion",
       { p_gestion_token: token },
     );
@@ -51,6 +53,19 @@ export async function POST(
 
     const result = data as { ok?: boolean; duplicate?: boolean; reserva_id?: string } | null;
     if (!result?.ok) return json({ ok: false, error: "CANCELLATION_FAILED" }, 500);
+
+    if (result.reserva_id) {
+      try {
+        const reservation = await supabase.from("reservas")
+          .select("restaurante_id").eq("id", result.reserva_id).maybeSingle();
+        if (reservation.error) throw reservation.error;
+        if (reservation.data?.restaurante_id) {
+          await kickNewTalgoLiveDispatch(reservation.data.restaurante_id);
+        }
+      } catch {
+        console.error("New Talgo cancellation dispatch lookup failed");
+      }
+    }
 
     return json({ ok: true, status: "cancelada" });
   } catch (error) {
