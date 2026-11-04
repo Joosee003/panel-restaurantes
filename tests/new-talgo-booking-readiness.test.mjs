@@ -14,6 +14,8 @@ const config = {
 const restaurantId = "11111111-1111-4111-8111-111111111111";
 let currentConfig = config;
 let emailEnabled = true;
+let automationEnabled = true;
+let deliveryMode = "live";
 let restaurantEmail = "owner@example.invalid";
 let lunchHours = "11:30–14:30";
 let tables = Array.from({ length: 8 }, () => ({ capacidad: 4 }));
@@ -25,7 +27,7 @@ const client = {
         return { maybeSingle: async () => ({
           data: table === "reservas_config" ? currentConfig :
             table === "restaurantes" ? { email_notificaciones: restaurantEmail, horario_comida: lunchHours } :
-              { email_enabled: emailEnabled }, error: null,
+              { enabled: automationEnabled, delivery_mode: deliveryMode, email_enabled: emailEnabled }, error: null,
         }) };
       } };
     } };
@@ -71,6 +73,12 @@ test("New Talgo bookings stay closed until every group and notice gate is ready"
     emailEnabled = false;
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     emailEnabled = true;
+    automationEnabled = false;
+    assert.equal(await newTalgoBookingReady(restaurantId), false);
+    automationEnabled = true;
+    deliveryMode = "test";
+    assert.equal(await newTalgoBookingReady(restaurantId), false);
+    deliveryMode = "live";
     restaurantEmail = "wrong@example.invalid";
     assert.equal(await newTalgoBookingReady(restaurantId), false);
     restaurantEmail = "owner@example.invalid";
@@ -81,6 +89,8 @@ test("New Talgo bookings stay closed until every group and notice gate is ready"
   } finally {
     currentConfig = config;
     emailEnabled = true;
+    automationEnabled = true;
+    deliveryMode = "live";
     restaurantEmail = "owner@example.invalid";
     tables = Array.from({ length: 8 }, () => ({ capacidad: 4 }));
     for (const [key, value] of Object.entries(previous)) {
