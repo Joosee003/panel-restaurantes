@@ -54,8 +54,8 @@ type RequiredModule = {
 };
 
 const protectedRoutes: Array<RequiredModule & { paths: string[] }> = [
-  { key: "reservas", label: "Reservas", paths: ["/reservas", "/sala"] },
-  { key: "clientes", label: "Clientes", paths: ["/clientes"] },
+  { key: "reservas", label: "Reservas", paths: ["/reservas", "/sala", "/panel-personalizado/reservas", "/panel-personalizado/sala", "/panel-personalizado/ajustes/reservas"] },
+  { key: "clientes", label: "Clientes", paths: ["/clientes", "/panel-personalizado/clientes"] },
   { key: "resenas", label: "Reseñas", paths: ["/resenas"] },
   { key: "metricas", label: "Métricas", paths: ["/estadisticas"] },
   {
@@ -71,7 +71,7 @@ const protectedRoutes: Array<RequiredModule & { paths: string[] }> = [
   {
     key: "menu_digital",
     label: "Carta QR",
-    paths: ["/panel/carta-productos", "/panel/menu-dia"],
+    paths: ["/panel/carta-productos", "/panel/menu-dia", "/panel-personalizado/carta"],
   },
   {
     key: "camarero_digital",

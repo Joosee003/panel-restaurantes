@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { agencyAccessMessage, enterAgencyRestaurant, returnToAgency } from "./agencyRestaurantAccess";
+import { NEW_TALGO_RESTAURANT_ID } from "@/app/white-label/brands";
 
 export default function EnterRestaurantButton({ restaurantId }: { restaurantId: string }) {
   const router = useRouter();
@@ -22,7 +23,7 @@ export default function EnterRestaurantButton({ restaurantId }: { restaurantId: 
     try {
       await enterAgencyRestaurant(supabase, restaurantId, controller.signal);
       if (controller.signal.aborted) return;
-      router.push("/dashboard");
+      router.push(restaurantId === NEW_TALGO_RESTAURANT_ID ? "/panel-personalizado" : "/dashboard");
       router.refresh();
     } catch (cause) {
       if (controller.signal.aborted) return;

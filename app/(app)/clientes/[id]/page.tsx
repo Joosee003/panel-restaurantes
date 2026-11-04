@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, usePathname } from "next/navigation";
 import { ArrowLeft, ChevronRight, Copy, Loader2, Mail, MessageCircle, Phone, Save, Send, X } from "lucide-react";
 import { supabase } from "../../lib/supabaseClient";
 import { getRestauranteUsuario } from "../../lib/getRestauranteUsuario";
@@ -191,6 +191,7 @@ function accionRecomendada(
 }
 
 export default function ClienteFichaPage() {
+  const clientesPath = usePathname().startsWith("/panel-personalizado") ? "/panel-personalizado/clientes" : "/clientes";
   const { id } = useParams<{ id: string }>();
   const [restauranteId, setRestauranteId] = useState<string | null>(null);
   const [cliente, setCliente] = useState<Cliente | null>(null);
@@ -437,7 +438,7 @@ export default function ClienteFichaPage() {
     return <div className={styles.page}><div className={styles.empty} role="status"><Loader2 className="mx-auto mb-3 animate-spin" size={20} /> Cargando ficha…</div></div>;
   }
   if (error || !cliente) {
-    return <div className={styles.page}><div className={styles.empty}><strong role="alert">{error || "Cliente no encontrado"}</strong><Link href="/clientes" className={styles.button}>Volver a clientes</Link></div></div>;
+    return <div className={styles.page}><div className={styles.empty}><strong role="alert">{error || "Cliente no encontrado"}</strong><Link href={clientesPath} className={styles.button}>Volver a clientes</Link></div></div>;
   }
 
   const contextContent = <>
@@ -475,7 +476,7 @@ export default function ClienteFichaPage() {
   </>;
 
   return <div className={`${styles.page} ${styles.detailPage}`}>
-    <Link href="/clientes" className={styles.backLink}><ArrowLeft size={14} /> Clientes</Link>
+    <Link href={clientesPath} className={styles.backLink}><ArrowLeft size={14} /> Clientes</Link>
     <header className={styles.detailHeading}>
       <div><h1>{cliente.nombre || "Cliente sin nombre"}</h1><div className={styles.segments}>{segmentos.map((segmento) => <span key={segmento}>{segmento}</span>)}{fidelizacionActiva && cliente.ranking_posicion ? <span>Nº {cliente.ranking_posicion} del ranking</span> : null}</div></div>
       <div className={styles.actions}>
