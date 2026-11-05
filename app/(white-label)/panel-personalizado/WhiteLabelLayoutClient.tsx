@@ -46,6 +46,10 @@ function BrandedPanel({ children }: { children: ReactNode }) {
     <p>Este restaurante todavía no tiene una identidad White Label asignada.</p>
     <Link href="/dashboard">Volver a GastroHelp</Link>
   </div>;
+  if (pathname.startsWith("/panel-personalizado/promociones") && brand.slug !== "new-talgo") return <div className="wl-state" role="alert">
+    <h1>Promociones no disponibles</h1>
+    <Link href="/panel-personalizado">Volver al panel</Link>
+  </div>;
 
   const style = {
     "--wl-ink": brand.ink,
@@ -62,7 +66,7 @@ function BrandedPanel({ children }: { children: ReactNode }) {
       </Link>
       <p className="wl-side-caption">TU RESTAURANTE</p>
       <nav aria-label="Navegación del panel">
-        {links.map(({ href, label, Icon }) => <Link key={href} href={href}
+        {links.filter(({ href }) => href !== "/panel-personalizado/promociones" || brand.slug === "new-talgo").map(({ href, label, Icon }) => <Link key={href} href={href}
           aria-current={pathname === href || (href !== "/panel-personalizado" && pathname.startsWith(`${href}/`)) ? "page" : undefined}>
           <Icon size={19} aria-hidden="true" /><span>{label}</span>
         </Link>)}
