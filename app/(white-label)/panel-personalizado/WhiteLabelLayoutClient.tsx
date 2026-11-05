@@ -4,7 +4,7 @@ import type { CSSProperties, ReactNode } from "react";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarDays, House, LayoutGrid, LogOut, NotebookTabs, Settings2, Users } from "lucide-react";
+import { CalendarDays, House, LayoutGrid, LogOut, NotebookTabs, Settings2, Tags, Users } from "lucide-react";
 import AuthGuard from "../../(app)/components/AuthGuard";
 import RestaurantScope from "../../(app)/components/RestaurantScope";
 import AgencyRestaurantContext from "../../(app)/components/AgencyRestaurantContext";
@@ -23,6 +23,7 @@ const links = [
   { href: "/panel-personalizado/sala", label: "Mesas", Icon: LayoutGrid },
   { href: "/panel-personalizado/clientes", label: "Clientes", Icon: Users },
   { href: "/panel-personalizado/carta", label: "Carta", Icon: NotebookTabs },
+  { href: "/panel-personalizado/promociones", label: "Promociones", Icon: Tags },
 ];
 
 function BrandedPanel({ children }: { children: ReactNode }) {
