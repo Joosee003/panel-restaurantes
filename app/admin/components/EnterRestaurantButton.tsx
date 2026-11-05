@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
 import { supabase } from "@/app/(app)/lib/supabaseClient";
 import { agencyAccessMessage, enterAgencyRestaurant, returnToAgency } from "./agencyRestaurantAccess";
+import { NEW_TALGO_RESTAURANT_ID } from "@/app/white-label/brands";
 
 export default function EnterRestaurantButton({ restaurantId }: { restaurantId: string }) {
   const router = useRouter();
@@ -22,6 +23,12 @@ export default function EnterRestaurantButton({ restaurantId }: { restaurantId: 
     try {
       await enterAgencyRestaurant(supabase, restaurantId, controller.signal);
       if (controller.signal.aborted) return;
+      if (restaurantId === NEW_TALGO_RESTAURANT_ID) {
+        // A full same-origin navigation preserves the selected restaurant in
+        // sessionStorage and avoids a router.refresh() racing the route change.
+        window.location.assign("/panel-personalizado");
+        return;
+      }
       router.push("/dashboard");
       router.refresh();
     } catch (cause) {

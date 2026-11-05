@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRestaurante } from "../../../hooks/useRestaurante";
 import { supabase } from "../../lib/supabaseClient";
+import { NEW_TALGO_RESTAURANT_ID } from "../../../white-label/brands";
 import styles from "./promociones.module.css";
 
 type Placement = "universitarios" | "partidas" | "estacion";
@@ -75,7 +76,7 @@ function validation(draft: Draft, status: Status) {
 export default function PromocionesPage() {
   const { data: restaurant, isLoading: loadingRestaurant } = useRestaurante();
   const restaurantId = restaurant?.id;
-  const isNewTalgo = restaurantId === process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID;
+  const isNewTalgo = restaurantId === NEW_TALGO_RESTAURANT_ID;
   const [rows, setRows] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -171,6 +172,17 @@ export default function PromocionesPage() {
     await load();
   }
 
+  async function remove(row: Promotion) {
+    if (!restaurantId || !window.confirm(`¿Eliminar definitivamente «${row.titulo}»? Esta acción no se puede deshacer.`)) return;
+    setBusy(true); setError(""); setMessage("");
+    const result = await supabase.from("promociones").delete().eq("id", row.id).eq("restaurante_id", restaurantId).select("id").single();
+    setBusy(false);
+    if (result.error) { setError(errorText(result.error)); return; }
+    setDraft(current => current?.id === row.id ? null : current);
+    setMessage("Promoción eliminada.");
+    await load();
+  }
+
   async function upload(file: File | undefined) {
     if (!file || !draft?.id || !restaurantId) { setError("Guarda primero el borrador antes de subir una foto."); return; }
     const extension = file.type === "image/webp" ? "webp" : file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : null;
@@ -202,7 +214,7 @@ export default function PromocionesPage() {
     {rows.length > 0 && <div className={styles.list} aria-label="Promociones existentes">{rows.map(row => <article className={styles.listCard} key={row.id}>
       {row.imagen_url ? <Image src={row.imagen_url} alt="" width={150} height={110} unoptimized className={styles.listPhoto} /> : <div className={styles.listPhotoEmpty} aria-hidden="true">NT.</div>}
       <div className={styles.listCopy}><span>{placements.find(item => item.value === row.ubicacion)?.label} · {models.find(item => item.value === row.tipo)?.label}</span><h2>{row.titulo}</h2><p>{publicIds.has(row.id) ? "Publicada ahora" : row.estado === "borrador" ? "Borrador · no visible" : `${row.estado} · fuera de la web ahora`}</p></div>
-      <div className={styles.listActions}><button onClick={() => startEdit(row)}>Editar</button><button onClick={() => duplicate(row)}>Duplicar</button><button disabled={busy} onClick={() => void setStatus(row, row.estado === "activa" || row.estado === "programada" ? "pausada" : "activa")}>{row.estado === "activa" || row.estado === "programada" ? "Pausar" : "Activar"}</button></div>
+      <div className={styles.listActions}><button onClick={() => startEdit(row)}>Editar</button><button onClick={() => duplicate(row)}>Duplicar</button><button disabled={busy} onClick={() => void setStatus(row, row.estado === "activa" || row.estado === "programada" ? "pausada" : "activa")}>{row.estado === "activa" || row.estado === "programada" ? "Pausar" : "Activar"}</button><button disabled={busy} onClick={() => void remove(row)}>Eliminar</button></div>
     </article>)}</div>}
     {draft && <section className={styles.editor} aria-labelledby="promo-editor-title"><div className={styles.editorHead}><div><span className={styles.eyebrow}>{draft.id ? "EDITAR PROMOCIÓN" : "NUEVO BORRADOR"}</span><h2 id="promo-editor-title">{draft.id ? draft.titulo : "Define tu propuesta"}</h2></div><button className={styles.quiet} onClick={() => { setDraft(null); setPreview(false); }}>Cerrar</button></div>
       <div className={styles.fields}>
@@ -235,3 +247,4 @@ export default function PromocionesPage() {
     </section>}
   </div>;
 }
+

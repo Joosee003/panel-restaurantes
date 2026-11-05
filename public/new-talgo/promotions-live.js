@@ -5,6 +5,7 @@
   const grid = document.querySelector("[data-promo-grid]");
   if (!section || !grid) return;
   const navLinks = document.querySelectorAll("[data-promo-nav]");
+  let qaNotice = null;
   const euro = new Intl.NumberFormat("es-ES", { style: "currency", currency: "EUR" });
   const number = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 2 });
   const labels = { universitarios: "ESTUDIANTES", partidas: "TARDES DE PARTIDAS", estacion: "CERCA DE LA ESTACIÓN" };
@@ -68,8 +69,16 @@
     return article;
   }
 
-  function render(promotions) {
+  function render(promotions, qaFicticia) {
     grid.replaceChildren(...promotions.map(card));
+    if (qaNotice) qaNotice.remove();
+    qaNotice = null;
+    if (qaFicticia) {
+      const notice = element("p", "nt-promo-qa-notice", "VISTA QA · DATOS FICTICIOS · NO SON OFERTAS VÁLIDAS");
+      notice.style.cssText = "display:inline-block;margin:0 0 22px;padding:10px 14px;background:#fff1d8;border:2px solid #9b4b34;color:#7b2f22;font:800 12px/1.4 Arial,sans-serif;letter-spacing:.06em";
+      grid.before(notice);
+      qaNotice = notice;
+    }
     const visible = promotions.length > 0;
     section.hidden = !visible;
     navLinks.forEach((link) => { link.hidden = !visible; });
@@ -77,13 +86,14 @@
 
   async function refresh() {
     try {
-      const response = await fetch("/api/public/new-talgo/promotions", { cache: "no-store" });
+      const qa = /(?:^|[?&])qa_promociones=1(?:&|$)/.test(window.location?.search || "");
+      const response = await fetch(`/api/public/new-talgo/promotions${qa ? "?qa=1" : ""}`, { cache: "no-store" });
       if (!response.ok) throw new Error("PROMOTIONS_UNAVAILABLE");
       const result = await response.json();
-      render(Array.isArray(result.promociones) ? result.promociones : []);
+      render(Array.isArray(result.promociones) ? result.promociones : [], result.qaFicticia === true);
     } catch {
       // Keep offers hidden until the existing API confirms current availability.
-      render([]);
+      render([], false);
     }
   }
 
@@ -91,3 +101,4 @@
   window.setInterval(() => { if (!document.hidden) void refresh(); }, 60_000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) void refresh(); });
 })();
+
