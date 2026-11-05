@@ -76,7 +76,7 @@ function validation(draft: Draft, status: Status) {
 export default function PromocionesPage() {
   const { data: restaurant, isLoading: loadingRestaurant } = useRestaurante();
   const restaurantId = restaurant?.id;
-  const isNewTalgo = restaurantId === NEW_TALGO_RESTAURANT_ID;
+  const isNewTalgo = restaurantId === (process.env.NEXT_PUBLIC_WHITE_LABEL_NEW_TALGO_ID || NEW_TALGO_RESTAURANT_ID);
   const [rows, setRows] = useState<Promotion[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [photos, setPhotos] = useState<Photo[]>([]);
@@ -99,9 +99,15 @@ export default function PromocionesPage() {
     setLoading(false);
     if (promos.error) { setError(errorText(promos.error)); return; }
     setRows((promos.data || []) as Promotion[]);
-    setProducts((items.data || []) as Product[]);
+    const productRows = (items.data || []) as Product[];
+    setProducts(productRows);
+    if (isNewTalgo) {
+      const prefix = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/menus/productos/${restaurantId}/`;
+      setPhotos(productRows.flatMap(item => item.imagen_url?.startsWith(prefix)
+        ? [{ src: item.imagen_url, alt: item.nombre }] : []));
+    }
     setPublicIds(new Set(Array.isArray(published.data) ? published.data.map((item: { id: string }) => item.id) : []));
-  }, [restaurantId]);
+  }, [restaurantId, isNewTalgo]);
 
   useEffect(() => {
     if (!restaurantId) return;
@@ -131,10 +137,10 @@ export default function PromocionesPage() {
   const startEdit = (row: Promotion) => { setDraft(draftFrom(row)); setPreview(false); setError(""); setMessage(""); };
   const duplicate = (row: Promotion) => { const copy = draftFrom(row); delete copy.id; setDraft({ ...copy, titulo: `${copy.titulo} (copia)`.slice(0, 90), estado: "borrador" }); setPreview(false); setError(""); };
 
-  async function save(nextStatus = draft?.estado || "borrador") {
-    if (!draft || !restaurantId) return;
+  async function save(nextStatus = draft?.estado || "borrador"): Promise<Promotion | null> {
+    if (!draft || !restaurantId) return null;
     const problem = validation(draft, nextStatus);
-    if (problem) { setError(problem); return; }
+    if (problem) { setError(problem); return null; }
     setBusy(true); setError(""); setMessage("");
     const selectedNames = products.filter(item => draft.producto_ids.includes(item.id)).map(item => item.nombre).join(" · ");
     const payload = {
@@ -153,10 +159,11 @@ export default function PromocionesPage() {
       ? await supabase.from("promociones").update(payload).eq("id", draft.id).eq("restaurante_id", restaurantId).select("*").single()
       : await supabase.from("promociones").insert(payload).select("*").single();
     setBusy(false);
-    if (result.error) { setError(errorText(result.error)); return; }
+    if (result.error) { setError(errorText(result.error)); return null; }
     setDraft(draftFrom(result.data as Promotion));
     setMessage("Promoción guardada. La web solo muestra ofertas activas en su horario válido.");
     await load();
+    return result.data as Promotion;
   }
 
   async function setStatus(row: Promotion, state: Status) {
@@ -184,20 +191,23 @@ export default function PromocionesPage() {
   }
 
   async function upload(file: File | undefined) {
-    if (!file || !draft?.id || !restaurantId) { setError("Guarda primero el borrador antes de subir una foto."); return; }
+    if (!file || !draft || !restaurantId) return;
     const extension = file.type === "image/webp" ? "webp" : file.type === "image/jpeg" ? "jpg" : file.type === "image/png" ? "png" : null;
     if (!extension || file.size > 5_000_000) { setError("Elige una imagen WebP, JPEG o PNG de menos de 5 MB."); return; }
+    const created = draft.id ? null : await save("borrador");
+    const promotionId = draft.id || created?.id;
+    if (!promotionId) return;
     setBusy(true); setError("");
-    const path = `productos/${restaurantId}/promo-${draft.id}-${Date.now()}.${extension}`;
+    const path = `productos/${restaurantId}/promo-${promotionId}-${Date.now()}.${extension}`;
     const result = await supabase.storage.from("menus").upload(path, file, { contentType: file.type, upsert: false });
     if (result.error) { setBusy(false); setError(errorText(result.error)); return; }
     const photoUrl = supabase.storage.from("menus").getPublicUrl(path).data.publicUrl;
-    const saved = await supabase.from("promociones").update({ imagen_url: photoUrl }).eq("id", draft.id).eq("restaurante_id", restaurantId).select("id").single();
+    const saved = await supabase.from("promociones").update({ imagen_url: photoUrl }).eq("id", promotionId).eq("restaurante_id", restaurantId).select("id").single();
     setBusy(false);
     if (saved.error) { await supabase.storage.from("menus").remove([path]); setError(errorText(saved.error)); return; }
     let oldPath: string | undefined;
     try { oldPath = draft.imagen_url ? decodeURIComponent(new URL(draft.imagen_url, window.location.origin).pathname).split("/storage/v1/object/public/menus/")[1] : undefined; } catch { /* Old photo is not a managed Storage URL. */ }
-    if (oldPath?.startsWith(`productos/${restaurantId}/promo-${draft.id}-`)) {
+    if (oldPath?.startsWith(`productos/${restaurantId}/promo-${promotionId}-`)) {
       const { count } = await supabase.from("promociones").select("id", { count: "exact", head: true }).eq("restaurante_id", restaurantId).eq("imagen_url", draft.imagen_url);
       if (count === 0) await supabase.storage.from("menus").remove([oldPath]);
     }
@@ -239,12 +249,11 @@ export default function PromocionesPage() {
         <label>Destino del botón<select value={draft.cta_destino} onChange={event => change("cta_destino", event.target.value as Target)}><option value="carta">La carta</option><option value="visitanos">Cómo llegar</option><option value="contacto">Contacto confirmado</option></select></label>
       </div>
       <div className={styles.photoArea}><div><h3>Fotografía</h3><p>Selecciona una imagen del restaurante o súbela al almacenamiento original de GastroHelp.</p></div>{draft.imagen_url && <Image src={draft.imagen_url} alt="Vista previa de la promoción" width={180} height={140} unoptimized className={styles.chosenPhoto} />}
-        {isNewTalgo && photos.length > 0 && <div className={styles.photoPicker} aria-label="Fotografías reales de New Talgo">{photos.map(photo => { const url = `/new-talgo/${photo.small || photo.src}`; return <button type="button" key={photo.src} className={draft.imagen_url === `/new-talgo/${photo.src}` ? styles.photoSelected : ""} onClick={() => change("imagen_url", `/new-talgo/${photo.src}`)} aria-label={`Elegir ${photo.alt}`}><Image src={url} alt="" width={84} height={84} unoptimized /></button>; })}</div>}
-        <label className={styles.upload}>Subir una foto propia<input type="file" accept="image/webp,image/jpeg,image/png" onChange={event => void upload(event.target.files?.[0])} /></label><p className={styles.hint}>Guarda el borrador antes de subir la foto. Las fotografías facilitadas por Ángel están autorizadas.</p>
+        {isNewTalgo && photos.length > 0 && <div className={styles.photoPicker} aria-label="Fotografías reales de New Talgo">{photos.map(photo => { const url = photo.src.startsWith("https://") ? photo.src : `/new-talgo/${photo.small || photo.src}`; const selected = photo.src.startsWith("https://") ? photo.src : `/new-talgo/${photo.src}`; return <button type="button" key={photo.src} className={draft.imagen_url === selected ? styles.photoSelected : ""} onClick={() => change("imagen_url", selected)} aria-label={`Elegir ${photo.alt}`}><Image src={url} alt="" width={84} height={84} unoptimized /></button>; })}</div>}
+        <label className={styles.upload}>Subir una foto propia<input type="file" accept="image/webp,image/jpeg,image/png" onChange={event => void upload(event.target.files?.[0])} /></label><p className={styles.hint}>Al subir una fotografía nueva, se guarda primero el borrador. Las fotografías facilitadas por Ángel están autorizadas.</p>
       </div>
       <div className={styles.editorActions}><button className={styles.primary} disabled={busy} onClick={() => void save()}>{busy ? "Guardando…" : draft.estado === "activa" ? "Guardar y activar" : draft.estado === "programada" ? "Guardar programación" : draft.id ? "Guardar cambios" : "Guardar borrador"}</button><button className={styles.quiet} onClick={() => setPreview(value => !value)}>Previsualizar</button>{draft.id && draft.estado === "borrador" && <button className={styles.quiet} disabled={busy} onClick={() => void save("activa")}>Activar</button>}{draft.id && ["activa", "programada"].includes(draft.estado) && <button className={styles.quiet} disabled={busy} onClick={() => void save("pausada")}>Pausar</button>}</div>
       {preview && <div className={styles.preview} aria-label="Vista previa privada de la promoción"><span>VISTA PREVIA · NO PUBLICADA POR ESTE BOTÓN</span>{draft.imagen_url && <Image src={draft.imagen_url} alt="Fotografía seleccionada" width={360} height={200} unoptimized />}<h3>{draft.titulo || "Título pendiente"}</h3><p>{draft.descripcion || "Descripción pendiente"}</p>{offerText(draft) && <strong>{offerText(draft)}</strong>}<small>{draft.condiciones}</small></div>}
     </section>}
   </div>;
 }
-
